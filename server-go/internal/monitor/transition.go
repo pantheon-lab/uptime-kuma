@@ -9,6 +9,9 @@ type Result struct {
 	OK   bool
 	Ping *float64
 	Msg  string
+	// Pending reports PENDING directly, without using up a retry. Groups use it when they
+	// are empty or a child is pending.
+	Pending bool
 }
 
 // Previous is what the next beat needs from the last one. A nil *Previous means
@@ -35,6 +38,11 @@ func (m *Monitor) Next(prev *Previous, result Result) Outcome {
 	}
 
 	out := Outcome{Ping: result.Ping, Msg: sanitizeMsg(result.Msg)}
+	if result.Pending {
+		out.Status = StatusPending
+		out.Important = prev == nil || IsImportant(prev.Status, out.Status)
+		return out
+	}
 	failed := !result.OK
 
 	if m.UpsideDown {

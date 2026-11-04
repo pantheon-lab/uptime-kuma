@@ -145,3 +145,28 @@ func TestSanitizeMsg(t *testing.T) {
 		t.Errorf("truncation produced %d bytes, valid=%v", len(long), utf8.ValidString(long))
 	}
 }
+
+func TestValidateGroupAndParent(t *testing.T) {
+	group := New()
+	group.Name, group.Type = "Group", TypeGroup
+	if err := group.Validate(); err != nil {
+		t.Errorf("group: %v", err)
+	}
+	zero := int32(0)
+	m := valid()
+	m.ParentID = &zero
+	if err := m.Validate(); err == nil {
+		t.Error("parentId 0 should fail")
+	}
+}
+
+func TestPendingResultUsesNoRetry(t *testing.T) {
+	m := Monitor{Type: TypeGroup, MaxRetries: 3}
+	out := m.Next(&Previous{Status: StatusUp, Retries: 2}, Result{Pending: true, Msg: "Group empty"})
+	if out.Status != StatusPending || out.Retries != 0 || out.Important {
+		t.Errorf("got %+v", out)
+	}
+	if first := m.Next(nil, Result{Pending: true}); !first.Important {
+		t.Error("the first beat is always important")
+	}
+}

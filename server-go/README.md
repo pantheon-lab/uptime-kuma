@@ -1,8 +1,9 @@
 # kuma-analytics
 
-The Go rewrite of the Uptime Kuma backend, in progress. It runs HTTP, keyword and TCP
-checks, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
-percentiles and dashboard stats over REST, plus new beats over Server-Sent Events.
+The Go rewrite of the Uptime Kuma backend, in progress. It runs HTTP, keyword, TCP and
+group monitors, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
+percentiles and dashboard stats over REST, plus new beats over Server-Sent Events. It exports
+traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
 **Status:** it runs on its own, next to the Node.js backend, and doesn't share data
 with it. There's no way to import existing monitors yet, and these still exist only in
@@ -14,6 +15,8 @@ TLS certificate tracking, HTTP authentication options, proxies and every other m
 ```bash
 export ANALYTICS_API_TOKEN="$(openssl rand -hex 32)"
 export POSTGRES_PASSWORD="$(openssl rand -hex 32)"
+export GRAFANA_ADMIN_PASSWORD="$(openssl rand -hex 18)"
+export GRAFANA_DB_PASSWORD="$(openssl rand -hex 32)"
 docker compose up --build
 ```
 
@@ -24,6 +27,9 @@ docker compose up --build
 | `LISTEN_ADDR` | `127.0.0.1:3002` | Address to listen on |
 | `RETENTION_DAYS` | `365` | Raw beat retention, `0` keeps them forever. Aggregates are kept regardless |
 | `CHECK_CONCURRENCY` | `2000` | Maximum checks running at once |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | not set | OTLP gRPC endpoint. Without it nothing is exported. Other standard `OTEL_*` variables apply too |
+| `KUMA_TRACE_SUCCESS_RATIO` | `0.01` | Share of successful traces to export. Failures are always exported |
+| `GRAFANA_DB_PASSWORD` | not set | Creates or updates the read-only `kuma_grafana` database role |
 
 Run a single instance: there's no coordination between schedulers, so two instances
 would both run every check.
@@ -55,6 +61,9 @@ A beat looks like this. Status is 0 down, 1 up, 2 pending or 3 maintenance:
  "msg": "200 - OK", "important": false, "duration": 60, "retries": 0}
 ```
 
+A failed beat, meaning DOWN or PENDING, also has a `traceId`. Successful beats don't, because
+most of their traces aren't kept.
+
 A monitor needs a name and a type. These are the defaults for everything else:
 
 ```json
@@ -63,6 +72,10 @@ A monitor needs a name and a type. These are the defaults for everything else:
  "method": "GET", "headers": {}, "body": "", "bodyEncoding": "json",
  "acceptedStatusCodes": ["200-299"], "maxRedirects": 10, "ignoreTls": false}
 ```
+
+Set `parentId` to put a monitor in a group, and `propagateTrace` to send a W3C `traceparent`
+header to the target. `group` monitors need no other fields: a group is down if any direct
+child is down, and pending if it's empty or a child is pending. Paused children don't count.
 
 `keyword` monitors also take `keyword` and `invertKeyword`. `port` monitors take
 `hostname` and `port` instead of the HTTP fields. Times are in seconds, a `timeout` of
@@ -73,6 +86,28 @@ Beats reach the database in batches, about once a second.
 Beats are unique per monitor and time, so a retry can't double count them.
 Uptime is `up / (up + down)`, where pending counts as down and maintenance is excluded,
 matching the Node.js backend.
+
+## Observability
+
+Grafana is at http://localhost:3003. Log in as `admin` with `GRAFANA_ADMIN_PASSWORD`. Set
+`GRAFANA_BIND=0.0.0.0` to open it from other machines. Everything is provisioned from
+`observability/`, so change dashboards there rather than in the UI.
+
+| Dashboard | Shows | Source |
+|---|---|---|
+| Uptime by group | Group and monitor uptime, response time, failed checks | TimescaleDB |
+| Monitor failures | Recent failures, with links from each trace ID to Tempo | TimescaleDB, Tempo |
+| Service health | Checks, durations, scheduler lag, beat queue, API, SSE, memory | Prometheus |
+
+Group uptime is the share of successful checks, `up / (up + down)`, across every monitor in
+the group, including nested groups. Pending counts as failed, and maintenance doesn't count.
+Monitors with short intervals therefore count for more. A monitor in a nested group counts
+towards each group above it, and groups' own status beats don't count.
+
+Every trace is recorded, and the service decides which to export when each one ends: all
+failures, and a sample of the rest. That way a trace ID on a failed beat always has a trace,
+as long as the backend has kept it (30 days here). Spans never contain URLs, query strings,
+headers or request bodies, and the `kuma_grafana` database role can't read those columns.
 
 ## Test
 

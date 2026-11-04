@@ -40,7 +40,7 @@ func (s *Server) createMonitor(w http.ResponseWriter, r *http.Request) {
 	}
 	created, err := s.store.CreateMonitor(r.Context(), m)
 	if err != nil {
-		s.serverError(w, "create monitor", err)
+		s.monitorError(w, "create monitor", err)
 		return
 	}
 	s.scheduler.Upsert(created)
@@ -86,6 +86,10 @@ func (s *Server) deleteMonitor(w http.ResponseWriter, r *http.Request) {
 func (s *Server) monitorError(w http.ResponseWriter, operation string, err error) {
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "monitor not found")
+		return
+	}
+	if errors.Is(err, store.ErrInvalidParent) {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	s.serverError(w, operation, err)

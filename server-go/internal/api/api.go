@@ -9,9 +9,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
@@ -28,6 +31,8 @@ const (
 	queryTimeout       = 30 * time.Second
 	streamKeepAlive    = 25 * time.Second
 )
+
+var traceIDFormat = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 // Store is the persistence the API depends on.
 type Store interface {
@@ -68,18 +73,22 @@ func New(s Store, scheduler Scheduler, hub *Hub, token string, log *slog.Logger)
 // Handler returns the routes.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	handle := func(pattern string, handler http.Handler) {
+		mux.Handle(pattern, otelhttp.NewHandler(handler, pattern))
+	}
+	// Not traced: a health check is noise, and a stream's span would last for hours.
 	mux.HandleFunc("GET /healthz", s.health)
-	mux.Handle("POST /api/v1/beats", s.auth(s.postBeats))
-	mux.Handle("GET /api/v1/monitors", s.auth(s.listMonitors))
-	mux.Handle("POST /api/v1/monitors", s.auth(s.createMonitor))
-	mux.Handle("GET /api/v1/monitors/{id}", s.auth(s.getMonitor))
-	mux.Handle("PUT /api/v1/monitors/{id}", s.auth(s.updateMonitor))
-	mux.Handle("DELETE /api/v1/monitors/{id}", s.auth(s.deleteMonitor))
-	mux.Handle("GET /api/v1/monitors/{id}/beats", s.auth(s.getBeats))
-	mux.Handle("GET /api/v1/monitors/{id}/chart", s.auth(s.getChart))
-	mux.Handle("GET /api/v1/monitors/{id}/percentiles", s.auth(s.getPercentiles))
-	mux.Handle("GET /api/v1/stats", s.auth(s.getStats))
 	mux.Handle("GET /api/v1/events", s.auth(s.stream))
+	handle("POST /api/v1/beats", s.auth(s.postBeats))
+	handle("GET /api/v1/monitors", s.auth(s.listMonitors))
+	handle("POST /api/v1/monitors", s.auth(s.createMonitor))
+	handle("GET /api/v1/monitors/{id}", s.auth(s.getMonitor))
+	handle("PUT /api/v1/monitors/{id}", s.auth(s.updateMonitor))
+	handle("DELETE /api/v1/monitors/{id}", s.auth(s.deleteMonitor))
+	handle("GET /api/v1/monitors/{id}/beats", s.auth(s.getBeats))
+	handle("GET /api/v1/monitors/{id}/chart", s.auth(s.getChart))
+	handle("GET /api/v1/monitors/{id}/percentiles", s.auth(s.getPercentiles))
+	handle("GET /api/v1/stats", s.auth(s.getStats))
 	return mux
 }
 
@@ -158,6 +167,8 @@ func validateBeats(beats []store.Beat, now time.Time) error {
 			return fmt.Errorf("beat %d: msg is longer than %d bytes", i, maxMsgBytes)
 		case strings.ContainsRune(b.Msg, 0):
 			return fmt.Errorf("beat %d: msg must not contain NUL", i)
+		case b.TraceID != "" && !traceIDFormat.MatchString(b.TraceID):
+			return fmt.Errorf("beat %d: traceId must be 32 lowercase hexadecimal characters", i)
 		}
 		b.Time = b.Time.UTC().Truncate(time.Microsecond)
 	}

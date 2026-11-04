@@ -19,6 +19,7 @@ const (
 	TypeHTTP    = "http"
 	TypeKeyword = "keyword"
 	TypePort    = "port"
+	TypeGroup   = "group"
 )
 
 // Beat statuses, using the Node.js backend's values.
@@ -54,6 +55,8 @@ type Monitor struct {
 	Timeout       float64 `json:"timeout"`
 	MaxRetries    int32   `json:"maxRetries"`
 	UpsideDown    bool    `json:"upsideDown"`
+	// ParentID is the group that this monitor belongs to, if any.
+	ParentID *int32 `json:"parentId"`
 
 	URL                 string            `json:"url"`
 	Method              string            `json:"method"`
@@ -68,6 +71,10 @@ type Monitor struct {
 
 	Hostname string `json:"hostname"`
 	Port     int32  `json:"port"`
+
+	// PropagateTrace sends a W3C traceparent header to the target, so that the target's
+	// traces join this one. It's off by default, to not share trace ids with third parties.
+	PropagateTrace bool `json:"propagateTrace"`
 }
 
 // New returns a monitor with the Node.js backend's defaults, for decoding input into.
@@ -99,7 +106,13 @@ func (m *Monitor) Validate() error {
 		return fmt.Errorf("maxRetries must be from 0 to %d", maxRetries)
 	}
 
+	if m.ParentID != nil && *m.ParentID <= 0 {
+		return errors.New("parentId must be a positive integer")
+	}
+
 	switch m.Type {
+	case TypeGroup:
+		return nil
 	case TypeHTTP:
 		return m.validateHTTP()
 	case TypeKeyword:
@@ -116,7 +129,7 @@ func (m *Monitor) Validate() error {
 		}
 		return nil
 	default:
-		return fmt.Errorf("type must be one of %s, %s or %s", TypeHTTP, TypeKeyword, TypePort)
+		return fmt.Errorf("type must be one of %s, %s, %s or %s", TypeHTTP, TypeKeyword, TypePort, TypeGroup)
 	}
 }
 

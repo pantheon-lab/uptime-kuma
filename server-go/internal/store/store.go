@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -21,6 +22,8 @@ type Beat struct {
 	Important bool      `json:"important"`
 	Duration  int32     `json:"duration"`
 	Retries   int32     `json:"retries"`
+	// TraceID is set on failed beats, and links to the check's trace.
+	TraceID string `json:"traceId,omitempty"`
 }
 
 // ChartPoint is one aggregated chart bucket.
@@ -51,13 +54,23 @@ type Store struct {
 
 // Open connects to the database. Call Migrate before serving traffic.
 func Open(ctx context.Context, databaseURL string) (*Store, error) {
-	pool, err := pgxpool.New(ctx, databaseURL)
+	config, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse database URL: %w", err)
+	}
+	// Query parameters stay off the spans, which only get the SQL text.
+	config.ConnConfig.Tracer = otelpgx.NewTracer()
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("create pool: %w", err)
 	}
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("connect: %w", err)
+	}
+	if err := otelpgx.RecordStats(pool); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("record pool stats: %w", err)
 	}
 	return &Store{pool: pool}, nil
 }
@@ -77,20 +90,22 @@ func (s *Store) InsertBeats(ctx context.Context, beats []Beat) ([]Beat, error) {
 	n := len(beats)
 	ids, times, statuses := make([]int32, n), make([]time.Time, n), make([]int16, n)
 	pings, msgs, important := make([]*float64, n), make([]string, n), make([]bool, n)
-	durations, retries := make([]int32, n), make([]int32, n)
+	durations, retries, traceIDs := make([]int32, n), make([]int32, n), make([]string, n)
 	for i, b := range beats {
 		ids[i], times[i], statuses[i] = b.MonitorID, b.Time, b.Status
 		pings[i], msgs[i], important[i] = b.Ping, b.Msg, b.Important
-		durations[i], retries[i] = b.Duration, b.Retries
+		durations[i], retries[i], traceIDs[i] = b.Duration, b.Retries, b.TraceID
 	}
 
 	rows, err := s.pool.Query(ctx, `
-		INSERT INTO heartbeat (monitor_id, time, status, ping, msg, important, duration, retries)
-		SELECT * FROM unnest($1::int[], $2::timestamptz[], $3::smallint[], $4::float8[],
-		                     $5::text[], $6::bool[], $7::int[], $8::int[])
+		INSERT INTO heartbeat (monitor_id, time, status, ping, msg, important, duration, retries, trace_id)
+		SELECT b.m, b.t, b.s, b.p, b.msg, b.i, b.d, b.r, NULLIF(b.tr, '')
+		FROM unnest($1::int[], $2::timestamptz[], $3::smallint[], $4::float8[],
+		            $5::text[], $6::bool[], $7::int[], $8::int[], $9::text[])
+		     AS b(m, t, s, p, msg, i, d, r, tr)
 		ON CONFLICT (monitor_id, time) DO NOTHING
-		RETURNING monitor_id, time, status, ping, msg, important, duration, retries`,
-		ids, times, statuses, pings, msgs, important, durations, retries)
+		RETURNING monitor_id, time, status, ping, msg, important, duration, retries, COALESCE(trace_id, '')`,
+		ids, times, statuses, pings, msgs, important, durations, retries, traceIDs)
 	if err != nil {
 		return nil, fmt.Errorf("insert beats: %w", err)
 	}
@@ -100,7 +115,7 @@ func (s *Store) InsertBeats(ctx context.Context, beats []Beat) ([]Beat, error) {
 // LatestBeats returns the newest beats of a monitor, newest first.
 func (s *Store) LatestBeats(ctx context.Context, monitorID int32, limit int) ([]Beat, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT monitor_id, time, status, ping, msg, important, duration, retries
+		SELECT monitor_id, time, status, ping, msg, important, duration, retries, COALESCE(trace_id, '')
 		FROM heartbeat WHERE monitor_id = $1 ORDER BY time DESC LIMIT $2`, monitorID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query beats: %w", err)
@@ -111,7 +126,7 @@ func (s *Store) LatestBeats(ctx context.Context, monitorID int32, limit int) ([]
 func collectBeats(rows pgx.Rows) ([]Beat, error) {
 	beats, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (Beat, error) {
 		var b Beat
-		err := r.Scan(&b.MonitorID, &b.Time, &b.Status, &b.Ping, &b.Msg, &b.Important, &b.Duration, &b.Retries)
+		err := r.Scan(&b.MonitorID, &b.Time, &b.Status, &b.Ping, &b.Msg, &b.Important, &b.Duration, &b.Retries, &b.TraceID)
 		return b, err
 	})
 	if err != nil {

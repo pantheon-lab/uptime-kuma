@@ -17,6 +17,7 @@ import (
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/scheduler"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/telemetry"
 )
 
 const minTokenLength = 32
@@ -63,6 +64,18 @@ func run(log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	shutdownTelemetry, err := telemetry.Setup(ctx, log)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTelemetry(flushCtx); err != nil {
+			log.Warn("flush telemetry", "error", err)
+		}
+	}()
+
 	db, err := store.Open(ctx, databaseURL)
 	if err != nil {
 		return err
@@ -73,6 +86,11 @@ func run(log *slog.Logger) error {
 	}
 	if err := db.SetRetention(ctx, retentionDays); err != nil {
 		return err
+	}
+	if password := os.Getenv("GRAFANA_DB_PASSWORD"); password != "" {
+		if err := db.EnsureReadOnlyRole(ctx, "kuma_grafana", password); err != nil {
+			return err
+		}
 	}
 
 	monitors, err := db.ListMonitors(ctx)
@@ -87,7 +105,7 @@ func run(log *slog.Logger) error {
 	hub := api.NewHub()
 	writer := scheduler.NewWriter(db, hub.Publish, log)
 	go writer.Run()
-	checker := check.New()
+	checker := check.New(db)
 	defer checker.Close()
 	sched := scheduler.New(checker, writer, concurrency, log)
 	sched.Start(monitors, previous)

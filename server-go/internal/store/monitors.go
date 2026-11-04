@@ -8,15 +8,20 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 )
 
-// ErrNotFound means that the monitor doesn't exist.
-var ErrNotFound = errors.New("not found")
+var (
+	// ErrNotFound means that the monitor doesn't exist.
+	ErrNotFound = errors.New("not found")
+	// ErrInvalidParent means that a monitor can't go in the requested group.
+	ErrInvalidParent = errors.New("invalid parent")
+)
 
 const monitorColumns = `id, name, type, active, interval_seconds, retry_interval_seconds, timeout_seconds,
 	max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
-	max_redirects, ignore_tls, keyword, invert_keyword, hostname, port`
+	max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace`
 
 // aggregateRefreshTimeout allows for rebuilding every bucket a deleted monitor touched.
 const aggregateRefreshTimeout = 5 * time.Minute
@@ -25,7 +30,7 @@ func scanMonitor(row pgx.Row) (monitor.Monitor, error) {
 	var m monitor.Monitor
 	err := row.Scan(&m.ID, &m.Name, &m.Type, &m.Active, &m.Interval, &m.RetryInterval, &m.Timeout,
 		&m.MaxRetries, &m.UpsideDown, &m.URL, &m.Method, &m.Headers, &m.Body, &m.BodyEncoding, &m.AcceptedStatusCodes,
-		&m.MaxRedirects, &m.IgnoreTLS, &m.Keyword, &m.InvertKeyword, &m.Hostname, &m.Port)
+		&m.MaxRedirects, &m.IgnoreTLS, &m.Keyword, &m.InvertKeyword, &m.Hostname, &m.Port, &m.ParentID, &m.PropagateTrace)
 	return m, err
 }
 
@@ -48,33 +53,137 @@ func (s *Store) GetMonitor(ctx context.Context, id int32) (monitor.Monitor, erro
 	return m, monitorResult(err)
 }
 
-// CreateMonitor stores a new monitor and returns it with its id.
-func (s *Store) CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error) {
-	created, err := scanMonitor(s.pool.QueryRow(ctx, `
-		INSERT INTO monitor (name, type, active, interval_seconds, retry_interval_seconds, timeout_seconds,
-			max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
-			max_redirects, ignore_tls, keyword, invert_keyword, hostname, port)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-		RETURNING `+monitorColumns,
-		m.Name, m.Type, m.Active, m.Interval, m.RetryInterval, m.Timeout,
-		m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers, m.Body, m.BodyEncoding, m.AcceptedStatusCodes,
-		m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port))
-	return created, monitorResult(err)
+// groupTreeLock serializes changes to the group tree, so that two concurrent moves can't
+// create a cycle that each alone wouldn't.
+const groupTreeLock = 7236002
+
+// validateParent checks that a monitor can go in its group. It runs inside the
+// transaction that holds groupTreeLock.
+func validateParent(ctx context.Context, tx pgx.Tx, m monitor.Monitor) error {
+	if m.ParentID == nil {
+		return nil
+	}
+	var parentType string
+	err := tx.QueryRow(ctx, `SELECT type FROM monitor WHERE id = $1`, *m.ParentID).Scan(&parentType)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && parentType != monitor.TypeGroup) {
+		return fmt.Errorf("%w: parentId must be an existing group", ErrInvalidParent)
+	}
+	if err != nil {
+		return fmt.Errorf("read parent: %w", err)
+	}
+	if m.ID == 0 {
+		return nil
+	}
+	var cycle bool
+	err = tx.QueryRow(ctx, `
+		WITH RECURSIVE ancestors (id) AS (
+			SELECT $1::int
+			UNION
+			SELECT monitor.parent_id FROM monitor JOIN ancestors ON monitor.id = ancestors.id
+			WHERE monitor.parent_id IS NOT NULL
+		)
+		SELECT EXISTS (SELECT 1 FROM ancestors WHERE id = $2)`, *m.ParentID, m.ID).Scan(&cycle)
+	if err != nil {
+		return fmt.Errorf("check for a cycle: %w", err)
+	}
+	if cycle {
+		return fmt.Errorf("%w: a group can't be inside itself", ErrInvalidParent)
+	}
+	return nil
 }
 
-// UpdateMonitor replaces a monitor's configuration or returns ErrNotFound.
+// inTreeTransaction runs fn in a transaction that holds groupTreeLock.
+func (s *Store) inTreeTransaction(ctx context.Context, fn func(pgx.Tx) (monitor.Monitor, error)) (monitor.Monitor, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return monitor.Monitor{}, fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, int64(groupTreeLock)); err != nil {
+		return monitor.Monitor{}, fmt.Errorf("lock group tree: %w", err)
+	}
+	result, err := fn(tx)
+	if err != nil {
+		return monitor.Monitor{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return monitor.Monitor{}, fmt.Errorf("commit: %w", err)
+	}
+	return result, nil
+}
+
+// CreateMonitor stores a new monitor and returns it with its id.
+func (s *Store) CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error) {
+	m.ID = 0
+	return s.inTreeTransaction(ctx, func(tx pgx.Tx) (monitor.Monitor, error) {
+		if err := validateParent(ctx, tx, m); err != nil {
+			return m, err
+		}
+		created, err := scanMonitor(tx.QueryRow(ctx, `
+			INSERT INTO monitor (name, type, active, interval_seconds, retry_interval_seconds, timeout_seconds,
+				max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
+				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+			RETURNING `+monitorColumns,
+			m.Name, m.Type, m.Active, m.Interval, m.RetryInterval, m.Timeout,
+			m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers, m.Body, m.BodyEncoding, m.AcceptedStatusCodes,
+			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace))
+		return created, monitorResult(err)
+	})
+}
+
+// UpdateMonitor replaces a monitor's configuration or returns ErrNotFound. A group that
+// becomes another type releases its children, the same as the Node.js backend.
 func (s *Store) UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error) {
-	updated, err := scanMonitor(s.pool.QueryRow(ctx, `
-		UPDATE monitor SET name = $2, type = $3, active = $4, interval_seconds = $5, retry_interval_seconds = $6,
-			timeout_seconds = $7, max_retries = $8, upside_down = $9, url = $10, method = $11, headers = $12,
-			body = $13, body_encoding = $14, accepted_status_codes = $15, max_redirects = $16, ignore_tls = $17,
-			keyword = $18, invert_keyword = $19, hostname = $20, port = $21, updated_at = now()
-		WHERE id = $1
-		RETURNING `+monitorColumns,
-		m.ID, m.Name, m.Type, m.Active, m.Interval, m.RetryInterval, m.Timeout,
-		m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers, m.Body, m.BodyEncoding, m.AcceptedStatusCodes,
-		m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port))
-	return updated, monitorResult(err)
+	return s.inTreeTransaction(ctx, func(tx pgx.Tx) (monitor.Monitor, error) {
+		if err := validateParent(ctx, tx, m); err != nil {
+			return m, err
+		}
+		updated, err := scanMonitor(tx.QueryRow(ctx, `
+			UPDATE monitor SET name = $2, type = $3, active = $4, interval_seconds = $5, retry_interval_seconds = $6,
+				timeout_seconds = $7, max_retries = $8, upside_down = $9, url = $10, method = $11, headers = $12,
+				body = $13, body_encoding = $14, accepted_status_codes = $15, max_redirects = $16, ignore_tls = $17,
+				keyword = $18, invert_keyword = $19, hostname = $20, port = $21, parent_id = $22, propagate_trace = $23,
+				updated_at = now()
+			WHERE id = $1
+			RETURNING `+monitorColumns,
+			m.ID, m.Name, m.Type, m.Active, m.Interval, m.RetryInterval, m.Timeout,
+			m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers, m.Body, m.BodyEncoding, m.AcceptedStatusCodes,
+			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace))
+		if err := monitorResult(err); err != nil {
+			return m, err
+		}
+		if updated.Type != monitor.TypeGroup {
+			if _, err := tx.Exec(ctx, `UPDATE monitor SET parent_id = NULL WHERE parent_id = $1`, updated.ID); err != nil {
+				return m, fmt.Errorf("release children: %w", err)
+			}
+		}
+		return updated, nil
+	})
+}
+
+// GroupChildren implements check.GroupReader.
+func (s *Store) GroupChildren(ctx context.Context, groupID int32) ([]check.Child, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT m.name, m.active, l.status
+		FROM monitor m
+		LEFT JOIN LATERAL (
+			SELECT status FROM heartbeat h WHERE h.monitor_id = m.id ORDER BY h.time DESC LIMIT 1
+		) l ON true
+		WHERE m.parent_id = $1
+		ORDER BY m.id`, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("query group children: %w", err)
+	}
+	children, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (check.Child, error) {
+		var c check.Child
+		err := r.Scan(&c.Name, &c.Active, &c.Status)
+		return c, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read group children: %w", err)
+	}
+	return children, nil
 }
 
 // DeleteMonitor removes a monitor and its beats, then rebuilds the aggregates that

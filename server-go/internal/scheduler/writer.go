@@ -6,7 +6,13 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/telemetry"
 )
 
 const (
@@ -42,7 +48,7 @@ type Writer struct {
 
 // NewWriter creates a Writer. publish receives every newly stored batch.
 func NewWriter(db BeatInserter, publish func([]store.Beat), log *slog.Logger) *Writer {
-	return &Writer{
+	w := &Writer{
 		db:       db,
 		publish:  publish,
 		log:      log,
@@ -51,6 +57,12 @@ func NewWriter(db BeatInserter, publish func([]store.Beat), log *slog.Logger) *W
 		stop:     make(chan struct{}),
 		done:     make(chan struct{}),
 	}
+	telemetry.Metrics().ObserveQueue(func() int64 {
+		w.queueMu.Lock()
+		defer w.queueMu.Unlock()
+		return int64(len(w.queue))
+	})
+	return w
 }
 
 // Add queues one beat and never blocks on the database.
@@ -102,13 +114,21 @@ func (w *Writer) Flush(ctx context.Context) error {
 	w.queue = nil
 	if w.dropped > 0 {
 		w.log.Error("beat queue was full, dropped the oldest beats", "dropped", w.dropped)
+		telemetry.Metrics().RecordDroppedBeats(w.dropped)
 		w.dropped = 0
 	}
 	w.queueMu.Unlock()
 
 	for len(pending) > 0 {
 		n := min(flushSize, len(pending))
-		inserted, err := w.db.InsertBeats(ctx, pending[:n])
+		spanCtx, span := otel.Tracer(tracerName).Start(ctx, "beats.flush", trace.WithAttributes(attribute.Int("beats.count", n)))
+		start := time.Now()
+		inserted, err := w.db.InsertBeats(spanCtx, pending[:n])
+		telemetry.Metrics().RecordFlush(time.Since(start).Seconds(), n)
+		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
 		if err != nil {
 			w.requeue(pending)
 			return err

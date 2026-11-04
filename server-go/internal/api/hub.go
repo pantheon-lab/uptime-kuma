@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/telemetry"
 )
 
 // subscriberBuffer is how many beats a stream can lag behind. It holds about a
@@ -20,7 +21,13 @@ type Hub struct {
 
 // NewHub creates an empty hub.
 func NewHub() *Hub {
-	return &Hub{subs: make(map[chan store.Beat]struct{})}
+	h := &Hub{subs: make(map[chan store.Beat]struct{})}
+	telemetry.Metrics().ObserveStreams(func() int64 {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		return int64(len(h.subs))
+	})
+	return h
 }
 
 // Subscribe registers a stream. The channel closes when the subscriber is
@@ -56,6 +63,7 @@ func (h *Hub) Publish(beats []store.Beat) {
 			default:
 				delete(h.subs, ch)
 				close(ch)
+				telemetry.Metrics().RecordDroppedStream()
 				break deliver
 			}
 		}

@@ -19,12 +19,17 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/api"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/scheduler"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/telemetry"
 )
 
 const token = "0123456789abcdef0123456789abcdef"
@@ -57,7 +62,7 @@ func start(t *testing.T, databaseURL string) *app {
 	hub := api.NewHub()
 	writer := scheduler.NewWriter(db, hub.Publish, log)
 	go writer.Run()
-	checker := check.New()
+	checker := check.New(db)
 	sched := scheduler.New(checker, writer, 100, log)
 	sched.Start(monitors, previous)
 	ts := httptest.NewServer(api.New(db, sched, hub, token, log).Handler())
@@ -383,4 +388,110 @@ func firstWith(beats []store.Beat, status int16) *store.Beat {
 		}
 	}
 	return nil
+}
+
+func TestFailedBeatLinksToAnExportedTrace(t *testing.T) {
+	exporter := tracetest.NewInMemoryExporter()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// Ratio 0: only failures may be exported.
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(
+		telemetry.NewOutcomeProcessor(sdktrace.NewSimpleSpanProcessor(exporter), 0, log)))
+	previous := otel.GetTracerProvider()
+	otel.SetTracerProvider(tp)
+	t.Cleanup(func() {
+		otel.SetTracerProvider(previous)
+		_ = tp.Shutdown(context.Background())
+	})
+
+	var healthy atomic.Bool
+	healthy.Store(true)
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if !healthy.Load() {
+			w.WriteHeader(http.StatusBadGateway)
+		}
+	}))
+	defer target.Close()
+
+	a := start(t, newDatabase(t))
+	var grp, m monitor.Monitor
+	a.call(t, "POST", "/api/v1/monitors", map[string]any{"name": "Team", "type": "group", "interval": 1}, http.StatusCreated, &grp)
+	a.call(t, "POST", "/api/v1/monitors", map[string]any{
+		"name": "site", "type": "http", "url": target.URL, "interval": 1, "parentId": grp.ID,
+	}, http.StatusCreated, &m)
+	path := fmt.Sprintf("/api/v1/monitors/%d/beats?limit=100", m.ID)
+
+	beats := func() []store.Beat {
+		var out []store.Beat
+		a.call(t, "GET", path, nil, http.StatusOK, &out)
+		return out
+	}
+	waitFor(t, "an UP beat", func() bool { return len(beats()) > 0 })
+	if got := beats()[0]; got.Status != monitor.StatusUp || got.TraceID != "" {
+		t.Errorf("an UP beat should have no trace id: %+v", got)
+	}
+	if spans := exporter.GetSpans(); len(spans) != 0 {
+		// The group's beat can be pending or up, and pending counts as a failure.
+		for _, span := range spans {
+			for _, attr := range span.Attributes {
+				if attr.Key == "monitor.name" && attr.Value.AsString() == "site" {
+					t.Errorf("a successful check was exported at ratio 0: %+v", span.Name)
+				}
+			}
+		}
+	}
+
+	healthy.Store(false)
+	var failed store.Beat
+	waitFor(t, "a DOWN beat", func() bool {
+		failed = beats()[0]
+		return failed.Status == monitor.StatusDown
+	})
+	if len(failed.TraceID) != 32 {
+		t.Fatalf("failed beat has trace id %q", failed.TraceID)
+	}
+
+	if err := tp.ForceFlush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var root *tracetest.SpanStub
+	names := map[string]bool{}
+	spans := exporter.GetSpans()
+	for i := range spans {
+		if spans[i].SpanContext.TraceID().String() == failed.TraceID {
+			names[spans[i].Name] = true
+			if spans[i].Name == "monitor.check" {
+				root = &spans[i]
+			}
+		}
+	}
+	if root == nil {
+		t.Fatalf("trace %s wasn't exported, got %v", failed.TraceID, names)
+	}
+	if root.Status.Code != codes.Error || root.Status.Description != "Request failed with status code 502" {
+		t.Errorf("root status: %+v", root.Status)
+	}
+	if len(names) < 2 {
+		t.Errorf("expected child spans, got %v", names)
+	}
+	attrs := map[string]string{}
+	for _, attr := range root.Attributes {
+		attrs[string(attr.Key)] = attr.Value.String()
+	}
+	if attrs["monitor.name"] != "site" || attrs["monitor.group"] != "Team" || attrs["http.response.status_code"] != "502" {
+		t.Errorf("attributes: %+v", attrs)
+	}
+
+	// The group goes down because of its child, with its own trace.
+	var groupBeats []store.Beat
+	waitFor(t, "the group to go down", func() bool {
+		a.call(t, "GET", fmt.Sprintf("/api/v1/monitors/%d/beats?limit=1", grp.ID), nil, http.StatusOK, &groupBeats)
+		return len(groupBeats) > 0 && groupBeats[0].Status == monitor.StatusDown
+	})
+	if groupBeats[0].Msg != "Child monitors down: site" || groupBeats[0].TraceID == "" {
+		t.Errorf("group beat: %+v", groupBeats[0])
+	}
+
+	a.call(t, "POST", "/api/v1/monitors", map[string]any{
+		"name": "x", "type": "port", "hostname": "a", "port": 1, "parentId": m.ID,
+	}, http.StatusBadRequest, nil)
 }
