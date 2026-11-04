@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
@@ -24,7 +25,13 @@ const monitorColumns = `id, name, type, active, interval_seconds, retry_interval
 	max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace`
 
 // aggregateRefreshTimeout allows for rebuilding every bucket a deleted monitor touched.
-const aggregateRefreshTimeout = 5 * time.Minute
+const (
+	aggregateRefreshTimeout = 5 * time.Minute
+	refreshRetryMin         = 100 * time.Millisecond
+	refreshRetryMax         = 2 * time.Second
+	// pgLockNotAvailable is what TimescaleDB returns for a concurrent refresh.
+	pgLockNotAvailable = "55P03"
+)
 
 func scanMonitor(row pgx.Row) (monitor.Monitor, error) {
 	var m monitor.Monitor
@@ -247,12 +254,41 @@ func (s *Store) DeleteMonitor(ctx context.Context, id int32) error {
 
 	refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), aggregateRefreshTimeout)
 	defer cancel()
+	return s.RefreshAggregates(refreshCtx)
+}
+
+// RefreshAggregates rebuilds every aggregate bucket that has changed.
+func (s *Store) RefreshAggregates(ctx context.Context) error {
 	for _, view := range []string{"stat_hourly", "stat_daily"} {
-		if _, err := s.pool.Exec(refreshCtx, `CALL refresh_continuous_aggregate('`+view+`', NULL, NULL)`); err != nil {
+		err := retryConcurrentRefresh(ctx, func() error {
+			_, err := s.pool.Exec(ctx, `CALL refresh_continuous_aggregate('`+view+`', NULL, NULL)`)
+			return err
+		})
+		if err != nil {
 			return fmt.Errorf("refresh %s: %w", view, err)
 		}
 	}
 	return nil
+}
+
+// retryConcurrentRefresh retries while another refresh of the same aggregate is running,
+// such as the scheduled policy, or the refresh from deleting another monitor. TimescaleDB
+// rejects overlapping refreshes rather than waiting for them.
+func retryConcurrentRefresh(ctx context.Context, refresh func() error) error {
+	wait := refreshRetryMin
+	for {
+		err := refresh()
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != pgLockNotAvailable {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(wait):
+		}
+		wait = min(wait*2, refreshRetryMax)
+	}
 }
 
 // LatestStates returns each monitor's last beat state.

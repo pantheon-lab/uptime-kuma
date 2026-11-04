@@ -342,14 +342,16 @@ func TestDeleteRemovesMaterializedAndCompressedHistory(t *testing.T) {
 	}
 	a.call(t, "POST", "/api/v1/beats", old, http.StatusOK, nil)
 
-	for _, statement := range []string{
-		`CALL refresh_continuous_aggregate('stat_hourly', NULL, NULL)`,
-		`CALL refresh_continuous_aggregate('stat_daily', NULL, NULL)`,
-		`SELECT compress_chunk(c) FROM show_chunks('heartbeat', older_than => INTERVAL '1 day') c`,
-	} {
-		if _, err := conn.Exec(ctx, statement); err != nil {
-			t.Fatal(err)
-		}
+	admin, err := store.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close()
+	if err := admin.RefreshAggregates(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(ctx, `SELECT compress_chunk(c) FROM show_chunks('heartbeat', older_than => INTERVAL '1 day') c`); err != nil {
+		t.Fatal(err)
 	}
 
 	var stats []store.MonitorStats

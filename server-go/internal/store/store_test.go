@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 )
@@ -222,10 +223,8 @@ func TestChartAndStatsMatchRawData(t *testing.T) {
 
 	t.Run("real-time, nothing materialized", check)
 
-	for _, view := range []string{"stat_hourly", "stat_daily"} {
-		if _, err := s.pool.Exec(ctx, fmt.Sprintf(`CALL refresh_continuous_aggregate('%s', NULL, NULL)`, view)); err != nil {
-			t.Fatal(err)
-		}
+	if err := s.RefreshAggregates(ctx); err != nil {
+		t.Fatal(err)
 	}
 	t.Run("after materializing", check)
 
@@ -487,5 +486,80 @@ func TestReadOnlyRoleCantSeeSecrets(t *testing.T) {
 		if err == nil {
 			t.Errorf("%s should be denied", denied)
 		}
+	}
+}
+
+func TestRetryConcurrentRefresh(t *testing.T) {
+	concurrent := &pgconn.PgError{Code: pgLockNotAvailable}
+	other := errors.New("other failure")
+
+	attempts := 0
+	err := retryConcurrentRefresh(context.Background(), func() error {
+		attempts++
+		if attempts < 3 {
+			return fmt.Errorf("wrapped: %w", concurrent)
+		}
+		return nil
+	})
+	if err != nil || attempts != 3 {
+		t.Errorf("should retry until it works: %v after %d attempts", err, attempts)
+	}
+
+	attempts = 0
+	err = retryConcurrentRefresh(context.Background(), func() error {
+		attempts++
+		return other
+	})
+	if !errors.Is(err, other) || attempts != 1 {
+		t.Errorf("other errors must not retry: %v after %d attempts", err, attempts)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	err = retryConcurrentRefresh(ctx, func() error { return concurrent })
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		t.Errorf("should give up with the last error when the context ends: %v", err)
+	}
+}
+
+func TestOverlappingDeletesSucceed(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	at := time.Now().UTC().Truncate(time.Hour).Add(-48 * time.Hour)
+	var ids []int32
+	var beats []Beat
+	for i := 0; i < 8; i++ {
+		m, err := s.CreateMonitor(ctx, member(fmt.Sprintf("m%d", i), nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, m.ID)
+		for h := 0; h < 48; h++ {
+			beats = append(beats, Beat{MonitorID: m.ID, Time: at.Add(time.Duration(h) * time.Hour), Status: 1})
+		}
+	}
+	if _, err := s.InsertBeats(ctx, beats); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RefreshAggregates(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	errs := make(chan error, len(ids))
+	for _, id := range ids {
+		go func() { errs <- s.DeleteMonitor(ctx, id) }()
+	}
+	for range ids {
+		if err := <-errs; err != nil {
+			t.Errorf("overlapping delete: %v", err)
+		}
+	}
+	stats, err := s.Stats(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 0 {
+		t.Errorf("stats still report deleted monitors: %+v", stats)
 	}
 }
