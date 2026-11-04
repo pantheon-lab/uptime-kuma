@@ -96,13 +96,6 @@ export default {
                 this.ready = true;
             }
         });
-
-        // Check if /setup-database-info is available, if so, redirect to it
-        const res = await fetch(baseURL + "/setup-database-info");
-        const data = await res.json();
-        if (res.ok && data.needSetup) {
-            this.$router.push("/setup-database");
-        }
     },
     methods: {
         /**

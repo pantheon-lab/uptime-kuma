@@ -59,13 +59,16 @@ test("API Keys", async (t) => {
      */
     async function createLegacyAPIKey(data) {
         const clear = data.clear || "legacyClear";
-        const [id] = await R.knex("api_key").insert({
-            key: await passwordHash.generate(clear),
-            name: data.name,
-            user_id: userID,
-            active: data.active ?? 1,
-            expires: data.expires ?? null,
-        });
+        const [row] = await R.knex("api_key")
+            .insert({
+                key: await passwordHash.generate(clear),
+                name: data.name,
+                user_id: userID,
+                active: data.active ?? 1,
+                expires: data.expires ?? null,
+            })
+            .returning("id");
+        const id = row.id;
 
         return `uk${id}_${clear}`;
     }

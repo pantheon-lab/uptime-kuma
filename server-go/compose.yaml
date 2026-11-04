@@ -5,6 +5,9 @@ services:
     environment:
       POSTGRES_DB: kuma
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    ports:
+      # For the Node.js backend. Use a port that isn't taken on this machine.
+      - "127.0.0.1:${TIMESCALEDB_PORT:-5433}:5432"
     volumes:
       - timescaledb-data:/var/lib/postgresql/data
     healthcheck:

@@ -68,6 +68,7 @@ test.describe("Monitor history settings", () => {
     });
 
     test("shrinks the sqlite database", async ({ page }) => {
+        test.skip(process.env.E2E_DB_TYPE === "postgres", "The button only exists on SQLite");
         await openSettings(page);
 
         await page.getByRole("button", { name: /Shrink Database/ }).click();

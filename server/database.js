@@ -13,6 +13,7 @@ const dayjs = require("dayjs");
 const { SimpleMigrationServer } = require("./utils/simple-migration-server");
 const BetterSqlite3Database = require("better-sqlite3");
 const KumaColumnCompiler = require("./utils/knex/lib/dialects/mysql2/schema/mysql2-columncompiler");
+const { pgTypes, patchKnexPostgres, patchRedbeanPostgres } = require("./utils/redbean-postgres");
 const SqlString = require("sqlstring");
 const { auth } = require("./better-auth");
 
@@ -239,7 +240,9 @@ class Database {
      * @returns {void}
      */
     static writeDBConfig(dbConfig) {
-        fs.writeFileSync(path.join(Database.dataDir, "db-config.json"), JSON.stringify(dbConfig, null, 4));
+        fs.writeFileSync(path.join(Database.dataDir, "db-config.json"), JSON.stringify(dbConfig, null, 4), {
+            mode: 0o600,
+        });
     }
 
     /**
@@ -257,6 +260,8 @@ class Database {
         mysql2.prototype.columnCompiler = function () {
             return new KumaColumnCompiler(this, ...arguments);
         };
+
+        patchKnexPostgres();
 
         const acquireConnectionTimeout = 120 * 1000;
         let dbConfig;
@@ -403,6 +408,26 @@ class Database {
                 },
                 pool: mariadbPoolConfig,
             };
+        } else if (dbConfig.type === "postgres") {
+            const connection = Database.postgresConnectionOptions(dbConfig);
+            await Database.preparePostgres(connection);
+
+            config = {
+                client: "pg",
+                connection: {
+                    ...connection,
+                    types: pgTypes(),
+                },
+                pool: {
+                    min: 0,
+                    max: parsedMaxPoolConnections,
+                    idleTimeoutMillis: 30000,
+                    // Datetime columns have no timezone, and the application writes UTC
+                    afterCreate(conn, done) {
+                        conn.query("SET TIME ZONE 'UTC'", (err) => done(err, conn));
+                    },
+                },
+            };
         } else if (dbConfig.type === "embedded-mariadb") {
             let embeddedMariaDB = EmbeddedMariaDB.getInstance();
             await embeddedMariaDB.start();
@@ -432,6 +457,10 @@ class Database {
 
         R.setup(knexInstance);
 
+        if (dbConfig.type === "postgres") {
+            patchRedbeanPostgres(R);
+        }
+
         if (process.env.SQL_LOG === "1") {
             R.debug(true);
         }
@@ -450,7 +479,7 @@ class Database {
                 log.debug("db", await R.getAll("PRAGMA cache_size"));
                 log.debug("db", "SQLite Version: " + (await R.getCell("SELECT sqlite_version()")));
             }
-        } else if (dbConfig.type.endsWith("mariadb")) {
+        } else if (dbConfig.type.endsWith("mariadb") || dbConfig.type === "postgres") {
             await this.initMariaDB();
         }
 
@@ -549,13 +578,89 @@ class Database {
     }
 
     /**
+     * @param {object} dbConfig The database configuration
+     * @returns {object} node-postgres connection options
+     */
+    static postgresConnectionOptions(dbConfig) {
+        return {
+            host: dbConfig.hostname,
+            port: Number(dbConfig.port),
+            database: dbConfig.dbName,
+            user: dbConfig.username,
+            password: dbConfig.password,
+            ...(dbConfig.ssl
+                ? {
+                      ssl: {
+                          rejectUnauthorized: true,
+                          ...(dbConfig.ca && dbConfig.ca.trim() !== "" ? { ca: dbConfig.ca } : {}),
+                      },
+                  }
+                : {}),
+        };
+    }
+
+    /**
+     * Create the database if needed and enable TimescaleDB in it
+     * @param {object} connection node-postgres connection options
+     * @returns {Promise<void>}
+     */
+    static async preparePostgres(connection) {
+        const { Client } = require("pg");
+
+        const admin = new Client({ ...connection, database: "postgres" });
+        await admin.connect();
+        try {
+            const exists = await admin.query("SELECT 1 FROM pg_database WHERE datname = $1", [connection.database]);
+            if (exists.rowCount === 0) {
+                log.info("db", `Creating database ${connection.database}`);
+                await admin.query("CREATE DATABASE " + Client.prototype.escapeIdentifier(connection.database));
+            }
+        } finally {
+            await admin.end();
+        }
+
+        const client = new Client(connection);
+        await client.connect();
+        try {
+            await client.query("CREATE EXTENSION IF NOT EXISTS timescaledb");
+        } finally {
+            await client.end();
+        }
+    }
+
+    /**
+     * Replace a database with a copy of another one, for e2e test snapshots.
+     * Nothing may be connected to the source.
+     * @param {string} source Database to copy
+     * @param {string} target Database to replace
+     * @returns {Promise<void>}
+     */
+    static async copyPostgresDatabase(source, target) {
+        const { Client } = require("pg");
+        const admin = new Client({ ...Database.postgresConnectionOptions(Database.dbConfig), database: "postgres" });
+        await admin.connect();
+        try {
+            const quote = Client.prototype.escapeIdentifier;
+            await admin.query(`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1`, [source]);
+            await admin.query(`DROP DATABASE IF EXISTS ${quote(target)} WITH (FORCE)`);
+            await admin.query(`CREATE DATABASE ${quote(target)} TEMPLATE ${quote(source)}`);
+        } finally {
+            await admin.end();
+        }
+    }
+
+    /**
      * Create a database connection for better-auth, because better-auth doesn't use knex, so it needs a separate connection.
      * @param {object} dbConfig The database configuration
      * @returns {Pool|BetterSqlite3Database.Database} The database connection
      */
     static createAuthDatabase(dbConfig) {
         let database;
-        if (dbConfig.type === "mariadb") {
+        if (dbConfig.type === "postgres") {
+            const { Pool: PostgresPool } = require("pg");
+            database = new PostgresPool(Database.postgresConnectionOptions(dbConfig));
+            Database.authPostgres = database;
+        } else if (dbConfig.type === "mariadb") {
             database = mysql.createPool({
                 host: dbConfig.hostname,
                 port: Number(dbConfig.port),
@@ -846,6 +951,10 @@ class Database {
                 await Database.authMariaDB.end();
                 Database.authMariaDB = null;
             }
+            if (Database.authPostgres) {
+                await Database.authPostgres.end();
+                Database.authPostgres = null;
+            }
             if (Database.authSQLite) {
                 Database.authSQLite.close();
                 Database.authSQLite = null;
@@ -894,6 +1003,8 @@ class Database {
     static sqlHourOffset() {
         if (Database.dbConfig.type === "sqlite") {
             return "DATETIME('now', ? || ' hours')";
+        } else if (Database.dbConfig.type === "postgres") {
+            return "(NOW() AT TIME ZONE 'UTC' + make_interval(hours => ?::int))";
         } else {
             return "DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? HOUR)";
         }
