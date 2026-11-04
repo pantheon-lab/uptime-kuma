@@ -170,3 +170,26 @@ func TestPendingResultUsesNoRetry(t *testing.T) {
 		t.Error("the first beat is always important")
 	}
 }
+
+func TestRedactedRemovesCredentials(t *testing.T) {
+	m := valid()
+	m.URL = "https://user:urlsecret@example.com/path?token=querysecret#frag"
+	m.Headers = map[string]string{"X-Api-Key": "headersecret"}
+	m.Body = `{"password":"bodysecret"}`
+	r := m.Redacted()
+	dump := r.URL + r.Headers["X-Api-Key"] + r.Body
+	for _, secret := range []string{"urlsecret", "querysecret", "headersecret", "bodysecret"} {
+		if strings.Contains(dump, secret) {
+			t.Errorf("%s survived: %s", secret, dump)
+		}
+	}
+	if !strings.HasPrefix(r.URL, "https://example.com/path") || r.Headers["X-Api-Key"] != "***" {
+		t.Errorf("redacted: %+v", r)
+	}
+	if m.Headers["X-Api-Key"] != "headersecret" {
+		t.Error("Redacted changed the original")
+	}
+	if got := (Monitor{URL: "::not a url"}).Redacted(); got.URL != "***" {
+		t.Errorf("unparsable url: %q", got.URL)
+	}
+}

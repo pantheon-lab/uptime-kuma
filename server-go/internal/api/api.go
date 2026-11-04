@@ -3,7 +3,6 @@ package api
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -42,7 +42,13 @@ type Store interface {
 	Chart(ctx context.Context, monitorID int32, hours int) ([]store.ChartPoint, error)
 	Percentiles(ctx context.Context, monitorID int32, hours int, fractions []float64) ([]*float64, error)
 	Stats(ctx context.Context) ([]store.MonitorStats, error)
-	ListMonitors(ctx context.Context) ([]monitor.Monitor, error)
+	FindMonitors(ctx context.Context, f store.MonitorFilter) ([]monitor.Monitor, int, error)
+	SetMonitorActive(ctx context.Context, id int32, active bool) (monitor.Monitor, error)
+	CreateAPIKey(ctx context.Context, key store.APIKey, hash []byte) (store.APIKey, error)
+	ListAPIKeys(ctx context.Context) ([]store.APIKey, error)
+	RevokeAPIKey(ctx context.Context, id int64) error
+	FindAPIKey(ctx context.Context, hash []byte) (store.APIKey, error)
+	TouchAPIKey(ctx context.Context, id int64) error
 	GetMonitor(ctx context.Context, id int32) (monitor.Monitor, error)
 	CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
 	UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
@@ -63,45 +69,62 @@ type Server struct {
 	token     []byte
 	log       *slog.Logger
 	now       func() time.Time
+	limiter   *keyLimiter
+	lastTouch sync.Map // Key id to the time last_used_at was last written.
+	routes    []string
 }
 
 // New creates the API. Every route except /healthz requires token as a bearer token.
 func New(s Store, scheduler Scheduler, hub *Hub, token string, log *slog.Logger) *Server {
-	return &Server{store: s, scheduler: scheduler, hub: hub, token: []byte(token), log: log, now: time.Now}
+	return &Server{
+		store:     s,
+		scheduler: scheduler,
+		hub:       hub,
+		token:     []byte(token),
+		log:       log,
+		now:       time.Now,
+		limiter:   newKeyLimiter(defaultKeyRate, defaultKeyBurst),
+	}
+}
+
+// SetKeyRateLimit sets the requests per second and burst allowed per API key.
+func (s *Server) SetKeyRateLimit(perSecond float64, burst int) {
+	s.limiter = newKeyLimiter(perSecond, burst)
 }
 
 // Handler returns the routes.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	handle := func(pattern string, handler http.Handler) {
-		mux.Handle(pattern, otelhttp.NewHandler(handler, pattern))
+	s.routes = nil
+	handle := func(pattern, scope string, handler http.HandlerFunc) {
+		s.routes = append(s.routes, pattern)
+		mux.Handle(pattern, otelhttp.NewHandler(s.require(scope, handler), pattern))
 	}
 	// Not traced: a health check is noise, and a stream's span would last for hours.
 	mux.HandleFunc("GET /healthz", s.health)
-	mux.Handle("GET /api/v1/events", s.auth(s.stream))
-	handle("POST /api/v1/beats", s.auth(s.postBeats))
-	handle("GET /api/v1/monitors", s.auth(s.listMonitors))
-	handle("POST /api/v1/monitors", s.auth(s.createMonitor))
-	handle("GET /api/v1/monitors/{id}", s.auth(s.getMonitor))
-	handle("PUT /api/v1/monitors/{id}", s.auth(s.updateMonitor))
-	handle("DELETE /api/v1/monitors/{id}", s.auth(s.deleteMonitor))
-	handle("GET /api/v1/monitors/{id}/beats", s.auth(s.getBeats))
-	handle("GET /api/v1/monitors/{id}/chart", s.auth(s.getChart))
-	handle("GET /api/v1/monitors/{id}/percentiles", s.auth(s.getPercentiles))
-	handle("GET /api/v1/stats", s.auth(s.getStats))
-	return mux
-}
+	mux.HandleFunc("GET /api/v1/openapi.json", s.openAPI)
+	s.routes = append(s.routes, "GET /api/v1/openapi.json")
+	s.routes = append(s.routes, "GET /api/v1/events")
+	mux.Handle("GET /api/v1/events", s.require(ScopeBeatsRead, s.stream))
 
-func (s *Server) auth(next http.HandlerFunc) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		presented, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if !ok || subtle.ConstantTimeCompare([]byte(presented), s.token) != 1 {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			writeError(w, http.StatusUnauthorized, "invalid or missing bearer token")
-			return
-		}
-		next(w, r)
-	})
+	handle("GET /api/v1/monitors", ScopeMonitorsRead, s.listMonitors)
+	handle("POST /api/v1/monitors", ScopeMonitorsWrite, s.createMonitor)
+	handle("GET /api/v1/monitors/{id}", ScopeMonitorsRead, s.getMonitor)
+	handle("PUT /api/v1/monitors/{id}", ScopeMonitorsWrite, s.updateMonitor)
+	handle("PATCH /api/v1/monitors/{id}", ScopeMonitorsWrite, s.patchMonitor)
+	handle("DELETE /api/v1/monitors/{id}", ScopeMonitorsWrite, s.deleteMonitor)
+	handle("POST /api/v1/monitors/{id}/pause", ScopeMonitorsWrite, s.pauseMonitor)
+	handle("POST /api/v1/monitors/{id}/resume", ScopeMonitorsWrite, s.resumeMonitor)
+	handle("GET /api/v1/monitors/{id}/beats", ScopeBeatsRead, s.getBeats)
+	handle("GET /api/v1/monitors/{id}/chart", ScopeBeatsRead, s.getChart)
+	handle("GET /api/v1/monitors/{id}/percentiles", ScopeBeatsRead, s.getPercentiles)
+	handle("GET /api/v1/stats", ScopeBeatsRead, s.getStats)
+	handle("POST /api/v1/beats", ScopeBeatsWrite, s.postBeats)
+
+	handle("GET /api/v1/api-keys", scopeAdmin, s.listAPIKeys)
+	handle("POST /api/v1/api-keys", scopeAdmin, s.createAPIKey)
+	handle("DELETE /api/v1/api-keys/{id}", scopeAdmin, s.revokeAPIKey)
+	return mux
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {

@@ -111,6 +111,20 @@ var migrations = [][]string{
 			JOIN monitor member ON member.id = tree.monitor_id
 			WHERE member.type <> 'group'`,
 	},
+	{
+		// Only a hash is stored. Revoked keys stay, as a record of what existed.
+		`CREATE TABLE IF NOT EXISTS api_key (
+			id bigserial PRIMARY KEY,
+			name text NOT NULL,
+			key_prefix text NOT NULL,
+			key_hash bytea NOT NULL UNIQUE,
+			scopes text[] NOT NULL,
+			created_at timestamptz NOT NULL DEFAULT now(),
+			expires_at timestamptz,
+			revoked_at timestamptz,
+			last_used_at timestamptz
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.

@@ -47,6 +47,41 @@ func (s *Store) ListMonitors(ctx context.Context) ([]monitor.Monitor, error) {
 	return monitors, nil
 }
 
+// MonitorFilter narrows a monitor listing. Zero values don't filter.
+type MonitorFilter struct {
+	Type     string
+	Active   *bool
+	ParentID *int32
+	Limit    int
+	Offset   int
+}
+
+// FindMonitors returns one page of monitors ordered by id, and how many match in total.
+func (s *Store) FindMonitors(ctx context.Context, f MonitorFilter) ([]monitor.Monitor, int, error) {
+	const where = `($1 = '' OR type = $1) AND ($2::boolean IS NULL OR active = $2) AND ($3::int IS NULL OR parent_id = $3)`
+	var total int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM monitor WHERE `+where, f.Type, f.Active, f.ParentID).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count monitors: %w", err)
+	}
+	rows, err := s.pool.Query(ctx, `SELECT `+monitorColumns+` FROM monitor WHERE `+where+` ORDER BY id LIMIT $4 OFFSET $5`,
+		f.Type, f.Active, f.ParentID, f.Limit, f.Offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("find monitors: %w", err)
+	}
+	monitors, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (monitor.Monitor, error) { return scanMonitor(r) })
+	if err != nil {
+		return nil, 0, fmt.Errorf("read monitors: %w", err)
+	}
+	return monitors, total, nil
+}
+
+// SetMonitorActive pauses or resumes a monitor, or returns ErrNotFound.
+func (s *Store) SetMonitorActive(ctx context.Context, id int32, active bool) (monitor.Monitor, error) {
+	m, err := scanMonitor(s.pool.QueryRow(ctx,
+		`UPDATE monitor SET active = $2, updated_at = now() WHERE id = $1 RETURNING `+monitorColumns, id, active))
+	return m, monitorResult(err)
+}
+
 // GetMonitor returns one monitor or ErrNotFound.
 func (s *Store) GetMonitor(ctx context.Context, id int32) (monitor.Monitor, error) {
 	m, err := scanMonitor(s.pool.QueryRow(ctx, `SELECT `+monitorColumns+` FROM monitor WHERE id = $1`, id))

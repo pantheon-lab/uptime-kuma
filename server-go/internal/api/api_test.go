@@ -20,9 +20,11 @@ import (
 const testToken = "0123456789abcdef0123456789abcdef"
 
 type fakeStore struct {
-	insertErr error
-	inserted  []store.Beat
-	created   []monitor.Monitor
+	insertErr  error
+	inserted   []store.Beat
+	created    []monitor.Monitor
+	keys       map[string]store.APIKey
+	findKeyErr error
 }
 
 func (f *fakeStore) Ping(context.Context) error { return nil }
@@ -46,9 +48,31 @@ func (f *fakeStore) Stats(context.Context) ([]store.MonitorStats, error) {
 	return []store.MonitorStats{}, nil
 }
 
-func (f *fakeStore) ListMonitors(context.Context) ([]monitor.Monitor, error) {
-	return []monitor.Monitor{}, nil
+func (f *fakeStore) FindMonitors(context.Context, store.MonitorFilter) ([]monitor.Monitor, int, error) {
+	return []monitor.Monitor{}, 0, nil
 }
+func (f *fakeStore) SetMonitorActive(context.Context, int32, bool) (monitor.Monitor, error) {
+	return monitor.Monitor{}, store.ErrNotFound
+}
+func (f *fakeStore) CreateAPIKey(_ context.Context, key store.APIKey, _ []byte) (store.APIKey, error) {
+	return key, nil
+}
+func (f *fakeStore) ListAPIKeys(context.Context) ([]store.APIKey, error) {
+	return []store.APIKey{}, nil
+}
+func (f *fakeStore) RevokeAPIKey(context.Context, int64) error { return store.ErrNotFound }
+func (f *fakeStore) FindAPIKey(_ context.Context, hash []byte) (store.APIKey, error) {
+	if f.keys != nil {
+		if key, ok := f.keys[string(hash)]; ok {
+			return key, nil
+		}
+	}
+	if f.findKeyErr != nil {
+		return store.APIKey{}, f.findKeyErr
+	}
+	return store.APIKey{}, store.ErrNotFound
+}
+func (f *fakeStore) TouchAPIKey(context.Context, int64) error { return nil }
 func (f *fakeStore) GetMonitor(context.Context, int32) (monitor.Monitor, error) {
 	return monitor.Monitor{}, store.ErrNotFound
 }
@@ -320,5 +344,131 @@ func TestMonitorRoutesValidateInput(t *testing.T) {
 		if res := do(t, r[0], r[1], testToken, r[2]); res.StatusCode != http.StatusNotFound {
 			t.Errorf("%s missing monitor: got %d", r[0], res.StatusCode)
 		}
+	}
+}
+
+func TestRoutesMatchTheOpenAPISpec(t *testing.T) {
+	s := New(&fakeStore{}, nopScheduler{}, NewHub(), testToken, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s.Handler()
+	var spec struct {
+		Paths map[string]map[string]any `json:"paths"`
+	}
+	if err := json.Unmarshal(openAPISpec, &spec); err != nil {
+		t.Fatalf("invalid spec: %v", err)
+	}
+	documented := map[string]bool{}
+	for path, operations := range spec.Paths {
+		for method := range operations {
+			documented[strings.ToUpper(method)+" "+path] = true
+		}
+	}
+	for _, route := range s.routes {
+		if !documented[route] {
+			t.Errorf("%s is not in openapi.json", route)
+		}
+		delete(documented, route)
+	}
+	delete(documented, "GET /healthz")
+	for route := range documented {
+		t.Errorf("%s is documented but doesn't exist", route)
+	}
+}
+
+func keyedServer(t *testing.T, scopes ...string) (*httptest.Server, string, *fakeStore) {
+	t.Helper()
+	plain, hash, _, err := generateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := &fakeStore{keys: map[string]store.APIKey{string(hash): {ID: 7, Name: "ci", Scopes: scopes}}}
+	ts, _ := newTestServer(t, f)
+	return ts, plain, f
+}
+
+func TestScopes(t *testing.T) {
+	ts, key, _ := keyedServer(t, ScopeMonitorsRead)
+	if res := do(t, "GET", ts.URL+"/api/v1/monitors", key, ""); res.StatusCode != http.StatusOK {
+		t.Errorf("read with read scope: %d", res.StatusCode)
+	}
+	for _, r := range [][2]string{
+		{"POST", "/api/v1/monitors"},
+		{"DELETE", "/api/v1/monitors/1"},
+		{"POST", "/api/v1/monitors/1/pause"},
+		{"PATCH", "/api/v1/monitors/1"},
+		{"GET", "/api/v1/stats"},
+		{"POST", "/api/v1/beats"},
+		{"GET", "/api/v1/api-keys"},
+		{"POST", "/api/v1/api-keys"},
+		{"DELETE", "/api/v1/api-keys/1"},
+	} {
+		if res := do(t, r[0], ts.URL+r[1], key, "{}"); res.StatusCode != http.StatusForbidden {
+			t.Errorf("%s %s without scope: %d", r[0], r[1], res.StatusCode)
+		}
+	}
+}
+
+func TestDatabaseFailureDuringAuthIsNotUnauthorized(t *testing.T) {
+	f := &fakeStore{findKeyErr: errors.New("db down")}
+	ts, _ := newTestServer(t, f)
+	if res := do(t, "GET", ts.URL+"/api/v1/monitors", "kuma_abc", ""); res.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("got %d", res.StatusCode)
+	}
+	if res := do(t, "GET", ts.URL+"/api/v1/monitors", "not-a-kuma-key", ""); res.StatusCode != http.StatusUnauthorized {
+		t.Errorf("malformed key: %d", res.StatusCode)
+	}
+}
+
+func TestRateLimitPerKey(t *testing.T) {
+	plain, hash, _, _ := generateKey()
+	other, otherHash, _, _ := generateKey()
+	f := &fakeStore{keys: map[string]store.APIKey{
+		string(hash):      {ID: 1, Scopes: []string{ScopeMonitorsRead}},
+		string(otherHash): {ID: 2, Scopes: []string{ScopeMonitorsRead}},
+	}}
+	hub := NewHub()
+	s := New(f, nopScheduler{}, hub, testToken, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s.SetKeyRateLimit(0.001, 2)
+	ts := httptest.NewServer(s.Handler())
+	t.Cleanup(func() { hub.Close(); ts.Close() })
+
+	url := ts.URL + "/api/v1/monitors"
+	for i := 0; i < 2; i++ {
+		if res := do(t, "GET", url, plain, ""); res.StatusCode != http.StatusOK {
+			t.Fatalf("request %d: %d", i, res.StatusCode)
+		}
+	}
+	res := do(t, "GET", url, plain, "")
+	if res.StatusCode != http.StatusTooManyRequests || res.Header.Get("Retry-After") == "" {
+		t.Errorf("over the limit: %d, Retry-After %q", res.StatusCode, res.Header.Get("Retry-After"))
+	}
+	if res := do(t, "GET", url, other, ""); res.StatusCode != http.StatusOK {
+		t.Errorf("another key shares the limit: %d", res.StatusCode)
+	}
+	for i := 0; i < 5; i++ {
+		if res := do(t, "GET", url, testToken, ""); res.StatusCode != http.StatusOK {
+			t.Errorf("the admin token is rate limited: %d", res.StatusCode)
+		}
+	}
+}
+
+func TestCreateKeyValidation(t *testing.T) {
+	ts, _ := newTestServer(t, &fakeStore{})
+	url := ts.URL + "/api/v1/api-keys"
+	for name, body := range map[string]string{
+		"no name":       `{"scopes":["monitors:read"]}`,
+		"long name":     `{"name":"` + strings.Repeat("x", 101) + `","scopes":["monitors:read"]}`,
+		"no scopes":     `{"name":"a"}`,
+		"unknown scope": `{"name":"a","scopes":["admin"]}`,
+		"expired":       `{"name":"a","scopes":["monitors:read"],"expiresAt":"2000-01-01T00:00:00Z"}`,
+		"unknown field": `{"name":"a","scopes":["monitors:read"],"x":1}`,
+	} {
+		if res := do(t, "POST", url, testToken, body); res.StatusCode != http.StatusBadRequest {
+			t.Errorf("%s: %d", name, res.StatusCode)
+		}
+	}
+	res := do(t, "POST", url, testToken, `{"name":"a","scopes":["monitors:read"]}`)
+	data, _ := io.ReadAll(res.Body)
+	if res.StatusCode != http.StatusCreated || !strings.Contains(string(data), `"key":"kuma_`) {
+		t.Errorf("create: %d %s", res.StatusCode, data)
 	}
 }

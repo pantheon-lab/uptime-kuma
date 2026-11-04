@@ -36,6 +36,7 @@ const (
 	maxRetries         = 1000
 	maxRedirects       = 100
 	maxBodyLen         = 1 << 20
+	redactedValue      = "***"
 )
 
 var (
@@ -88,6 +89,40 @@ func New() Monitor {
 		MaxRedirects:        10,
 		Headers:             map[string]string{},
 	}
+}
+
+// Normalize replaces empty collections, so that explicit JSON nulls can't reach the database.
+func (m *Monitor) Normalize() {
+	if m.Headers == nil {
+		m.Headers = map[string]string{}
+	}
+	if m.AcceptedStatusCodes == nil {
+		m.AcceptedStatusCodes = []string{}
+	}
+}
+
+// Redacted returns a copy without the fields that can hold credentials, for clients
+// that may only read: header values, the body, and the URL's user info and query.
+func (m Monitor) Redacted() Monitor {
+	headers := make(map[string]string, len(m.Headers))
+	for name := range m.Headers {
+		headers[name] = redactedValue
+	}
+	m.Headers = headers
+	if m.Body != "" {
+		m.Body = redactedValue
+	}
+	if u, err := url.Parse(m.URL); err == nil && m.URL != "" {
+		u.User = nil
+		if u.RawQuery != "" {
+			u.RawQuery = redactedValue
+		}
+		u.Fragment = ""
+		m.URL = u.String()
+	} else if m.URL != "" {
+		m.URL = redactedValue
+	}
+	return m
 }
 
 // Validate reports the first problem with the configuration.

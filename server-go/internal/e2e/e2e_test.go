@@ -495,3 +495,193 @@ func TestFailedBeatLinksToAnExportedTrace(t *testing.T) {
 		"name": "x", "type": "port", "hostname": "a", "port": 1, "parentId": m.ID,
 	}, http.StatusBadRequest, nil)
 }
+
+func (a *app) callAs(t *testing.T, credential, method, path string, body any, want int, out any) *http.Response {
+	t.Helper()
+	var reader io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reader = bytes.NewReader(data)
+	}
+	req, err := http.NewRequest(method, a.url+path, reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+credential)
+	res, err := a.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	data, _ := io.ReadAll(res.Body)
+	if res.StatusCode != want {
+		t.Fatalf("%s %s: status %d, want %d: %s", method, path, res.StatusCode, want, data)
+	}
+	if out != nil {
+		if err := json.Unmarshal(data, out); err != nil {
+			t.Fatalf("%s %s: %v: %s", method, path, err, data)
+		}
+	}
+	return res
+}
+
+func TestExternalAPIWithKeys(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer target.Close()
+	databaseURL := newDatabase(t)
+	a := start(t, databaseURL)
+
+	type created struct {
+		ID     int64    `json:"id"`
+		Key    string   `json:"key"`
+		Prefix string   `json:"prefix"`
+		Scopes []string `json:"scopes"`
+	}
+	newKey := func(scopes ...string) created {
+		var k created
+		a.callAs(t, token, "POST", "/api/v1/api-keys", map[string]any{"name": "ci", "scopes": scopes}, http.StatusCreated, &k)
+		return k
+	}
+	writer := newKey("monitors:read", "monitors:write", "beats:read")
+	reader := newKey("monitors:read")
+
+	// The plain key is only returned once and never stored.
+	if !strings.HasPrefix(writer.Key, "kuma_") || len(writer.Key) != 69 || !strings.HasPrefix(writer.Key, writer.Prefix) {
+		t.Fatalf("key: %+v", writer)
+	}
+	listed := []map[string]any{}
+	a.callAs(t, token, "GET", "/api/v1/api-keys", nil, http.StatusOK, &listed)
+	dump, _ := json.Marshal(listed)
+	if len(listed) != 2 || strings.Contains(string(dump), writer.Key) || strings.Contains(string(dump), "hash") {
+		t.Errorf("listing exposes too much: %s", dump)
+	}
+	conn, err := pgx.Connect(context.Background(), databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close(context.Background()) }()
+	var stored int
+	if err := conn.QueryRow(context.Background(), `SELECT count(*) FROM api_key WHERE encode(key_hash, 'escape') LIKE '%' || $1 || '%' OR key_prefix = $1`, writer.Key).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored != 0 {
+		t.Error("the plain key is in the database")
+	}
+
+	// Keys can't manage keys.
+	a.callAs(t, writer.Key, "GET", "/api/v1/api-keys", nil, http.StatusForbidden, nil)
+	a.callAs(t, writer.Key, "POST", "/api/v1/api-keys", map[string]any{"name": "x", "scopes": []string{"beats:write"}}, http.StatusForbidden, nil)
+
+	// Create with a key, including a secret in several places.
+	var m monitor.Monitor
+	res := a.callAs(t, writer.Key, "POST", "/api/v1/monitors", map[string]any{
+		"name": "site", "type": "http", "url": target.URL + "/?token=querysecret", "interval": 1,
+		"headers": map[string]string{"X-Api-Key": "headersecret", "X-Other": "keep"},
+	}, http.StatusCreated, &m)
+	path := fmt.Sprintf("/api/v1/monitors/%d", m.ID)
+	if res.Header.Get("Location") != path {
+		t.Errorf("Location: %q", res.Header.Get("Location"))
+	}
+
+	// A read-only key doesn't get credentials, a writer does.
+	var seen monitor.Monitor
+	a.callAs(t, reader.Key, "GET", path, nil, http.StatusOK, &seen)
+	if strings.Contains(seen.URL, "querysecret") || seen.Headers["X-Api-Key"] != "***" {
+		t.Errorf("read-only key sees secrets: %+v", seen)
+	}
+	var page []monitor.Monitor
+	a.callAs(t, reader.Key, "GET", "/api/v1/monitors", nil, http.StatusOK, &page)
+	if len(page) != 1 || page[0].Headers["X-Api-Key"] != "***" {
+		t.Errorf("read-only list sees secrets: %+v", page)
+	}
+	a.callAs(t, writer.Key, "GET", path, nil, http.StatusOK, &seen)
+	if seen.Headers["X-Api-Key"] != "headersecret" {
+		t.Errorf("writer: %+v", seen)
+	}
+	a.callAs(t, reader.Key, "POST", "/api/v1/monitors", map[string]any{"name": "x", "type": "group"}, http.StatusForbidden, nil)
+	a.callAs(t, reader.Key, "GET", path+"/beats", nil, http.StatusForbidden, nil)
+
+	// PATCH changes only what's sent.
+	var patched monitor.Monitor
+	a.callAs(t, writer.Key, "PATCH", path, map[string]any{"name": "renamed", "headers": map[string]string{"X-New": "1"}}, http.StatusOK, &patched)
+	if patched.Name != "renamed" || patched.Interval != 1 || patched.URL != m.URL || len(patched.Headers) != 1 || patched.Headers["X-New"] != "1" {
+		t.Errorf("patched: %+v", patched)
+	}
+	a.callAs(t, writer.Key, "PATCH", path, map[string]any{"intervall": 5}, http.StatusBadRequest, nil)
+	a.callAs(t, writer.Key, "PATCH", path, map[string]any{"interval": 0}, http.StatusBadRequest, nil)
+	a.callAs(t, writer.Key, "PATCH", path, map[string]any{"id": 999, "maxRetries": 2}, http.StatusOK, &patched)
+	if patched.ID != m.ID || patched.MaxRetries != 2 {
+		t.Errorf("body id must be ignored: %+v", patched)
+	}
+	a.callAs(t, writer.Key, "PATCH", "/api/v1/monitors/99999", map[string]any{"name": "x"}, http.StatusNotFound, nil)
+
+	beatCount := func() int {
+		var beats []store.Beat
+		a.callAs(t, writer.Key, "GET", path+"/beats?limit=1000", nil, http.StatusOK, &beats)
+		return len(beats)
+	}
+	waitFor(t, "beats", func() bool { return beatCount() > 0 })
+
+	// Pause really stops checks, resume starts them.
+	a.callAs(t, writer.Key, "POST", path+"/pause", nil, http.StatusOK, &patched)
+	if patched.Active {
+		t.Error("still active after pause")
+	}
+	time.Sleep(1200 * time.Millisecond)
+	paused := beatCount()
+	time.Sleep(1500 * time.Millisecond)
+	if got := beatCount(); got != paused {
+		t.Errorf("paused monitor kept beating: %d to %d", paused, got)
+	}
+	a.callAs(t, writer.Key, "POST", path+"/resume", nil, http.StatusOK, &patched)
+	waitFor(t, "beats after resume", func() bool { return beatCount() > paused })
+	a.callAs(t, writer.Key, "POST", "/api/v1/monitors/99999/pause", nil, http.StatusNotFound, nil)
+
+	// Pagination and filters.
+	for i := 0; i < 5; i++ {
+		a.callAs(t, writer.Key, "POST", "/api/v1/monitors", map[string]any{"name": fmt.Sprintf("g%d", i), "type": "group", "active": false}, http.StatusCreated, nil)
+	}
+	res = a.callAs(t, writer.Key, "GET", "/api/v1/monitors?type=group&limit=2&offset=1", nil, http.StatusOK, &page)
+	if len(page) != 2 || page[0].Name != "g1" || res.Header.Get("X-Total-Count") != "5" {
+		t.Errorf("page: %+v, total %q", page, res.Header.Get("X-Total-Count"))
+	}
+	a.callAs(t, writer.Key, "GET", "/api/v1/monitors?active=false", nil, http.StatusOK, &page)
+	if len(page) != 5 {
+		t.Errorf("active filter: %d", len(page))
+	}
+	a.callAs(t, writer.Key, "GET", "/api/v1/monitors?limit=1001", nil, http.StatusBadRequest, nil)
+	a.callAs(t, writer.Key, "GET", "/api/v1/monitors?offset=-1", nil, http.StatusBadRequest, nil)
+	a.callAs(t, writer.Key, "GET", "/api/v1/monitors?active=maybe", nil, http.StatusBadRequest, nil)
+
+	// Delete with a key.
+	a.callAs(t, writer.Key, "DELETE", path, nil, http.StatusNoContent, nil)
+	a.callAs(t, writer.Key, "GET", path, nil, http.StatusNotFound, nil)
+
+	// last_used_at gets recorded.
+	waitFor(t, "last used", func() bool {
+		var keys []struct {
+			ID         int64      `json:"id"`
+			LastUsedAt *time.Time `json:"lastUsedAt"`
+		}
+		a.callAs(t, token, "GET", "/api/v1/api-keys", nil, http.StatusOK, &keys)
+		return keys[0].LastUsedAt != nil
+	})
+
+	// Revoking is immediate, including with the same server and no restart.
+	a.callAs(t, token, "DELETE", fmt.Sprintf("/api/v1/api-keys/%d", writer.ID), nil, http.StatusNoContent, nil)
+	a.callAs(t, writer.Key, "GET", "/api/v1/monitors", nil, http.StatusUnauthorized, nil)
+	a.callAs(t, token, "DELETE", fmt.Sprintf("/api/v1/api-keys/%d", writer.ID), nil, http.StatusNotFound, nil)
+	a.callAs(t, reader.Key, "GET", "/api/v1/monitors", nil, http.StatusOK, nil)
+
+	// An expired key stops working.
+	var soon created
+	a.callAs(t, token, "POST", "/api/v1/api-keys", map[string]any{
+		"name": "short", "scopes": []string{"monitors:read"}, "expiresAt": time.Now().Add(1500 * time.Millisecond),
+	}, http.StatusCreated, &soon)
+	a.callAs(t, soon.Key, "GET", "/api/v1/monitors", nil, http.StatusOK, nil)
+	time.Sleep(1700 * time.Millisecond)
+	a.callAs(t, soon.Key, "GET", "/api/v1/monitors", nil, http.StatusUnauthorized, nil)
+}

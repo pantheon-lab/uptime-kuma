@@ -109,9 +109,17 @@ func run(log *slog.Logger) error {
 	defer checker.Close()
 	sched := scheduler.New(checker, writer, concurrency, log)
 	sched.Start(monitors, previous)
+	apiServer := api.New(db, sched, hub, token, log)
+	if raw := os.Getenv("API_KEY_RATE_LIMIT"); raw != "" {
+		perSecond, err := strconv.ParseFloat(raw, 64)
+		if err != nil || perSecond <= 0 {
+			return errors.New("API_KEY_RATE_LIMIT must be a positive number of requests per second")
+		}
+		apiServer.SetKeyRateLimit(perSecond, max(1, int(perSecond*4)))
+	}
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           api.New(db, sched, hub, token, log).Handler(),
+		Handler:           apiServer.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      60 * time.Second,

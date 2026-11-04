@@ -29,10 +29,13 @@ services:
       ANALYTICS_API_TOKEN: ${ANALYTICS_API_TOKEN:?set ANALYTICS_API_TOKEN}
       GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:?set GRAFANA_DB_PASSWORD}
       LISTEN_ADDR: 0.0.0.0:3002
+      API_KEY_RATE_LIMIT: ${API_KEY_RATE_LIMIT:-50}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_EXPORTER_OTLP_INSECURE: "true"
     ports:
-      - "127.0.0.1:3002:3002"
+      # Set API_BIND=0.0.0.0 to open the API to other machines. Put TLS in front of it
+      # first, because API keys and the admin token are bearer credentials.
+      - "${API_BIND:-127.0.0.1}:3002:3002"
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.116.1
