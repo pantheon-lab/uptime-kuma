@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 )
 
@@ -36,20 +37,32 @@ type Store interface {
 	Chart(ctx context.Context, monitorID int32, hours int) ([]store.ChartPoint, error)
 	Percentiles(ctx context.Context, monitorID int32, hours int, fractions []float64) ([]*float64, error)
 	Stats(ctx context.Context) ([]store.MonitorStats, error)
+	ListMonitors(ctx context.Context) ([]monitor.Monitor, error)
+	GetMonitor(ctx context.Context, id int32) (monitor.Monitor, error)
+	CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
+	UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
+	DeleteMonitor(ctx context.Context, id int32) error
+}
+
+// Scheduler is told about monitor changes.
+type Scheduler interface {
+	Upsert(m monitor.Monitor)
+	Remove(ctx context.Context, id int32) error
 }
 
 // Server holds the HTTP handlers.
 type Server struct {
-	store Store
-	hub   *Hub
-	token []byte
-	log   *slog.Logger
-	now   func() time.Time
+	store     Store
+	scheduler Scheduler
+	hub       *Hub
+	token     []byte
+	log       *slog.Logger
+	now       func() time.Time
 }
 
 // New creates the API. Every route except /healthz requires token as a bearer token.
-func New(s Store, hub *Hub, token string, log *slog.Logger) *Server {
-	return &Server{store: s, hub: hub, token: []byte(token), log: log, now: time.Now}
+func New(s Store, scheduler Scheduler, hub *Hub, token string, log *slog.Logger) *Server {
+	return &Server{store: s, scheduler: scheduler, hub: hub, token: []byte(token), log: log, now: time.Now}
 }
 
 // Handler returns the routes.
@@ -57,6 +70,11 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.Handle("POST /api/v1/beats", s.auth(s.postBeats))
+	mux.Handle("GET /api/v1/monitors", s.auth(s.listMonitors))
+	mux.Handle("POST /api/v1/monitors", s.auth(s.createMonitor))
+	mux.Handle("GET /api/v1/monitors/{id}", s.auth(s.getMonitor))
+	mux.Handle("PUT /api/v1/monitors/{id}", s.auth(s.updateMonitor))
+	mux.Handle("DELETE /api/v1/monitors/{id}", s.auth(s.deleteMonitor))
 	mux.Handle("GET /api/v1/monitors/{id}/beats", s.auth(s.getBeats))
 	mux.Handle("GET /api/v1/monitors/{id}/chart", s.auth(s.getChart))
 	mux.Handle("GET /api/v1/monitors/{id}/percentiles", s.auth(s.getPercentiles))

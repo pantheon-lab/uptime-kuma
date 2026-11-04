@@ -1,0 +1,386 @@
+// Package e2e runs the real API, scheduler, checker and database together.
+package e2e
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/api"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/scheduler"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
+)
+
+const token = "0123456789abcdef0123456789abcdef"
+
+type app struct {
+	url    string
+	stop   func()
+	client *http.Client
+}
+
+func start(t *testing.T, databaseURL string) *app {
+	t.Helper()
+	ctx := context.Background()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	db, err := store.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	monitors, err := db.ListMonitors(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous, err := db.LatestStates(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hub := api.NewHub()
+	writer := scheduler.NewWriter(db, hub.Publish, log)
+	go writer.Run()
+	checker := check.New()
+	sched := scheduler.New(checker, writer, 100, log)
+	sched.Start(monitors, previous)
+	ts := httptest.NewServer(api.New(db, sched, hub, token, log).Handler())
+
+	stopped := false
+	stop := func() {
+		if stopped {
+			return
+		}
+		stopped = true
+		hub.Close()
+		ts.Close()
+		sched.Stop()
+		if err := writer.Close(ctx); err != nil {
+			t.Error(err)
+		}
+		checker.Close()
+		db.Close()
+	}
+	t.Cleanup(stop)
+	return &app{url: ts.URL, stop: stop, client: ts.Client()}
+}
+
+func newDatabase(t *testing.T) string {
+	t.Helper()
+	admin := os.Getenv("TEST_DATABASE_URL")
+	if admin == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := fmt.Sprintf("kuma_e2e_%d", time.Now().UnixNano())
+	if _, err := conn.Exec(ctx, "CREATE DATABASE "+name); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = conn.Exec(ctx, "DROP DATABASE "+name+" WITH (FORCE)")
+		_ = conn.Close(ctx)
+	})
+	u, err := url.Parse(admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.Path = "/" + name
+	return u.String()
+}
+
+func (a *app) call(t *testing.T, method, path string, body any, want int, out any) {
+	t.Helper()
+	var reader io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reader = bytes.NewReader(data)
+	}
+	req, err := http.NewRequest(method, a.url+path, reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := a.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	data, _ := io.ReadAll(res.Body)
+	if res.StatusCode != want {
+		t.Fatalf("%s %s: status %d, want %d: %s", method, path, res.StatusCode, want, data)
+	}
+	if out != nil {
+		if err := json.Unmarshal(data, out); err != nil {
+			t.Fatalf("%s %s: %v: %s", method, path, err, data)
+		}
+	}
+}
+
+func waitFor(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func TestMonitorLifecycle(t *testing.T) {
+	var healthy atomic.Bool
+	healthy.Store(true)
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if !healthy.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+	}))
+	defer target.Close()
+
+	databaseURL := newDatabase(t)
+	a := start(t, databaseURL)
+
+	var m monitor.Monitor
+	a.call(t, "POST", "/api/v1/monitors", map[string]any{
+		"name": "site", "type": "http", "url": target.URL, "interval": 1, "maxRetries": 1, "retryInterval": 1,
+	}, http.StatusCreated, &m)
+	if m.ID == 0 || m.Timeout != 0 || m.MaxRedirects != 10 {
+		t.Fatalf("created: %+v", m)
+	}
+	path := fmt.Sprintf("/api/v1/monitors/%d", m.ID)
+
+	var got monitor.Monitor
+	a.call(t, "GET", path, nil, http.StatusOK, &got)
+	if got.URL != target.URL || got.Headers == nil || len(got.AcceptedStatusCodes) != 1 {
+		t.Errorf("read back: %+v", got)
+	}
+	var list []monitor.Monitor
+	a.call(t, "GET", "/api/v1/monitors", nil, http.StatusOK, &list)
+	if len(list) != 1 {
+		t.Errorf("list: %+v", list)
+	}
+
+	beats := func() []store.Beat {
+		var out []store.Beat
+		a.call(t, "GET", path+"/beats?limit=100", nil, http.StatusOK, &out)
+		return out
+	}
+	waitFor(t, "first UP beat", func() bool { return len(beats()) > 0 })
+	first := beats()
+	first0 := first[len(first)-1]
+	if first0.Status != monitor.StatusUp || !first0.Important || first0.Ping == nil || first0.Msg != "200 - OK" {
+		t.Errorf("first beat: %+v", first0)
+	}
+
+	req, _ := http.NewRequest("GET", a.url+"/api/v1/events?monitorId="+fmt.Sprint(m.ID), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	stream, err := a.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = stream.Body.Close() }()
+	streamed := make(chan store.Beat, 100)
+	go func() {
+		scanner := bufio.NewScanner(stream.Body)
+		for scanner.Scan() {
+			if data, ok := strings.CutPrefix(scanner.Text(), "data: "); ok {
+				var b store.Beat
+				if json.Unmarshal([]byte(data), &b) == nil {
+					streamed <- b
+				}
+			}
+		}
+	}()
+	select {
+	case b := <-streamed:
+		if b.MonitorID != m.ID {
+			t.Errorf("streamed beat: %+v", b)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("no beat arrived over SSE")
+	}
+
+	healthy.Store(false)
+	waitFor(t, "DOWN beat", func() bool {
+		b := beats()
+		return b[0].Status == monitor.StatusDown
+	})
+	healthy.Store(true)
+	waitFor(t, "recovery", func() bool { return beats()[0].Status == monitor.StatusUp })
+
+	// Newest first: UP (event), DOWN (event), PENDING, UP...
+	var sequence []int16
+	for _, b := range beats() {
+		if len(sequence) == 0 || sequence[len(sequence)-1] != b.Status {
+			sequence = append(sequence, b.Status)
+		}
+	}
+	if len(sequence) < 4 || sequence[0] != monitor.StatusUp || sequence[1] != monitor.StatusDown ||
+		sequence[2] != monitor.StatusPending || sequence[3] != monitor.StatusUp {
+		t.Fatalf("status sequence: %v", sequence)
+	}
+	all := beats()
+	for i, b := range all {
+		if b.Status == monitor.StatusDown && i+1 < len(all) && all[i+1].Status == monitor.StatusPending && !b.Important {
+			t.Error("PENDING to DOWN must be an event")
+		}
+		if b.Status == monitor.StatusPending && b.Important {
+			t.Error("PENDING must not be an event")
+		}
+	}
+	if b := firstWith(all, monitor.StatusDown); b == nil || b.Msg != "Request failed with status code 503" || b.Ping != nil {
+		t.Errorf("down beat: %+v", b)
+	}
+
+	var stats []store.MonitorStats
+	a.call(t, "GET", "/api/v1/stats", nil, http.StatusOK, &stats)
+	if len(stats) != 1 || stats[0].Uptime24h == nil || *stats[0].Uptime24h >= 1 || *stats[0].Uptime24h <= 0 {
+		t.Errorf("stats: %+v", stats)
+	}
+
+	// A restart resumes from stored state instead of treating the next beat as the first.
+	a.stop()
+	b := start(t, databaseURL)
+	path2 := path
+	count := len(all)
+	waitFor(t, "beats after restart", func() bool {
+		var out []store.Beat
+		b.call(t, "GET", path2+"/beats?limit=1000", nil, http.StatusOK, &out)
+		return len(out) > count+1
+	})
+	var after []store.Beat
+	b.call(t, "GET", path2+"/beats?limit=1000", nil, http.StatusOK, &after)
+	if after[0].Important || after[1].Important {
+		t.Errorf("beats after restart should not be events: %+v %+v", after[0], after[1])
+	}
+
+	// Update applies to the running monitor.
+	b.call(t, "PUT", path2, map[string]any{
+		"name": "renamed", "type": "keyword", "url": target.URL, "interval": 1, "keyword": "absent",
+	}, http.StatusOK, &got)
+	if got.Name != "renamed" || got.Keyword != "absent" || got.MaxRetries != 0 {
+		t.Errorf("updated: %+v", got)
+	}
+	waitFor(t, "failure from the new config", func() bool {
+		var out []store.Beat
+		b.call(t, "GET", path2+"/beats?limit=1", nil, http.StatusOK, &out)
+		return out[0].Status == monitor.StatusDown && strings.Contains(out[0].Msg, "but keyword is not")
+	})
+
+	// Delete removes beats and history, including materialized aggregates.
+	b.call(t, "DELETE", path2, nil, http.StatusNoContent, nil)
+	b.call(t, "GET", path2, nil, http.StatusNotFound, nil)
+	b.call(t, "DELETE", path2, nil, http.StatusNotFound, nil)
+	var empty []store.Beat
+	b.call(t, "GET", path2+"/beats", nil, http.StatusOK, &empty)
+	if len(empty) != 0 {
+		t.Errorf("beats survived delete: %d", len(empty))
+	}
+	time.Sleep(1500 * time.Millisecond)
+	b.call(t, "GET", path2+"/beats", nil, http.StatusOK, &empty)
+	if len(empty) != 0 {
+		t.Errorf("deleted monitor kept beating: %d", len(empty))
+	}
+	b.call(t, "GET", "/api/v1/stats", nil, http.StatusOK, &stats)
+	if len(stats) != 0 {
+		t.Errorf("stats still report the deleted monitor: %+v", stats)
+	}
+}
+
+func TestDeleteRemovesMaterializedAndCompressedHistory(t *testing.T) {
+	databaseURL := newDatabase(t)
+	ctx := context.Background()
+	a := start(t, databaseURL)
+	conn, err := pgx.Connect(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	create := func(name string) monitor.Monitor {
+		var m monitor.Monitor
+		a.call(t, "POST", "/api/v1/monitors", map[string]any{
+			"name": name, "type": "port", "hostname": "127.0.0.1", "port": 1, "active": false,
+		}, http.StatusCreated, &m)
+		return m
+	}
+	gone, kept := create("gone"), create("kept")
+
+	var old []store.Beat
+	base := time.Now().UTC().Add(-72 * time.Hour).Truncate(time.Hour)
+	for i := 0; i < 48; i++ {
+		at := base.Add(time.Duration(i) * time.Hour)
+		old = append(old, store.Beat{MonitorID: gone.ID, Time: at, Status: 1}, store.Beat{MonitorID: kept.ID, Time: at, Status: 1})
+	}
+	a.call(t, "POST", "/api/v1/beats", old, http.StatusOK, nil)
+
+	for _, statement := range []string{
+		`CALL refresh_continuous_aggregate('stat_hourly', NULL, NULL)`,
+		`CALL refresh_continuous_aggregate('stat_daily', NULL, NULL)`,
+		`SELECT compress_chunk(c) FROM show_chunks('heartbeat', older_than => INTERVAL '1 day') c`,
+	} {
+		if _, err := conn.Exec(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var stats []store.MonitorStats
+	a.call(t, "GET", "/api/v1/stats", nil, http.StatusOK, &stats)
+	if len(stats) != 2 {
+		t.Fatalf("before delete: %+v", stats)
+	}
+	a.call(t, "DELETE", fmt.Sprintf("/api/v1/monitors/%d", gone.ID), nil, http.StatusNoContent, nil)
+
+	a.call(t, "GET", "/api/v1/stats", nil, http.StatusOK, &stats)
+	if len(stats) != 1 || stats[0].MonitorID != kept.ID || stats[0].Uptime30d == nil {
+		t.Errorf("after delete: %+v", stats)
+	}
+	var rows int
+	if err := conn.QueryRow(ctx, `SELECT count(*) FROM heartbeat WHERE monitor_id = $1`, gone.ID).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 0 {
+		t.Errorf("%d raw beats survived in compressed chunks", rows)
+	}
+	var chart []store.ChartPoint
+	a.call(t, "GET", fmt.Sprintf("/api/v1/monitors/%d/chart?hours=168", gone.ID), nil, http.StatusOK, &chart)
+	if len(chart) != 0 {
+		t.Errorf("chart of deleted monitor: %+v", chart)
+	}
+	a.call(t, "GET", fmt.Sprintf("/api/v1/monitors/%d/chart?hours=168", kept.ID), nil, http.StatusOK, &chart)
+	if len(chart) == 0 {
+		t.Error("deleting one monitor removed another monitor's chart")
+	}
+}
+
+func firstWith(beats []store.Beat, status int16) *store.Beat {
+	for i := range beats {
+		if beats[i].Status == status {
+			return &beats[i]
+		}
+	}
+	return nil
+}

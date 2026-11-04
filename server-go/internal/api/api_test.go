@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 )
 
@@ -21,6 +22,7 @@ const testToken = "0123456789abcdef0123456789abcdef"
 type fakeStore struct {
 	insertErr error
 	inserted  []store.Beat
+	created   []monitor.Monitor
 }
 
 func (f *fakeStore) Ping(context.Context) error { return nil }
@@ -44,11 +46,32 @@ func (f *fakeStore) Stats(context.Context) ([]store.MonitorStats, error) {
 	return []store.MonitorStats{}, nil
 }
 
+func (f *fakeStore) ListMonitors(context.Context) ([]monitor.Monitor, error) {
+	return []monitor.Monitor{}, nil
+}
+func (f *fakeStore) GetMonitor(context.Context, int32) (monitor.Monitor, error) {
+	return monitor.Monitor{}, store.ErrNotFound
+}
+func (f *fakeStore) CreateMonitor(_ context.Context, m monitor.Monitor) (monitor.Monitor, error) {
+	m.ID = 1
+	f.created = append(f.created, m)
+	return m, nil
+}
+func (f *fakeStore) UpdateMonitor(_ context.Context, m monitor.Monitor) (monitor.Monitor, error) {
+	return m, store.ErrNotFound
+}
+func (f *fakeStore) DeleteMonitor(context.Context, int32) error { return store.ErrNotFound }
+
+type nopScheduler struct{}
+
+func (nopScheduler) Upsert(monitor.Monitor)              {}
+func (nopScheduler) Remove(context.Context, int32) error { return nil }
+
 func newTestServer(t *testing.T, s Store) (*httptest.Server, *Hub) {
 	t.Helper()
 	hub := NewHub()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	ts := httptest.NewServer(New(s, hub, testToken, log).Handler())
+	ts := httptest.NewServer(New(s, nopScheduler{}, hub, testToken, log).Handler())
 	t.Cleanup(func() { hub.Close(); ts.Close() })
 	return ts, hub
 }
@@ -72,7 +95,7 @@ func do(t *testing.T, method, url, token, body string) *http.Response {
 
 func TestAuthRequiredExceptHealth(t *testing.T) {
 	ts, _ := newTestServer(t, &fakeStore{})
-	for _, path := range []string{"/api/v1/stats", "/api/v1/events", "/api/v1/monitors/1/beats", "/api/v1/monitors/1/chart", "/api/v1/monitors/1/percentiles"} {
+	for _, path := range []string{"/api/v1/stats", "/api/v1/events", "/api/v1/monitors", "/api/v1/monitors/1", "/api/v1/monitors/1/beats", "/api/v1/monitors/1/chart", "/api/v1/monitors/1/percentiles"} {
 		for _, token := range []string{"", "wrong"} {
 			if res := do(t, "GET", ts.URL+path, token, ""); res.StatusCode != http.StatusUnauthorized {
 				t.Errorf("%s with token %q: got %d", path, token, res.StatusCode)
@@ -209,7 +232,7 @@ func TestStreamFiltersAndEnds(t *testing.T) {
 func TestStreamOutlivesServerTimeouts(t *testing.T) {
 	hub := NewHub()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	ts := httptest.NewUnstartedServer(New(&fakeStore{}, hub, testToken, log).Handler())
+	ts := httptest.NewUnstartedServer(New(&fakeStore{}, nopScheduler{}, hub, testToken, log).Handler())
 	ts.Config.ReadTimeout = 100 * time.Millisecond
 	ts.Config.WriteTimeout = 100 * time.Millisecond
 	ts.Start()
@@ -261,5 +284,41 @@ func TestHubDropsSlowSubscriberWithoutBlocking(t *testing.T) {
 	closed, _ := hub.Subscribe()
 	if _, open := <-closed; open {
 		t.Error("subscribing to a closed hub should return a closed channel")
+	}
+}
+
+func TestMonitorRoutesValidateInput(t *testing.T) {
+	f := &fakeStore{}
+	ts, _ := newTestServer(t, f)
+	url := ts.URL + "/api/v1/monitors"
+	for name, body := range map[string]string{
+		"bad JSON":      "{",
+		"unknown field": `{"name":"a","type":"http","url":"http://a","intervall":5}`,
+		"invalid":       `{"name":"a","type":"dns"}`,
+	} {
+		if res := do(t, "POST", url, testToken, body); res.StatusCode != http.StatusBadRequest {
+			t.Errorf("%s: got %d", name, res.StatusCode)
+		}
+	}
+	if len(f.created) != 0 {
+		t.Errorf("invalid monitors reached the store: %v", f.created)
+	}
+
+	res := do(t, "POST", url, testToken, `{"name":"a","type":"http","url":"http://a"}`)
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("create: got %d", res.StatusCode)
+	}
+	if len(f.created) != 1 || f.created[0].Interval != 60 || !f.created[0].Active || f.created[0].Method != "GET" {
+		t.Errorf("defaults not applied: %+v", f.created)
+	}
+
+	for _, r := range [][3]string{
+		{"GET", url + "/7", ""},
+		{"DELETE", url + "/7", ""},
+		{"PUT", url + "/7", `{"name":"a","type":"http","url":"http://a"}`},
+	} {
+		if res := do(t, r[0], r[1], testToken, r[2]); res.StatusCode != http.StatusNotFound {
+			t.Errorf("%s missing monitor: got %d", r[0], res.StatusCode)
+		}
 	}
 }

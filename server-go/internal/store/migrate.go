@@ -61,6 +61,33 @@ var migrations = [][]string{
 			start_offset => INTERVAL '7 days', end_offset => INTERVAL '1 day',
 			schedule_interval => INTERVAL '1 hour', if_not_exists => true)`,
 	},
+	{
+		`CREATE TABLE IF NOT EXISTS monitor (
+			id serial PRIMARY KEY,
+			name text NOT NULL,
+			type text NOT NULL,
+			active boolean NOT NULL,
+			interval_seconds integer NOT NULL,
+			retry_interval_seconds integer NOT NULL,
+			timeout_seconds double precision NOT NULL,
+			max_retries integer NOT NULL,
+			upside_down boolean NOT NULL,
+			url text NOT NULL,
+			method text NOT NULL,
+			headers jsonb NOT NULL,
+			body text NOT NULL,
+			body_encoding text NOT NULL,
+			accepted_status_codes text[] NOT NULL,
+			max_redirects integer NOT NULL,
+			ignore_tls boolean NOT NULL,
+			keyword text NOT NULL,
+			invert_keyword boolean NOT NULL,
+			hostname text NOT NULL,
+			port integer NOT NULL,
+			created_at timestamptz NOT NULL DEFAULT now(),
+			updated_at timestamptz NOT NULL DEFAULT now()
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.

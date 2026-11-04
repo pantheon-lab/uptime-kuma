@@ -1,4 +1,4 @@
-// Command kuma-analytics ingests monitor beats and serves analytics from TimescaleDB.
+// Command kuma-analytics runs monitor checks, stores beats in TimescaleDB and serves them.
 package main
 
 import (
@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/api"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/scheduler"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 )
 
@@ -49,6 +51,15 @@ func run(log *slog.Logger) error {
 		retentionDays = v
 	}
 
+	concurrency := 2000
+	if raw := os.Getenv("CHECK_CONCURRENCY"); raw != "" {
+		v, err := strconv.Atoi(raw)
+		if err != nil || v < 1 {
+			return errors.New("CHECK_CONCURRENCY must be a positive integer")
+		}
+		concurrency = v
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -64,10 +75,25 @@ func run(log *slog.Logger) error {
 		return err
 	}
 
+	monitors, err := db.ListMonitors(ctx)
+	if err != nil {
+		return err
+	}
+	previous, err := db.LatestStates(ctx)
+	if err != nil {
+		return err
+	}
+
 	hub := api.NewHub()
+	writer := scheduler.NewWriter(db, hub.Publish, log)
+	go writer.Run()
+	checker := check.New()
+	defer checker.Close()
+	sched := scheduler.New(checker, writer, concurrency, log)
+	sched.Start(monitors, previous)
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           api.New(db, hub, token, log).Handler(),
+		Handler:           api.New(db, sched, hub, token, log).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      60 * time.Second,
@@ -83,6 +109,8 @@ func run(log *slog.Logger) error {
 
 	select {
 	case err := <-serveErr:
+		sched.Stop()
+		_ = writer.Close(context.WithoutCancel(ctx))
 		return err
 	case <-ctx.Done():
 	}
@@ -90,8 +118,13 @@ func run(log *slog.Logger) error {
 	log.Info("shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("shutdown: %w", err)
+	shutdownErr := server.Shutdown(shutdownCtx)
+	sched.Stop()
+	if err := writer.Close(shutdownCtx); err != nil {
+		log.Error("final beat write failed", "error", err)
+	}
+	if shutdownErr != nil {
+		return fmt.Errorf("shutdown: %w", shutdownErr)
 	}
 	return nil
 }
