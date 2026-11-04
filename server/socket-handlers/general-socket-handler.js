@@ -87,7 +87,7 @@ module.exports.generalSocketHandler = (socket, server) => {
     socket.on("testChrome", (executable, callback) => {
         try {
             checkLogin(socket);
-            // Just noticed that await call could block the whole socket.io server!!! Use pure promise instead.
+            // Just noticed that await call could block the whole realtime server!!! Use pure promise instead.
             testChrome(executable)
                 .then((version) => {
                     callback({

@@ -34,7 +34,7 @@ async function sendNotificationList(socket) {
 
 /**
  * Send Heartbeat History list to socket
- * @param {Socket} socket Socket.io instance
+ * @param {Socket} socket Socket instance
  * @param {number} monitorID ID of monitor to send heartbeat history
  * @param {boolean} toUser  True = send to all browsers with the same user id, False = send to the current browser only
  * @param {boolean} overwrite Overwrite client-side's heartbeat list
@@ -64,7 +64,7 @@ async function sendHeartbeatList(socket, monitorID, toUser = false, overwrite = 
  * Send the latest heartbeat of many monitors in one event.
  * The full 100-beat history is fetched lazily per visible row, so the login
  * payload does not grow with the number of monitors.
- * @param {Socket} socket Socket.io instance
+ * @param {Socket} socket Socket instance
  * @param {Array<number|string>} monitorIDs Monitor ids
  * @returns {Promise<void>}
  */
@@ -117,7 +117,7 @@ async function getHeartbeatHistory(monitorID) {
 
 /**
  * Important Heart beat list (aka event list)
- * @param {Socket} socket Socket.io instance
+ * @param {Socket} socket Socket instance
  * @param {number} monitorID ID of monitor to send heartbeat history
  * @param {boolean} toUser  True = send to all browsers with the same user id, False = send to the current browser only
  * @param {boolean} overwrite Overwrite client-side's heartbeat list

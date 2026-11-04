@@ -1,5 +1,5 @@
 import { markRaw } from "vue";
-import { io } from "socket.io-client";
+import { connectRealtime } from "../realtime-client";
 import { useToast } from "vue-toastification";
 import Favico from "favico.js";
 import dayjs from "dayjs";
@@ -123,7 +123,7 @@ export default {
                 return;
             }
 
-            // No need to connect to the socket.io for status page
+            // No need to connect to the realtime server for status page
             if (!bypass && location.pathname) {
                 for (let page of noSocketIOPages) {
                     if (location.pathname.match(page)) {
@@ -143,15 +143,10 @@ export default {
                 url = protocol + location.hostname + ":3001";
             } else {
                 // Connect to the current url
-                url = undefined;
+                url = "";
             }
 
-            socket = io(url, {
-                withCredentials: true,
-                // Prefer WebSocket so the large login payload is compressed by perMessageDeflate
-                // and is not sent over a single slow polling response
-                transports: ["websocket", "polling"],
-            });
+            socket = connectRealtime(url);
 
             socket.on("info", (info) => {
                 // Sent without `runtime` before login (hideVersion), so keep a safe default
@@ -324,7 +319,7 @@ export default {
             });
 
             socket.on("connect_error", (err) => {
-                console.error(`Failed to connect to the backend. Socket.io connect_error: ${err.message}`);
+                console.error(`Failed to connect to the backend. Connection error: ${err.message}`);
                 this.connectionErrorMsg = `${this.$t("Cannot connect to the socket server.")} [${err}] ${this.$t("Reconnecting...")}`;
                 this.showReverseProxyGuide = true;
                 this.socket.connected = false;
@@ -812,8 +807,8 @@ export default {
 };
 
 /**
- * Reconnect the socket.io connection.
- * Usage: Reconnect socket.io with auth-ed cookie, or drop the auth-ed session.
+ * Reconnect to the realtime server.
+ * Usage: Reconnect with auth-ed cookie, or drop the auth-ed session.
  */
 export function reconnectSocket() {
     if (socket) {

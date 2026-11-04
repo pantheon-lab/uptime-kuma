@@ -48,17 +48,17 @@ async function confirmDialog(page) {
 }
 
 test.describe("Monitor list", () => {
-    test("connects to the socket over websocket", async ({ page }) => {
+    test("connects to the realtime server", async ({ page }) => {
         await addMonitor(page, { name: "Socket Monitor" }, true);
         await openDashboard(page);
 
-        const transport = await page.evaluate(() => {
+        const connected = await page.evaluate(() => {
             const app = document.querySelector("#app").__vue_app__;
             const root = app._container._vnode.component.proxy;
-            return root.getSocket().io.engine.transport.name;
+            return root.getSocket().connected;
         });
 
-        expect(transport).toBe("websocket");
+        expect(connected).toBe(true);
     });
 
     test("clears the loading overlay once the list is ready", async ({ page }) => {

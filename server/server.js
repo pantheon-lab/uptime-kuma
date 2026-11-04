@@ -413,8 +413,8 @@ app.use(function (req, res, next) {
 
     log.debug("server", "Adding socket handler");
     io.on("connection", async (socket) => {
-        // Listeners are only added after the database calls below, and socket.io drops
-        // events that have no listener yet. Hold incoming events until they're in place,
+        // Listeners are only added after the database calls below, and events that have
+        // no listener yet are dropped. Hold incoming events until they're in place,
         // otherwise a slow database leaves the client waiting forever for a reply.
         let listenersReady;
         const listenersAdded = new Promise((resolve) => {

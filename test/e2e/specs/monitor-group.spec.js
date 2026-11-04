@@ -91,6 +91,9 @@ test.describe("Monitor Group", () => {
             .first()
             .dragTo(page.locator("a.item", { hasText: groupB }).first());
 
+        // Saving takes two round trips, so wait for it before leaving the page
+        await expect(page.locator(".Vue-Toastification__toast", { hasText: "Saved" })).toBeVisible();
+
         // The monitor now belongs to group B
         const childId = childHref.split("/").pop();
         await page.goto("./edit/" + childId);

@@ -6,7 +6,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { io } from "socket.io-client";
+import { connectRealtime } from "../../src/realtime-client";
 import BetterSqlite3 from "better-sqlite3";
 import bcrypt from "bcryptjs";
 
@@ -57,8 +57,8 @@ async function waitForServer(url, timeoutMs = 60000) {
 }
 
 /**
- * Emit a socket.io event and await its acknowledgement.
- * @param {import("socket.io-client").Socket} socket Connected socket
+ * Emit a realtime event and await its acknowledgement.
+ * @param {import("../../src/realtime-client").RealtimeClient} socket Connected socket
  * @param {string} event Event name
  * @param {any[]} args Event arguments
  * @returns {Promise<any>} Acknowledgement payload
@@ -69,7 +69,7 @@ function emitAsync(socket, event, ...args) {
 
 /**
  * Assert a socket call succeeded.
- * @param {import("socket.io-client").Socket} socket Connected socket
+ * @param {import("../../src/realtime-client").RealtimeClient} socket Connected socket
  * @param {string} event Event name
  * @param {any[]} args Event arguments
  * @returns {Promise<any>} The acknowledgement payload
@@ -123,7 +123,7 @@ test("A v1.23.17 database still works after upgrading to v3 (#7944, #7946)", { t
             .map((value) => value.split(";")[0])
             .join("; ");
 
-        socket = io(baseUrl, { extraHeaders: { cookie }, reconnection: false });
+        socket = connectRealtime(baseUrl, { extraHeaders: { cookie }, reconnection: false });
         await new Promise((resolve, reject) => {
             socket.on("connect", resolve);
             socket.on("connect_error", reject);
