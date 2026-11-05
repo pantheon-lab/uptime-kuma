@@ -3,6 +3,7 @@ module github.com/pantheon-lab/uptime-kuma/server-go
 go 1.26.6
 
 require (
+	github.com/adhocore/gronx v1.20.6
 	github.com/emersion/go-msgauth v0.7.0
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.25.0

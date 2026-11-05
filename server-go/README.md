@@ -6,8 +6,8 @@ percentiles and dashboard stats over REST, plus new beats over Server-Sent Event
 traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
 **Status:** this is now the only backend, because the Node.js server and MariaDB support have
-been removed. It isn't feature complete. Not built yet: maintenance windows, status pages, tags, TLS
-certificate tracking, proxies, two-factor login, more than one account, and all other monitor types.
+been removed. It isn't feature complete. Not built yet: status pages, tags, TLS certificate tracking,
+proxies, two-factor login, more than one account, and all other monitor types.
 
 ## Web UI
 
@@ -21,10 +21,11 @@ the window has passed. There's one account, and it can do everything.
 
 What works in the UI: logging in and out, changing the password, the dashboard with live beats, uptime and
 response times, the event list, adding, editing, pausing and deleting HTTP, keyword, TCP port and
-group monitors, charts, notifications (add, edit, test, delete, defaults), and saving settings.
+group monitors, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public
+holidays, and saving settings.
 
 Everything else answers "This isn't supported by this server yet", or shows an empty list where a page asks
-on its own (tags, maintenance, API keys). In particular:
+on its own (tags, API keys). In particular:
 
 - Saving a monitor with another type, a proxy, conditions, or an authentication method other than basic or
   bearer is refused, so that a check never runs differently from what the form shows. Basic and bearer
@@ -38,6 +39,40 @@ send `X-Forwarded-Proto`). Only a SHA-256 hash of the token is stored. A remembe
 renewed while used, and changing the password ends every other login. Passwords are hashed with scrypt in
 better-auth's format, so accounts from the Node.js backend could be imported unchanged; the importer doesn't
 do that yet. Logins are limited to 10 a minute per username and 60 a minute overall.
+
+## Maintenance windows
+
+A monitor under maintenance isn't checked. It makes MAINTENANCE beats, which don't count towards uptime, and
+doesn't alert. Going into or out of maintenance is an event, but only a failure afterwards alerts. A window on
+a group covers every monitor below it. They're managed in the web UI; the REST API has no routes for them yet.
+
+Strategies are manual, single, cron, and recurring by interval, day of the week or day of the month. A window's
+state is worked out from its rules and the time, so a restart during a window changes nothing. It can apply up
+to 10 seconds late, and a monitor shows it at its next scheduled check. The form's status page options do nothing
+yet, because there are no status pages.
+
+### Public holidays
+
+A window with recurring days can treat public holidays specially, using the calendars of one or more countries:
+
+- **Skip public holidays:** it doesn't run on a date that's a holiday in any of them.
+- **Also run on public holidays:** it runs on those dates too, at its usual time of day. A cron window can't do
+  this, because it has no fixed time of day.
+
+A date is judged in the window's timezone, by the day the window starts. Manual and single windows don't use
+holidays.
+
+Calendars are bundled in `internal/holidays/holidays.json.gz`: 246 countries for 2024 to 2035, made from
+[python-holidays](https://github.com/vacanza/holidays) by `internal/holidays/generate/generate.py`, which also
+says how to refresh them. Hong Kong uses the government's general holidays. Keep in mind:
+
+- Calendars are computed, and governments can announce changes later. Mainland China's adjusted days off are only
+  right for the years announced when the data was made, so refresh it each year, or correct dates by hand.
+- Countries with regions, such as the United States, the United Kingdom and Australia, have only national holidays.
+- Mainland China's make-up working days aren't holidays, so a Saturday window still runs on them.
+
+Under **Settings > Holidays**, admins can add their own dates to a country and remove bundled ones, which can be
+restored. Changes apply straight away to every window using that country.
 
 ## Run
 

@@ -329,6 +329,59 @@
                                 </div>
                             </template>
 
+                            <!-- Public holidays -->
+                            <template v-if="supportsHolidays">
+                                <div class="my-3">
+                                    <label for="holiday-mode" class="form-label">{{ $t("Public Holidays") }}</label>
+                                    <select id="holiday-mode" v-model="maintenance.holidayMode" class="form-select">
+                                        <option value="none">{{ $t("holidayModeNone") }}</option>
+                                        <option value="include" :disabled="maintenance.strategy === 'cron'">
+                                            {{ $t("holidayModeInclude") }}
+                                        </option>
+                                        <option value="exclude">{{ $t("holidayModeExclude") }}</option>
+                                    </select>
+                                    <div v-if="maintenance.strategy === 'cron'" class="form-text">
+                                        {{ $t("holidayModeCronHint") }}
+                                    </div>
+                                </div>
+
+                                <div v-if="usesHolidays" class="my-3">
+                                    <label for="holiday-countries" class="form-label">
+                                        {{ $t("Holiday Calendars") }}
+                                    </label>
+                                    <VueMultiselect
+                                        id="holiday-countries"
+                                        v-model="selectedHolidayCountries"
+                                        :options="holidayCountryOptions"
+                                        track-by="code"
+                                        label="name"
+                                        :multiple="true"
+                                        :close-on-select="false"
+                                        :clear-on-select="false"
+                                        :preserve-search="true"
+                                        :placeholder="$t('Select countries...')"
+                                        :preselect-first="false"
+                                        :max-height="400"
+                                        :taggable="false"
+                                    ></VueMultiselect>
+                                    <div class="form-text">
+                                        {{ $t("holidayCalendarHint") }}
+                                        <router-link to="/settings/holidays">{{ $t("Holidays") }}</router-link>
+                                    </div>
+
+                                    <div v-if="upcomingHolidays.length > 0" class="mt-2">
+                                        <div class="mb-1">{{ $t("Upcoming holidays") }}</div>
+                                        <div
+                                            v-for="holiday in upcomingHolidays"
+                                            :key="holiday.date + holiday.name"
+                                            class="form-text mt-0"
+                                        >
+                                            {{ holiday.date }} - {{ holiday.name }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+
                             <template v-if="maintenance.strategy === 'single'">
                                 <div class="my-3">
                                     <div class="d-flex gap-2 flex-wrap">
@@ -467,6 +520,8 @@ export default {
             selectedStatusPages: [],
             dark: this.$root.theme === "dark",
             neverEnd: false,
+            holidayCountryOptions: [],
+            upcomingHolidays: [],
             lastDays: [
                 {
                     langKey: "lastDay1",
@@ -514,6 +569,41 @@ export default {
     },
 
     computed: {
+        /**
+         * Only windows with recurring days can skip or add holidays
+         * @returns {boolean} True if the strategy recurs
+         */
+        supportsHolidays() {
+            return this.maintenance.strategy === "cron" || this.maintenance.strategy?.startsWith("recurring-");
+        },
+
+        /**
+         * Whether holiday calendars are in use
+         * @returns {boolean} True if the window skips or adds holidays
+         */
+        usesHolidays() {
+            return this.supportsHolidays && ["include", "exclude"].includes(this.maintenance.holidayMode);
+        },
+
+        selectedHolidayCountries: {
+            /**
+             * Map the window's country codes to the select's options
+             * @returns {object[]} Selected options
+             */
+            get() {
+                const codes = this.maintenance.holidayCountries ?? [];
+                return this.holidayCountryOptions.filter((option) => codes.includes(option.code));
+            },
+            /**
+             * Store the select's options as country codes
+             * @param {object[]} options Selected options
+             * @returns {void}
+             */
+            set(options) {
+                this.maintenance.holidayCountries = options.map((option) => option.code);
+            },
+        },
+
         cronDescription() {
             if (!this.maintenance.cron) {
                 return "";
@@ -622,6 +712,21 @@ export default {
         },
     },
     watch: {
+        "maintenance.holidayCountries"() {
+            this.loadUpcomingHolidays();
+        },
+        /**
+         * The form starts with a one-hour single window. Its end date would otherwise stay as the
+         * end of a recurring window's effective period, which would stop recurring an hour later.
+         * @param {string} to New strategy
+         * @param {string} from Old strategy
+         * @returns {void}
+         */
+        "maintenance.strategy"(to, from) {
+            if (this.isAdd && from === "single" && to !== "single" && this.maintenance.dateRange) {
+                this.maintenance.dateRange[1] = null;
+            }
+        },
         "$route.fullPath"() {
             this.init();
         },
@@ -633,6 +738,7 @@ export default {
         },
     },
     mounted() {
+        this.loadHolidayCountries();
         this.$root.getMonitorList((res) => {
             if (res.ok) {
                 Object.values(this.$root.monitorList)
@@ -670,6 +776,40 @@ export default {
         });
     },
     methods: {
+        /**
+         * Load the list of holiday calendars
+         * @returns {void}
+         */
+        loadHolidayCountries() {
+            this.$root.getSocket().emit("getHolidayCountries", (res) => {
+                if (res.ok) {
+                    this.holidayCountryOptions = res.countries.map((item) => ({
+                        code: item.code,
+                        name: `${item.name} (${item.code})`,
+                    }));
+                } else {
+                    this.$root.toastRes(res);
+                }
+            });
+        },
+
+        /**
+         * Preview the next holidays of the chosen countries
+         * @returns {void}
+         */
+        loadUpcomingHolidays() {
+            const codes = this.maintenance.holidayCountries ?? [];
+            if (codes.length === 0) {
+                this.upcomingHolidays = [];
+                return;
+            }
+            this.$root.getSocket().emit("getUpcomingHolidays", codes, (res) => {
+                if (res.ok) {
+                    this.upcomingHolidays = res.holidays;
+                }
+            });
+        },
+
         /**
          * Initialise page
          * @returns {void}
@@ -714,6 +854,8 @@ export default {
                     weekdays: [],
                     daysOfMonth: [],
                     timezoneOption: "SAME_AS_SERVER",
+                    holidayMode: "none",
+                    holidayCountries: [],
                 };
             } else if (this.isEdit || this.isClone) {
                 this.$root.getSocket().emit("getMaintenance", this.$route.params.id, (res) => {

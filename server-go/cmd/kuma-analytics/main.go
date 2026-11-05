@@ -18,6 +18,8 @@ import (
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/api"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/holidays"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/maintenance"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/notify"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/scheduler"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
@@ -139,6 +141,17 @@ func run(log *slog.Logger) error {
 	defer dispatcher.Close()
 	sched := scheduler.New(checker, writer, concurrency, log)
 	sched.SetNotifier(dispatcher)
+	calendar, err := holidays.New()
+	if err != nil {
+		return err
+	}
+	maintenanceService := maintenance.NewService(db, calendar, location, log)
+	// Before the scheduler starts, so that no check runs during a window that's already running.
+	if err := maintenanceService.Refresh(ctx); err != nil {
+		return fmt.Errorf("load maintenance: %w", err)
+	}
+	sched.SetMaintenance(maintenanceService)
+	go maintenanceService.Run(ctx)
 	sched.Start(monitors, previous)
 	apiServer := api.New(db, sched, hub, token, log)
 	apiServer.SetNotifyEnv(notifyEnv)
@@ -150,9 +163,10 @@ func run(log *slog.Logger) error {
 		apiServer.SetKeyRateLimit(perSecond, max(1, int(perSecond*4)))
 	}
 	uiServer := ui.New(db, sched, notifyEnv, log, ui.Options{
-		Version:  version,
-		BaseURL:  strings.TrimRight(os.Getenv("KUMA_BASE_URL"), "/"),
-		Location: location,
+		Version:     version,
+		BaseURL:     strings.TrimRight(os.Getenv("KUMA_BASE_URL"), "/"),
+		Location:    location,
+		Maintenance: maintenanceService,
 	})
 	go uiServer.Run(ctx, hub)
 

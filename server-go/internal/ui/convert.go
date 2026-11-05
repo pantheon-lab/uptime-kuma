@@ -85,6 +85,8 @@ type monitorTree struct {
 	byID          map[int32]monitor.Monitor
 	children      map[int32][]int32
 	notifications map[int32][]int32
+	// underMaintenance is set by the server. Nil means nothing is.
+	underMaintenance map[int32]bool
 }
 
 func newMonitorTree(monitors []monitor.Monitor, notifications map[int32][]int32) *monitorTree {
@@ -195,6 +197,7 @@ func (t *monitorTree) monitorJSON(m monitor.Monitor) map[string]any {
 		"body":                 m.Body,
 		"notificationIDList":   notificationIDs,
 		"propagateTrace":       m.PropagateTrace,
+		"maintenance":          t.underMaintenance[m.ID],
 	})
 	return out
 }

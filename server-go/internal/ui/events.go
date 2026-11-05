@@ -51,8 +51,6 @@ var errNotLoggedIn = errors.New("You are not logged in.")
 // this service doesn't have yet. An error would show a toast on every page load.
 var emptyReplies = map[string]func() any{
 	"getTags":                  func() any { return ok("tags", []any{}) },
-	"getMaintenanceList":       func() any { return ok() },
-	"getMonitorMaintenance":    func() any { return ok("monitors", []any{}) },
 	"getMaintenanceStatusPage": func() any { return ok("statusPages", []any{}) },
 	"getAPIKeyList":            func() any { return ok() },
 	"getDatabaseSize":          func() any { return ok("size", 0) },
@@ -107,7 +105,11 @@ func (s *Server) afterLogin(ctx context.Context, c *conn) {
 		s.log.Error("send monitor list", "error", err)
 	}
 	c.emit("info", s.info(ctx, true))
-	c.emit("maintenanceList", map[string]any{})
+	if list, err := s.maintenanceList(ctx); err != nil {
+		s.log.Error("send maintenance list", "error", err)
+	} else {
+		c.emit("maintenanceList", list)
+	}
 	if err := s.sendNotificationList(ctx, c); err != nil {
 		s.log.Error("send notification list", "error", err)
 	}
@@ -157,7 +159,9 @@ func (s *Server) monitorTree(ctx context.Context) (*monitorTree, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newMonitorTree(monitors, links), nil
+	tree := newMonitorTree(monitors, links)
+	tree.underMaintenance = s.maintenance.UnderMaintenanceSet()
+	return tree, nil
 }
 
 func (s *Server) sendMonitorList(ctx context.Context, c *conn) error {
@@ -319,6 +323,42 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.deleteNotification(ctx, args)
 	case "testNotification":
 		r, err = s.testNotification(ctx, args)
+	case "getMaintenanceList":
+		var list map[string]any
+		if list, err = s.maintenanceList(ctx); err == nil {
+			c.emit("maintenanceList", list)
+			r = ok()
+		}
+	case "getMaintenance":
+		r, err = s.getMaintenance(ctx, args)
+	case "addMaintenance":
+		r, err = s.saveMaintenance(ctx, args, false)
+	case "editMaintenance":
+		r, err = s.saveMaintenance(ctx, args, true)
+	case "addMonitorMaintenance":
+		r, err = s.setMaintenanceMonitors(ctx, args)
+	case "addMaintenanceStatusPage":
+		r, err = s.setMaintenanceStatusPages(args)
+	case "getMonitorMaintenance":
+		r, err = s.getMaintenanceMonitors(ctx, args)
+	case "pauseMaintenance":
+		r, err = s.setMaintenanceActive(ctx, args, false)
+	case "resumeMaintenance":
+		r, err = s.setMaintenanceActive(ctx, args, true)
+	case "deleteMaintenance":
+		r, err = s.deleteMaintenance(ctx, args)
+	case "getHolidayCountries":
+		r = s.holidayCountries()
+	case "getHolidays":
+		r, err = s.listHolidays(args)
+	case "getUpcomingHolidays":
+		r, err = s.upcoming(args)
+	case "addCustomHoliday":
+		r, err = s.addCustomHoliday(ctx, args)
+	case "removeHoliday":
+		r, err = s.removeHoliday(ctx, args)
+	case "restoreHoliday":
+		r, err = s.restoreHoliday(ctx, args)
 	default:
 		return nil, false
 	}
@@ -379,6 +419,7 @@ func (s *Server) addMonitor(ctx context.Context, args []json.RawMessage) (reply,
 	if err := s.store.SetMonitorNotifications(ctx, created.ID, notificationIDs); err != nil {
 		return nil, userErr(fmt.Errorf("the monitor was added, but its notifications weren't: %w", err))
 	}
+	s.maintenance.Changed() // A new monitor may be in a group under maintenance.
 	s.scheduler.Upsert(created)
 	s.broadcastMonitors(ctx, created.ID)
 	s.log.Info("monitor added from the web UI", "monitor", created.ID)
@@ -413,6 +454,7 @@ func (s *Server) editMonitor(ctx context.Context, args []json.RawMessage) (reply
 	if err := s.store.SetMonitorNotifications(ctx, updated.ID, notificationIDs); err != nil {
 		return nil, userErr(fmt.Errorf("the monitor was saved, but its notifications weren't: %w", err))
 	}
+	s.maintenance.Changed() // It may have moved to another group.
 	s.scheduler.Upsert(updated)
 	s.broadcastMonitors(ctx, updated.ID)
 	s.log.Info("monitor changed from the web UI", "monitor", updated.ID)
