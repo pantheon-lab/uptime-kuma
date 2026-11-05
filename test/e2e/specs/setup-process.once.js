@@ -1,8 +1,8 @@
 import { test } from "../fixtures";
-import { getSqliteDatabaseExists, login, screenshot, takeSqliteSnapshot } from "../util-test";
+import { getSetupCompleted, login, screenshot, takeSqliteSnapshot } from "../util-test";
 
 test.describe("Uptime Kuma Setup", () => {
-    test.skip(() => getSqliteDatabaseExists(), "Must only run once per session");
+    test.skip(() => getSetupCompleted(), "Must only run once per session");
 
     test.afterEach(async ({ page }, testInfo) => {
         await screenshot(testInfo, page);
@@ -11,14 +11,6 @@ test.describe("Uptime Kuma Setup", () => {
     /*
      * Setup
      */
-
-    test("setup sqlite", async ({ page }, testInfo) => {
-        await page.goto("./setup-database");
-        await page.getByText("SQLite").click();
-        await page.getByRole("button", { name: "Next" }).click();
-        await screenshot(testInfo, page);
-        await page.waitForURL("/setup"); // ensures the server is ready to continue to the next test
-    });
 
     test("setup admin", async ({ page }) => {
         await page.goto("./setup");

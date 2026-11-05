@@ -31,13 +31,17 @@ const tables = [
 
 exports.up = async function (knex) {
     for (const table of tables) {
-        try {
-            await knex.schema.alterTable(table.name, (t) => {
-                t.dropForeign("user_id");
-            });
-        } catch (error) {
-            // MySQL ignores the inline REFERENCES in the legacy patch SQL, so there is no constraint to drop
-            console.warn(`Warning: MySQL has no foreign key to drop on ${table.name}.user_id (${error.message})`);
+        // On PostgreSQL, dropping the column below also drops its foreign key, and a failed
+        // statement here would abort the migration's whole transaction.
+        if (knex.client.dialect !== "postgresql") {
+            try {
+                await knex.schema.alterTable(table.name, (t) => {
+                    t.dropForeign("user_id");
+                });
+            } catch (error) {
+                // MySQL ignores the inline REFERENCES in the legacy patch SQL, so there is no constraint to drop
+                console.warn(`Warning: MySQL has no foreign key to drop on ${table.name}.user_id (${error.message})`);
+            }
         }
 
         await knex.schema.alterTable(table.name, (t) => {

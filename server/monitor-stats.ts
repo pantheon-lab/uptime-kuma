@@ -16,7 +16,7 @@ export interface MonitorStatsResult {
     uptime1y: number;
 }
 
-/** Minimal socket room emitter, avoids importing the full socket.io type */
+/** Minimal socket room emitter, avoids importing the full server type */
 interface RoomEmitter {
     to(room: string): { emit(event: string, payload: unknown): unknown };
 }

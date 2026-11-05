@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const serverUrl = require("../../playwright.config.js").url;
 
-const dbPath = "./../../data/playwright-test/kuma.db";
+const setupDoneMarker = "./../../data/playwright-test/e2e-setup-done";
 
 /**
  * @param {TestInfo} testInfo Test info
@@ -33,11 +33,11 @@ export async function login(page) {
 }
 
 /**
- * Determines if the SQLite database has been created. This indicates setup has completed.
- * @returns {boolean} True if exists
+ * Determines if the setup spec has finished, which it records by taking the first snapshot.
+ * @returns {boolean} True if setup has completed
  */
-export function getSqliteDatabaseExists() {
-    return fs.existsSync(path.resolve(__dirname, dbPath));
+export function getSetupCompleted() {
+    return fs.existsSync(path.resolve(__dirname, setupDoneMarker));
 }
 
 /**

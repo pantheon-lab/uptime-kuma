@@ -38,8 +38,6 @@ export default {
                     // should the old setting style still exist here?
                     this.$router.push("/dashboard");
                 }
-            } else if (res.type === "setup-database") {
-                this.$router.push("/setup-database");
             } else {
                 this.$router.push("/dashboard");
             }

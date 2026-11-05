@@ -1,4 +1,4 @@
-import { Socket } from "socket.io";
+import type { RealtimeSocket as Socket } from "../realtime-server";
 import { needSetup } from "../routers/better-auth-router";
 
 /**

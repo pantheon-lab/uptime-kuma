@@ -7,8 +7,7 @@ export const socketRoom = "dashboard";
 
 /**
  * Send a heartbeat to the dashboard, but only when someone is connected.
- * Socket.io still serializes and sends the event for empty rooms, which costs
- * time for thousands of monitors on every beat.
+ * This skips building the payload for thousands of monitors on every beat.
  * @param io Socket server
  * @param payload Heartbeat payload
  * @returns True when the event was emitted

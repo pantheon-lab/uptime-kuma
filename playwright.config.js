@@ -7,7 +7,13 @@ try {
     loadEnvFile();
 } catch (_) {}
 
-const port = 3001;
+const port = Number(process.env.E2E_PORT) || 3001;
+
+// Set E2E_DB_TYPE=postgres to run the suite on TimescaleDB, using the UPTIME_KUMA_DB_* variables.
+const dbEnv =
+    process.env.E2E_DB_TYPE === "postgres"
+        ? "UPTIME_KUMA_DB_TYPE=postgres UPTIME_KUMA_DB_NAME=kuma_playwright"
+        : "UPTIME_KUMA_DB_TYPE=sqlite";
 
 // CI is always headless. Locally, `HEADLESS_E2E_TESTS=1` (in `.env` or the environment) forces it too.
 const headless = !!process.env.CI || process.env.HEADLESS_E2E_TESTS === "1";
@@ -76,7 +82,7 @@ export default defineConfig({
 
     // Run your local dev server before starting the tests.
     webServer: {
-        command: `node extra/remove-playwright-test-data.js && cross-env NODE_ENV=development node --import=tsx server/server.js --port=${port} --data-dir=./data/playwright-test`,
+        command: `node extra/remove-playwright-test-data.js && cross-env NODE_ENV=development ${dbEnv} node --import=tsx server/server.js --port=${port} --data-dir=./data/playwright-test`,
         url,
         reuseExistingServer: false,
         cwd: "./",

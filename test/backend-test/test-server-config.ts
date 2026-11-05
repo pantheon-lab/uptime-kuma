@@ -43,16 +43,6 @@ function stubMonitorList() {
     return monitor;
 }
 
-describe("socket.io payload compression", () => {
-    test("compresses websocket and polling payloads above 1 KB", () => {
-        const server = UptimeKumaServer.getInstance();
-        const opts = server.io.engine.opts;
-
-        assert.strictEqual(opts.perMessageDeflate.threshold, 1024);
-        assert.strictEqual(opts.httpCompression.threshold, 1024);
-    });
-});
-
 describe("getMonitorJSONList()", () => {
     test("returns the compact payload for the dashboard", async () => {
         stubMonitorList();

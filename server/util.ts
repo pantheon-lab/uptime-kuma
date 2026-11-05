@@ -8,7 +8,7 @@ import type { Request, Response } from "express";
 import type { SASLOptions } from "kafkajs";
 import type { TokenSet } from "openid-client";
 import type { Bean } from "redbean-node";
-import type { Server, Socket } from "socket.io";
+import type { RealtimeServer as Server, RealtimeSocket as Socket } from "./realtime-server";
 import type { TLSSocket } from "tls";
 
 const { R } = require("redbean-node");

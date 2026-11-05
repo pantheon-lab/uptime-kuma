@@ -18,7 +18,6 @@ import NotFound from "./pages/NotFound.vue";
 import DockerHosts from "./components/settings/Docker.vue";
 import ManageMaintenance from "./pages/ManageMaintenance.vue";
 import APIKeys from "./components/settings/APIKeys.vue";
-import SetupDatabase from "./pages/SetupDatabase.vue";
 
 // Settings - Sub Pages
 import Appearance from "./components/settings/Appearance.vue";
@@ -168,10 +167,6 @@ const routes = [
     {
         path: "/setup",
         component: Setup,
-    },
-    {
-        path: "/setup-database",
-        component: SetupDatabase,
     },
     {
         path: "/status-page",

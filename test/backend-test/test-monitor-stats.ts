@@ -32,7 +32,7 @@ function reset() {
 beforeEach(reset);
 
 /**
- * Build a socket.io-like emitter that records the events
+ * Build a room emitter that records the events
  * @returns {object} Room emitter and the emitted events
  */
 function fakeIo() {

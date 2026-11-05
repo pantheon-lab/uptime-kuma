@@ -199,7 +199,8 @@ const { Settings } = require("./settings");
 const apicache = require("./utils/response-cache");
 const { resetChrome } = require("./monitor-types/real-browser-monitor-type");
 const { EmbeddedMariaDB } = require("./embedded-mariadb");
-const { SetupDatabase } = require("./setup-database");
+const { configureDatabase } = require("./setup-database");
+const path = require("path");
 const { chartSocketHandler } = require("./socket-handlers/chart-socket-handler");
 
 app.use(express.json());
@@ -217,11 +218,11 @@ app.use(function (req, res, next) {
     // Create a data directory
     Database.initDataDir(args);
 
-    // Check if is chosen a database type
-    let setupDatabase = new SetupDatabase(args, server);
-    if (setupDatabase.isNeedSetup()) {
-        // Hold here and start a special setup page until user choose a database type
-        await setupDatabase.start(hostname, port);
+    try {
+        configureDatabase();
+    } catch (e) {
+        log.error("server", e.message);
+        process.exit(1);
     }
 
     // Connect to database
@@ -282,14 +283,6 @@ app.use(function (req, res, next) {
         }
     });
 
-    app.get("/setup-database-info", (request, response) => {
-        allowDevAllOrigin(response);
-        response.json({
-            runningSetup: false,
-            needSetup: false,
-        });
-    });
-
     if (isDevEnv()) {
         app.options("/*", async (request, response) => {
             allowDevOrigin(request, response);
@@ -304,14 +297,29 @@ app.use(function (req, res, next) {
         });
 
         app.get("/_e2e/take-sqlite-snapshot", async (request, response) => {
-            // Checkpoint WAL to flush all data to the main .db file, then copy.
-            // No close/reopen needed — the file is consistent after checkpoint.
-            await R.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-            fs.cpSync(Database.sqlitePath, `${Database.sqlitePath}.e2e-snapshot`);
+            if (Database.dbConfig.type === "postgres") {
+                await Database.close();
+                await Database.copyPostgresDatabase(Database.dbConfig.dbName, `${Database.dbConfig.dbName}_snapshot`);
+                await Database.connect();
+            } else {
+                // Checkpoint WAL to flush all data to the main .db file, then copy.
+                // No close/reopen needed — the file is consistent after checkpoint.
+                await R.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+                fs.cpSync(Database.sqlitePath, `${Database.sqlitePath}.e2e-snapshot`);
+            }
+            fs.writeFileSync(path.join(Database.dataDir, "e2e-setup-done"), "");
             response.send("Snapshot taken.");
         });
 
         app.get("/_e2e/restore-sqlite-snapshot", async (request, response) => {
+            if (Database.dbConfig.type === "postgres") {
+                await Database.close();
+                await Database.copyPostgresDatabase(`${Database.dbConfig.dbName}_snapshot`, Database.dbConfig.dbName);
+                await Database.connect();
+                response.send("Snapshot restored.");
+                return;
+            }
+
             if (!fs.existsSync(`${Database.sqlitePath}.e2e-snapshot`)) {
                 throw new Error("Snapshot doesn't exist.");
             }
@@ -405,6 +413,17 @@ app.use(function (req, res, next) {
 
     log.debug("server", "Adding socket handler");
     io.on("connection", async (socket) => {
+        // Listeners are only added after the database calls below, and events that have
+        // no listener yet are dropped. Hold incoming events until they're in place,
+        // otherwise a slow database leaves the client waiting forever for a reply.
+        let listenersReady;
+        const listenersAdded = new Promise((resolve) => {
+            listenersReady = resolve;
+        });
+        socket.use((_packet, next) => {
+            listenersAdded.then(() => next());
+        });
+
         await sendInfo(socket, true);
 
         if (await needSetup()) {
@@ -1449,6 +1468,7 @@ app.use(function (req, res, next) {
         chartSocketHandler(socket);
 
         log.debug("server", "added all socket handlers");
+        listenersReady();
 
         // ***************************
         // Better do anything after added all socket handlers here
@@ -1521,7 +1541,7 @@ async function updateMonitorNotification(monitorID, notificationIDList) {
 /**
  * Function called after user login
  * This function is used to send the heartbeat list of a monitor.
- * @param {Socket} socket Socket.io instance
+ * @param {Socket} socket Socket instance
  * @param {object} user User object
  * @returns {Promise<void>}
  */

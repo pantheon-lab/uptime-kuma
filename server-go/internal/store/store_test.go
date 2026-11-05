@@ -1,0 +1,272 @@
+package store
+
+import (
+	"context"
+	"fmt"
+	"math"
+	"net/url"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+)
+
+// newTestStore creates a throwaway database. It needs TEST_DATABASE_URL to point
+// at a TimescaleDB server, otherwise the test is skipped.
+func newTestStore(t *testing.T) *Store {
+	t.Helper()
+	admin := os.Getenv("TEST_DATABASE_URL")
+	if admin == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := fmt.Sprintf("kuma_test_%d", time.Now().UnixNano())
+	if _, err := conn.Exec(ctx, "CREATE DATABASE "+name); err != nil {
+		t.Fatal(err)
+	}
+	u, err := url.Parse(admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.Path = "/" + name
+	s, err := Open(ctx, u.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		s.Close()
+		_, _ = conn.Exec(ctx, "DROP DATABASE "+name+" WITH (FORCE)")
+		_ = conn.Close(ctx)
+	})
+	if err := s.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func ptr(v float64) *float64 { return &v }
+
+func TestMigrateIsRepeatable(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.Migrate(context.Background()); err != nil {
+		t.Fatalf("second migration: %v", err)
+	}
+}
+
+func TestRetentionCanChange(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	for _, days := range []int{30, 90, 0} {
+		if err := s.SetRetention(ctx, days); err != nil {
+			t.Fatalf("retention %d: %v", days, err)
+		}
+		var jobs int
+		err := s.pool.QueryRow(ctx, `SELECT count(*) FROM timescaledb_information.jobs WHERE proc_name = 'policy_retention'`).Scan(&jobs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := 1
+		if days == 0 {
+			want = 0
+		}
+		if jobs != want {
+			t.Errorf("retention %d: %d jobs, want %d", days, jobs, want)
+		}
+	}
+	if err := s.SetRetention(ctx, -1); err == nil {
+		t.Error("negative retention should fail")
+	}
+}
+
+func TestInsertIsIdempotent(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	at := time.Now().UTC().Truncate(time.Microsecond)
+	batch := []Beat{
+		{MonitorID: 1, Time: at, Status: 1, Ping: ptr(10), Msg: "ok", Important: true, Duration: 60, Retries: 2},
+		{MonitorID: 1, Time: at, Status: 0},
+		{MonitorID: 2, Time: at, Status: 0},
+	}
+	inserted, err := s.InsertBeats(ctx, batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inserted) != 2 {
+		t.Fatalf("first insert returned %d beats, want 2", len(inserted))
+	}
+	inserted, err = s.InsertBeats(ctx, batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inserted) != 0 {
+		t.Fatalf("replay inserted %d beats, want 0", len(inserted))
+	}
+
+	beats, err := s.LatestBeats(ctx, 1, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(beats) != 1 {
+		t.Fatalf("got %d beats, want 1", len(beats))
+	}
+	b := beats[0]
+	if !b.Time.Equal(at) || b.Status != 1 || *b.Ping != 10 || b.Msg != "ok" || !b.Important || b.Duration != 60 || b.Retries != 2 {
+		t.Errorf("beat did not round-trip: %+v", b)
+	}
+	down, err := s.LatestBeats(ctx, 2, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(down) != 1 || down[0].Ping != nil {
+		t.Errorf("null ping did not round-trip: %+v", down)
+	}
+}
+
+// seed writes beats for monitor 1 at 1-minute spacing, ending now: status cycles
+// through up, up, up, down, pending, maintenance. Pings are 10..., only on up beats.
+func seed(t *testing.T, s *Store, start time.Time, minutes int) {
+	t.Helper()
+	beats := make([]Beat, 0, minutes)
+	cycle := []int16{1, 1, 1, 0, 2, 3}
+	for i := 0; i < minutes; i++ {
+		status := cycle[i%len(cycle)]
+		b := Beat{MonitorID: 1, Time: start.Add(time.Duration(i) * time.Minute), Status: status}
+		if status == 1 {
+			b.Ping = ptr(float64(10 + i%3*10))
+		}
+		beats = append(beats, b)
+		if len(beats) == 5000 || i == minutes-1 {
+			if _, err := s.InsertBeats(context.Background(), beats); err != nil {
+				t.Fatal(err)
+			}
+			beats = beats[:0]
+		}
+	}
+}
+
+func sumChart(points []ChartPoint) (up, down, maintenance int64) {
+	for _, p := range points {
+		up += p.Up
+		down += p.Down
+		maintenance += p.Maintenance
+	}
+	return
+}
+
+func TestChartAndStatsMatchRawData(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	const days = 3
+	minutes := days * 24 * 60
+	seed(t, s, time.Now().UTC().Add(-time.Duration(minutes)*time.Minute).Truncate(time.Minute), minutes)
+
+	check := func(t *testing.T) {
+		t.Helper()
+		// Whole cycles of 6 beats: 3 up, 2 down, 1 maintenance.
+		for _, hours := range []int{1, 6, 24, 48, 24 * 31} {
+			points, err := s.Chart(ctx, 1, hours)
+			if err != nil {
+				t.Fatalf("chart %dh: %v", hours, err)
+			}
+			if len(points) == 0 {
+				t.Fatalf("chart %dh is empty", hours)
+			}
+			up, down, maintenance := sumChart(points)
+			if up == 0 || down == 0 || maintenance == 0 {
+				t.Errorf("chart %dh lost a status: up=%d down=%d maintenance=%d", hours, up, down, maintenance)
+			}
+			if got := float64(up) / float64(down); math.Abs(got-1.5) > 0.1 {
+				t.Errorf("chart %dh: up/down = %.3f, want about 1.5", hours, got)
+			}
+			if got := float64(up) / float64(maintenance); math.Abs(got-3) > 0.2 {
+				t.Errorf("chart %dh: up/maintenance = %.3f, want about 3", hours, got)
+			}
+			for _, p := range points {
+				if p.AvgPing != nil && (*p.AvgPing < 10 || *p.AvgPing > 30 || *p.MinPing < 10 || *p.MaxPing > 30) {
+					t.Errorf("chart %dh: ping out of range: %+v", hours, p)
+				}
+			}
+			if hours == 24*31 {
+				up, down, _ := sumChart(points)
+				if total := up + down; total < int64(minutes)*5/6-10 || total > int64(minutes)*5/6+10 {
+					t.Errorf("all-time chart counts %d beats, want about %d", total, minutes*5/6)
+				}
+			}
+		}
+
+		stats, err := s.Stats(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(stats) != 1 || stats[0].MonitorID != 1 {
+			t.Fatalf("stats: %+v", stats)
+		}
+		m := stats[0]
+		for name, v := range map[string]*float64{"24h": m.Uptime24h, "30d": m.Uptime30d, "1y": m.Uptime1y} {
+			if v == nil || math.Abs(*v-0.6) > 0.01 {
+				t.Errorf("uptime %s = %v, want about 0.6", name, v)
+			}
+		}
+		if m.AvgPing == nil || math.Abs(*m.AvgPing-20) > 1 {
+			t.Errorf("avg ping = %v, want about 20", m.AvgPing)
+		}
+	}
+
+	t.Run("real-time, nothing materialized", check)
+
+	for _, view := range []string{"stat_hourly", "stat_daily"} {
+		if _, err := s.pool.Exec(ctx, fmt.Sprintf(`CALL refresh_continuous_aggregate('%s', NULL, NULL)`, view)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Run("after materializing", check)
+
+	if _, err := s.pool.Exec(ctx, `SELECT compress_chunk(c) FROM show_chunks('heartbeat', older_than => INTERVAL '1 day') c`); err != nil {
+		t.Fatal(err)
+	}
+	t.Run("after compressing raw chunks", check)
+
+	// A replayed beat that lands in a compressed chunk must still be ignored.
+	old := time.Now().UTC().Add(-time.Duration(minutes) * time.Minute).Truncate(time.Minute)
+	inserted, err := s.InsertBeats(ctx, []Beat{{MonitorID: 1, Time: old, Status: 1}})
+	if err != nil {
+		t.Fatalf("insert into compressed chunk: %v", err)
+	}
+	if len(inserted) != 0 {
+		t.Errorf("replay into compressed chunk inserted %d beats", len(inserted))
+	}
+}
+
+func TestPercentiles(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	beats := []Beat{{MonitorID: 1, Time: now.Add(-time.Hour), Status: 0, Ping: ptr(100000)}}
+	for i := 1; i <= 100; i++ {
+		beats = append(beats, Beat{MonitorID: 1, Time: now.Add(-time.Duration(i) * time.Second), Status: 1, Ping: ptr(float64(i))})
+	}
+	if _, err := s.InsertBeats(ctx, beats); err != nil {
+		t.Fatal(err)
+	}
+	values, err := s.Percentiles(ctx, 1, 24, []float64{0.5, 0.95, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, want := range []float64{50.5, 95.05, 100} {
+		if values[i] == nil || math.Abs(*values[i]-want) > 0.01 {
+			t.Errorf("percentile %d = %v, want %v (down beats must not count)", i, values[i], want)
+		}
+	}
+	empty, err := s.Percentiles(ctx, 999, 24, []float64{0.5, 0.95})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(empty) != 2 || empty[0] != nil || empty[1] != nil {
+		t.Errorf("empty window: %v", empty)
+	}
+}
