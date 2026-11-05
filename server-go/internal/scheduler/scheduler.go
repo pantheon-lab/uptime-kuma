@@ -6,12 +6,21 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"strconv"
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/telemetry"
 )
+
+const tracerName = "kuma-analytics/scheduler"
 
 // Checker runs one check.
 type Checker interface {
@@ -40,6 +49,10 @@ type Scheduler struct {
 	mu      sync.Mutex
 	stopped bool
 	runners map[int32]*runner
+
+	// groupNames maps group ids to names for metric labels. It's read on every check, so
+	// a renamed or deleted group takes effect without restarting its children.
+	groupNames sync.Map
 
 	stateMu sync.Mutex
 	// last is each monitor's newest state as of its previous runner's exit. The
@@ -72,6 +85,9 @@ func (s *Scheduler) Start(monitors []monitor.Monitor, previous map[int32]monitor
 	}
 	s.stateMu.Unlock()
 	for _, m := range monitors {
+		s.rememberGroup(m)
+	}
+	for _, m := range monitors {
 		if m.Active {
 			delay := time.Duration(rand.Int64N(int64(m.Interval)*int64(time.Second) + 1))
 			s.startLocked(m, delay)
@@ -86,10 +102,30 @@ func (s *Scheduler) Upsert(m monitor.Monitor) {
 	if s.stopped {
 		return
 	}
+	s.rememberGroup(m)
 	s.stopRunnerLocked(m.ID)
 	if m.Active {
 		s.startLocked(m, 0)
+	} else {
+		telemetry.Metrics().ForgetMonitor(m.ID)
 	}
+}
+
+func (s *Scheduler) rememberGroup(m monitor.Monitor) {
+	if m.Type == monitor.TypeGroup {
+		s.groupNames.Store(m.ID, m.Name)
+	} else {
+		s.groupNames.Delete(m.ID)
+	}
+}
+
+func (s *Scheduler) groupName(m monitor.Monitor) string {
+	if m.ParentID != nil {
+		if name, ok := s.groupNames.Load(*m.ParentID); ok {
+			return name.(string)
+		}
+	}
+	return ""
 }
 
 // Remove stops a monitor and writes out its queued beats. Do this before deleting
@@ -101,6 +137,8 @@ func (s *Scheduler) Remove(ctx context.Context, id int32) error {
 	delete(s.last, id)
 	s.stateMu.Unlock()
 	s.mu.Unlock()
+	s.groupNames.Delete(id)
+	telemetry.Metrics().ForgetMonitor(id)
 	if err := s.sink.Flush(ctx); err != nil {
 		return fmt.Errorf("flush beats: %w", err)
 	}
@@ -151,6 +189,8 @@ func (s *Scheduler) startLocked(m monitor.Monitor, delay time.Duration) {
 
 // run checks one monitor until cancelled and returns its last state.
 func (s *Scheduler) run(ctx context.Context, m monitor.Monitor, delay time.Duration, state *monitor.Previous) *monitor.Previous {
+	metrics := telemetry.Metrics()
+	due := time.Now().Add(delay)
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
 	for {
@@ -166,18 +206,31 @@ func (s *Scheduler) run(ctx context.Context, m monitor.Monitor, delay time.Durat
 			return state
 		case s.slots <- struct{}{}:
 		}
+		metrics.RecordLag(time.Since(due).Seconds())
+		metrics.CheckStarted()
+		group := s.groupName(m)
 		startedAt := time.Now().UTC().Truncate(time.Microsecond)
-		result := s.runCheck(ctx, m)
+		spanCtx, span := otel.Tracer(tracerName).Start(ctx, "monitor.check", trace.WithNewRoot(), trace.WithAttributes(
+			attribute.String("monitor.id", strconv.Itoa(int(m.ID))),
+			attribute.String("monitor.name", m.Name),
+			attribute.String("monitor.type", m.Type),
+			attribute.String("monitor.group", group),
+		))
+		result := s.runCheck(spanCtx, m)
+		elapsed := time.Since(startedAt).Seconds()
 		<-s.slots
+		metrics.CheckFinished()
 
 		// A cancelled check says nothing about the target, so it makes no beat.
 		if ctx.Err() != nil {
+			span.SetAttributes(attribute.Bool("monitor.check.cancelled", true))
+			span.End()
 			return state
 		}
 
 		out := m.Next(state, result)
 		state = &monitor.Previous{Status: out.Status, Retries: out.Retries}
-		s.sink.Add(store.Beat{
+		beat := store.Beat{
 			MonitorID: m.ID,
 			Time:      startedAt,
 			Status:    out.Status,
@@ -185,13 +238,46 @@ func (s *Scheduler) run(ctx context.Context, m monitor.Monitor, delay time.Durat
 			Msg:       out.Msg,
 			Important: out.Important,
 			Retries:   out.Retries,
-		})
+		}
+
+		// The status comes from the beat rather than the check, so that upside-down
+		// monitors count correctly. Only failed traces are certain to be exported, so only
+		// they carry a trace id and an exemplar: both must lead to a trace that exists.
+		exemplarCtx := context.Background()
+		span.SetAttributes(attribute.Int("monitor.status", int(out.Status)), attribute.Int("monitor.retries", int(out.Retries)))
+		if out.Status == monitor.StatusDown || out.Status == monitor.StatusPending {
+			span.SetStatus(codes.Error, out.Msg)
+			beat.TraceID = span.SpanContext().TraceID().String()
+			exemplarCtx = spanCtx
+			if out.Important && out.Status == monitor.StatusDown {
+				s.log.Warn("monitor is down", "monitor", m.ID, "name", m.Name, "detail", out.Msg, "trace_id", beat.TraceID)
+			}
+		}
+		metrics.RecordCheck(exemplarCtx, m.Type, group, outcomeName(out.Status), elapsed)
+		metrics.SetMonitorUp(m.ID, m.Name, group, out.Status == monitor.StatusUp)
+		span.End()
+		s.sink.Add(beat)
 
 		interval := m.Interval
 		if out.Status == monitor.StatusPending && m.RetryInterval > 0 {
 			interval = m.RetryInterval
 		}
-		timer.Reset(max(time.Millisecond, time.Duration(interval)*time.Second-time.Since(scheduled)))
+		wait := max(time.Millisecond, time.Duration(interval)*time.Second-time.Since(scheduled))
+		due = time.Now().Add(wait)
+		timer.Reset(wait)
+	}
+}
+
+func outcomeName(status int16) string {
+	switch status {
+	case monitor.StatusUp:
+		return "up"
+	case monitor.StatusDown:
+		return "down"
+	case monitor.StatusPending:
+		return "pending"
+	default:
+		return "maintenance"
 	}
 }
 

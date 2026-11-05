@@ -22,12 +22,77 @@ services:
     depends_on:
       timescaledb:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     environment:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@timescaledb:5432/kuma
       ANALYTICS_API_TOKEN: ${ANALYTICS_API_TOKEN:?set ANALYTICS_API_TOKEN}
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:?set GRAFANA_DB_PASSWORD}
       LISTEN_ADDR: 0.0.0.0:3002
+      API_KEY_RATE_LIMIT: ${API_KEY_RATE_LIMIT:-50}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
     ports:
-      - "127.0.0.1:3002:3002"
+      # Set API_BIND=0.0.0.0 to open the API to other machines. Put TLS in front of it
+      # first, because API keys and the admin token are bearer credentials.
+      - "${API_BIND:-127.0.0.1}:3002:3002"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    depends_on:
+      - prometheus
+      - tempo
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
+    volumes:
+      - prometheus-data:/prometheus
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    restart: unless-stopped
+    # The image runs as uid 10001, and a new named volume belongs to root.
+    user: "0"
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    depends_on:
+      - timescaledb
+      - prometheus
+      - tempo
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/uptime-by-group.json
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}
+    ports:
+      # Set GRAFANA_BIND=0.0.0.0 to open it from other machines.
+      - "${GRAFANA_BIND:-127.0.0.1}:${GRAFANA_PORT:-3003}:3000"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
 
 volumes:
   timescaledb-data:
+  prometheus-data:
+  tempo-data:
+  grafana-data:

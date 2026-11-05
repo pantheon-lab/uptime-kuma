@@ -11,11 +11,18 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 )
@@ -25,6 +32,7 @@ const (
 	maxResponseBytes = 10 << 20
 	acceptHeader     = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9"
 	userAgent        = "Uptime-Kuma-Go/0"
+	tracerName       = "kuma-analytics/check"
 	snippetRunes     = 50
 )
 
@@ -38,10 +46,24 @@ type Checker struct {
 	verified *http.Transport
 	insecure *http.Transport
 	dialer   net.Dialer
+	groups   GroupReader
 }
 
-// New creates a Checker.
-func New() *Checker {
+// Child is what a group needs to know about one of its direct children.
+type Child struct {
+	Name   string
+	Active bool
+	// Status is the last beat's status, nil if there are no beats yet.
+	Status *int16
+}
+
+// GroupReader reads a group's direct children.
+type GroupReader interface {
+	GroupChildren(ctx context.Context, groupID int32) ([]Child, error)
+}
+
+// New creates a Checker. groups is only needed for group monitors.
+func New(groups GroupReader) *Checker {
 	transport := func(skipVerify bool) *http.Transport {
 		return &http.Transport{
 			Proxy:               http.ProxyFromEnvironment,
@@ -52,7 +74,7 @@ func New() *Checker {
 			TLSClientConfig:     &tls.Config{InsecureSkipVerify: skipVerify, MinVersion: tls.VersionTLS12}, //nolint:gosec // Per-monitor opt-in.
 		}
 	}
-	return &Checker{verified: transport(false), insecure: transport(true)}
+	return &Checker{verified: transport(false), insecure: transport(true), groups: groups}
 }
 
 // Close releases idle connections.
@@ -72,12 +94,55 @@ func (c *Checker) Run(ctx context.Context, m monitor.Monitor) monitor.Result {
 		return c.runHTTP(ctx, m, timeout)
 	case monitor.TypePort:
 		return c.runPort(ctx, m)
+	case monitor.TypeGroup:
+		return c.runGroup(ctx, m)
 	default:
 		return monitor.Result{Msg: "Unknown Monitor Type"}
 	}
 }
 
+// runGroup follows the Node.js backend: a group is down if any direct child is down,
+// pending if one is pending or has no beats yet, and pending if it has no children.
+// Paused children don't count.
+func (c *Checker) runGroup(ctx context.Context, m monitor.Monitor) monitor.Result {
+	if c.groups == nil {
+		return monitor.Result{Msg: "Groups are not available"}
+	}
+	children, err := c.groups.GroupChildren(ctx, m.ID)
+	if err != nil {
+		return monitor.Result{Msg: "Failed to read child monitors"}
+	}
+	if len(children) == 0 {
+		return monitor.Result{Pending: true, Msg: "Group empty"}
+	}
+
+	var down, pending []string
+	for _, child := range children {
+		switch {
+		case !child.Active:
+		case child.Status == nil || *child.Status == monitor.StatusPending:
+			pending = append(pending, child.Name)
+		case *child.Status == monitor.StatusDown:
+			down = append(down, child.Name)
+		}
+	}
+	switch {
+	case len(down) > 0:
+		msg := "Child monitors down: " + strings.Join(down, ", ")
+		if len(pending) > 0 {
+			msg += "; pending: " + strings.Join(pending, ", ")
+		}
+		return monitor.Result{Msg: msg}
+	case len(pending) > 0:
+		return monitor.Result{Pending: true, Msg: "Pending child monitors: " + strings.Join(pending, ", ")}
+	}
+	return monitor.Result{OK: true, Msg: "All children up and running"}
+}
+
 func (c *Checker) runPort(ctx context.Context, m monitor.Monitor) monitor.Result {
+	trace.SpanFromContext(ctx).SetAttributes(attribute.String("server.address", m.Hostname), attribute.Int("server.port", int(m.Port)))
+	_, span := otel.Tracer(tracerName).Start(ctx, "tcp.connect")
+	defer span.End()
 	start := time.Now()
 	conn, err := c.dialer.DialContext(ctx, "tcp", net.JoinHostPort(m.Hostname, strconv.Itoa(int(m.Port))))
 	if err != nil {
@@ -117,6 +182,15 @@ func (c *Checker) runHTTP(ctx context.Context, m monitor.Monitor, timeout time.D
 		req.Header.Set(name, value)
 	}
 
+	// Only the host goes on the span: URLs can carry credentials, and the query string
+	// and headers can carry tokens.
+	span := trace.SpanFromContext(ctx)
+	span.SetAttributes(attribute.String("server.address", req.URL.Hostname()), attribute.String("http.request.method", m.Method))
+	if m.PropagateTrace {
+		propagation.TraceContext{}.Inject(ctx, propagation.HeaderCarrier(req.Header))
+	}
+	req = req.WithContext(httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutHeaders())))
+
 	transport := c.verified
 	if m.IgnoreTLS {
 		transport = c.insecure
@@ -129,6 +203,7 @@ func (c *Checker) runHTTP(ctx context.Context, m monitor.Monitor, timeout time.D
 		return monitor.Result{Msg: requestError(err, timeout)}
 	}
 	defer func() { _ = res.Body.Close() }()
+	span.SetAttributes(attribute.Int("http.response.status_code", res.StatusCode))
 
 	data, err := io.ReadAll(io.LimitReader(res.Body, maxResponseBytes))
 	if err != nil {

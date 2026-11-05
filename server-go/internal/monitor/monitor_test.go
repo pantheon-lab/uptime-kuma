@@ -145,3 +145,51 @@ func TestSanitizeMsg(t *testing.T) {
 		t.Errorf("truncation produced %d bytes, valid=%v", len(long), utf8.ValidString(long))
 	}
 }
+
+func TestValidateGroupAndParent(t *testing.T) {
+	group := New()
+	group.Name, group.Type = "Group", TypeGroup
+	if err := group.Validate(); err != nil {
+		t.Errorf("group: %v", err)
+	}
+	zero := int32(0)
+	m := valid()
+	m.ParentID = &zero
+	if err := m.Validate(); err == nil {
+		t.Error("parentId 0 should fail")
+	}
+}
+
+func TestPendingResultUsesNoRetry(t *testing.T) {
+	m := Monitor{Type: TypeGroup, MaxRetries: 3}
+	out := m.Next(&Previous{Status: StatusUp, Retries: 2}, Result{Pending: true, Msg: "Group empty"})
+	if out.Status != StatusPending || out.Retries != 0 || out.Important {
+		t.Errorf("got %+v", out)
+	}
+	if first := m.Next(nil, Result{Pending: true}); !first.Important {
+		t.Error("the first beat is always important")
+	}
+}
+
+func TestRedactedRemovesCredentials(t *testing.T) {
+	m := valid()
+	m.URL = "https://user:urlsecret@example.com/path?token=querysecret#frag"
+	m.Headers = map[string]string{"X-Api-Key": "headersecret"}
+	m.Body = `{"password":"bodysecret"}`
+	r := m.Redacted()
+	dump := r.URL + r.Headers["X-Api-Key"] + r.Body
+	for _, secret := range []string{"urlsecret", "querysecret", "headersecret", "bodysecret"} {
+		if strings.Contains(dump, secret) {
+			t.Errorf("%s survived: %s", secret, dump)
+		}
+	}
+	if !strings.HasPrefix(r.URL, "https://example.com/path") || r.Headers["X-Api-Key"] != "***" {
+		t.Errorf("redacted: %+v", r)
+	}
+	if m.Headers["X-Api-Key"] != "headersecret" {
+		t.Error("Redacted changed the original")
+	}
+	if got := (Monitor{URL: "::not a url"}).Redacted(); got.URL != "***" {
+		t.Errorf("unparsable url: %q", got.URL)
+	}
+}

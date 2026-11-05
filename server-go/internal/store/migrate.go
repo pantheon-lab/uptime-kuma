@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"fmt"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // migrateLockID serializes migrations between instances.
@@ -88,6 +90,41 @@ var migrations = [][]string{
 			updated_at timestamptz NOT NULL DEFAULT now()
 		)`,
 	},
+	{
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS parent_id integer REFERENCES monitor (id) ON DELETE SET NULL`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS propagate_trace boolean NOT NULL DEFAULT false`,
+		`CREATE INDEX IF NOT EXISTS monitor_parent_idx ON monitor (parent_id)`,
+		`ALTER TABLE heartbeat ADD COLUMN IF NOT EXISTS trace_id text`,
+		// Every group with all monitors below it, through nested groups. Groups themselves
+		// aren't members, so their status beats don't count towards uptime twice. UNION
+		// removes duplicates, which also stops the recursion if a cycle ever appears.
+		`CREATE OR REPLACE VIEW monitor_group_member AS
+			WITH RECURSIVE tree (group_id, monitor_id) AS (
+				SELECT parent_id, id FROM monitor WHERE parent_id IS NOT NULL
+				UNION
+				SELECT tree.group_id, child.id
+				FROM tree JOIN monitor child ON child.parent_id = tree.monitor_id
+			)
+			SELECT tree.group_id, grp.name AS group_name, tree.monitor_id, member.name AS monitor_name
+			FROM tree
+			JOIN monitor grp ON grp.id = tree.group_id
+			JOIN monitor member ON member.id = tree.monitor_id
+			WHERE member.type <> 'group'`,
+	},
+	{
+		// Only a hash is stored. Revoked keys stay, as a record of what existed.
+		`CREATE TABLE IF NOT EXISTS api_key (
+			id bigserial PRIMARY KEY,
+			name text NOT NULL,
+			key_prefix text NOT NULL,
+			key_hash bytea NOT NULL UNIQUE,
+			scopes text[] NOT NULL,
+			created_at timestamptz NOT NULL DEFAULT now(),
+			expires_at timestamptz,
+			revoked_at timestamptz,
+			last_used_at timestamptz
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.
@@ -126,6 +163,37 @@ func (s *Store) Migrate(ctx context.Context) error {
 		}
 		if _, err := conn.Exec(ctx, `INSERT INTO schema_migrations (version) VALUES ($1)`, i+1); err != nil {
 			return fmt.Errorf("record migration %d: %w", i+1, err)
+		}
+	}
+	return nil
+}
+
+// EnsureReadOnlyRole creates or updates a login role for dashboards. It can read beats
+// and aggregates, but of monitors only the columns below: URLs, headers and bodies can
+// contain credentials.
+func (s *Store) EnsureReadOnlyRole(ctx context.Context, role, password string) error {
+	quoted := pgx.Identifier{role}.Sanitize()
+	var literal string
+	if err := s.pool.QueryRow(ctx, `SELECT quote_literal($1)`, password).Scan(&literal); err != nil {
+		return fmt.Errorf("quote password: %w", err)
+	}
+	var exists bool
+	if err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1)`, role).Scan(&exists); err != nil {
+		return fmt.Errorf("check role: %w", err)
+	}
+	verb := "CREATE"
+	if exists {
+		verb = "ALTER"
+	}
+	statements := []string{
+		verb + ` ROLE ` + quoted + ` LOGIN PASSWORD ` + literal,
+		`GRANT USAGE ON SCHEMA public TO ` + quoted,
+		`GRANT SELECT ON heartbeat, stat_hourly, stat_daily, monitor_group_member TO ` + quoted,
+		`GRANT SELECT (id, name, type, active, parent_id, interval_seconds) ON monitor TO ` + quoted,
+	}
+	for _, statement := range statements {
+		if _, err := s.pool.Exec(ctx, statement); err != nil {
+			return fmt.Errorf("set up role %s: %w", role, err)
 		}
 	}
 	return nil

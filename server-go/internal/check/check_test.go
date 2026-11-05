@@ -2,6 +2,7 @@ package check
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -10,6 +11,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 )
@@ -32,7 +37,7 @@ func TestHTTPStatusHandling(t *testing.T) {
 		code, _ := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/"))
 		w.WriteHeader(code)
 	})
-	c := New()
+	c := New(nil)
 	defer c.Close()
 
 	r := c.Run(context.Background(), httpMonitor(ts.URL+"/204"))
@@ -57,7 +62,7 @@ func TestHTTPSendsConfiguredRequest(t *testing.T) {
 		data, _ := io.ReadAll(r.Body)
 		body = string(data)
 	})
-	c := New()
+	c := New(nil)
 	defer c.Close()
 	m := httpMonitor(ts.URL)
 	m.Method, m.Body, m.Headers = "POST", `{"a":1}`, map[string]string{"X-Custom": "yes", "User-Agent": "mine"}
@@ -81,7 +86,7 @@ func TestHTTPRedirectLimit(t *testing.T) {
 			http.Redirect(w, r, "/"+strconv.Itoa(n-1), http.StatusFound)
 		}
 	})
-	c := New()
+	c := New(nil)
 	defer c.Close()
 	m := httpMonitor(ts.URL + "/2")
 
@@ -107,7 +112,7 @@ func TestHTTPTimeoutAndCredentialsInErrors(t *testing.T) {
 	release := make(chan struct{})
 	ts := serve(t, func(http.ResponseWriter, *http.Request) { <-release })
 	defer close(release)
-	c := New()
+	c := New(nil)
 	defer c.Close()
 
 	m := httpMonitor(ts.URL)
@@ -132,7 +137,7 @@ func TestHTTPTLSVerification(t *testing.T) {
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	ts.Config.ErrorLog = nil
 	defer ts.Close()
-	c := New()
+	c := New(nil)
 	defer c.Close()
 	m := httpMonitor(ts.URL)
 	if r := c.Run(context.Background(), m); r.OK {
@@ -147,7 +152,7 @@ func TestHTTPTLSVerification(t *testing.T) {
 func TestKeyword(t *testing.T) {
 	page := "<html>\n<b>hello</b> " + strings.Repeat("x", 100) + "</html>"
 	ts := serve(t, func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, page) })
-	c := New()
+	c := New(nil)
 	defer c.Close()
 	m := httpMonitor(ts.URL)
 	m.Type, m.Keyword = monitor.TypeKeyword, "hello"
@@ -181,7 +186,7 @@ func TestResponseSizeIsBounded(t *testing.T) {
 			}
 		}
 	})
-	c := New()
+	c := New(nil)
 	defer c.Close()
 	if r := c.Run(context.Background(), httpMonitor(ts.URL)); !r.OK {
 		t.Errorf("%+v", r)
@@ -195,7 +200,7 @@ func TestPort(t *testing.T) {
 	}
 	host, portText, _ := net.SplitHostPort(l.Addr().String())
 	port, _ := strconv.Atoi(portText)
-	c := New()
+	c := New(nil)
 	defer c.Close()
 
 	m := monitor.New()
@@ -214,7 +219,7 @@ func TestRunStopsWhenCancelled(t *testing.T) {
 	release := make(chan struct{})
 	ts := serve(t, func(http.ResponseWriter, *http.Request) { <-release })
 	defer close(release)
-	c := New()
+	c := New(nil)
 	defer c.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan monitor.Result, 1)
@@ -227,5 +232,96 @@ func TestRunStopsWhenCancelled(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("check kept running after cancellation")
+	}
+}
+
+type fakeGroups struct {
+	children []Child
+	err      error
+}
+
+func (f fakeGroups) GroupChildren(context.Context, int32) ([]Child, error) { return f.children, f.err }
+
+func TestGroup(t *testing.T) {
+	status := func(s int16) *int16 { return &s }
+	up, down, pending := status(monitor.StatusUp), status(monitor.StatusDown), status(monitor.StatusPending)
+	cases := []struct {
+		name     string
+		children []Child
+		ok       bool
+		pending  bool
+		msg      string
+	}{
+		{"empty", nil, false, true, "Group empty"},
+		{"all up", []Child{{"a", true, up}, {"b", true, up}}, true, false, "All children up and running"},
+		{"paused down child ignored", []Child{{"a", true, up}, {"b", false, down}}, true, false, "All children up and running"},
+		{"no beats yet", []Child{{"a", true, nil}}, false, true, "Pending child monitors: a"},
+		{"pending", []Child{{"a", true, up}, {"b", true, pending}}, false, true, "Pending child monitors: b"},
+		{"down wins", []Child{{"a", true, pending}, {"b", true, down}}, false, false, "Child monitors down: b; pending: a"},
+		{"all paused", []Child{{"a", false, up}}, true, false, "All children up and running"},
+	}
+	for _, tc := range cases {
+		c := New(fakeGroups{children: tc.children})
+		r := c.Run(context.Background(), monitor.Monitor{Type: monitor.TypeGroup, Interval: 60})
+		if r.OK != tc.ok || r.Pending != tc.pending || r.Msg != tc.msg {
+			t.Errorf("%s: %+v", tc.name, r)
+		}
+	}
+	c := New(fakeGroups{err: context.DeadlineExceeded})
+	if r := c.Run(context.Background(), monitor.Monitor{Type: monitor.TypeGroup, Interval: 60}); r.OK || r.Pending {
+		t.Errorf("read failure: %+v", r)
+	}
+}
+
+func TestPropagateTraceIsOptIn(t *testing.T) {
+	var header string
+	ts := serve(t, func(_ http.ResponseWriter, r *http.Request) { header = r.Header.Get("traceparent") })
+	tp := sdktrace.NewTracerProvider()
+	defer func() { _ = tp.Shutdown(context.Background()) }()
+	ctx, span := tp.Tracer("test").Start(context.Background(), "check")
+	defer span.End()
+
+	c := New(nil)
+	defer c.Close()
+	m := httpMonitor(ts.URL)
+	c.Run(ctx, m)
+	if header != "" {
+		t.Errorf("traceparent sent by default: %q", header)
+	}
+	m.PropagateTrace = true
+	c.Run(ctx, m)
+	if !strings.Contains(header, span.SpanContext().TraceID().String()) {
+		t.Errorf("traceparent %q doesn't carry the trace id", header)
+	}
+}
+
+func TestSpansDontCarrySecrets(t *testing.T) {
+	ts := serve(t, func(http.ResponseWriter, *http.Request) {})
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	defer func() { _ = tp.Shutdown(context.Background()) }()
+	previous := otel.GetTracerProvider()
+	otel.SetTracerProvider(tp)
+	defer otel.SetTracerProvider(previous)
+
+	ctx, span := tp.Tracer("test").Start(context.Background(), "check")
+	c := New(nil)
+	defer c.Close()
+	m := httpMonitor(strings.Replace(ts.URL, "http://", "http://user:urlsecret@", 1) + "/path?token=querysecret")
+	m.Headers = map[string]string{"X-Api-Key": "headersecret", "Authorization": "Bearer authsecret"}
+	if r := c.Run(ctx, m); !r.OK {
+		t.Fatalf("%+v", r)
+	}
+	span.End()
+
+	spans := exporter.GetSpans()
+	if len(spans) == 0 {
+		t.Fatal("no spans recorded")
+	}
+	dump := fmt.Sprintf("%+v", spans)
+	for _, secret := range []string{"urlsecret", "querysecret", "headersecret", "authsecret"} {
+		if strings.Contains(dump, secret) {
+			t.Errorf("%s leaked into a span", secret)
+		}
 	}
 }

@@ -19,6 +19,7 @@ const (
 	TypeHTTP    = "http"
 	TypeKeyword = "keyword"
 	TypePort    = "port"
+	TypeGroup   = "group"
 )
 
 // Beat statuses, using the Node.js backend's values.
@@ -35,6 +36,7 @@ const (
 	maxRetries         = 1000
 	maxRedirects       = 100
 	maxBodyLen         = 1 << 20
+	redactedValue      = "***"
 )
 
 var (
@@ -54,6 +56,8 @@ type Monitor struct {
 	Timeout       float64 `json:"timeout"`
 	MaxRetries    int32   `json:"maxRetries"`
 	UpsideDown    bool    `json:"upsideDown"`
+	// ParentID is the group that this monitor belongs to, if any.
+	ParentID *int32 `json:"parentId"`
 
 	URL                 string            `json:"url"`
 	Method              string            `json:"method"`
@@ -68,6 +72,10 @@ type Monitor struct {
 
 	Hostname string `json:"hostname"`
 	Port     int32  `json:"port"`
+
+	// PropagateTrace sends a W3C traceparent header to the target, so that the target's
+	// traces join this one. It's off by default, to not share trace ids with third parties.
+	PropagateTrace bool `json:"propagateTrace"`
 }
 
 // New returns a monitor with the Node.js backend's defaults, for decoding input into.
@@ -81,6 +89,40 @@ func New() Monitor {
 		MaxRedirects:        10,
 		Headers:             map[string]string{},
 	}
+}
+
+// Normalize replaces empty collections, so that explicit JSON nulls can't reach the database.
+func (m *Monitor) Normalize() {
+	if m.Headers == nil {
+		m.Headers = map[string]string{}
+	}
+	if m.AcceptedStatusCodes == nil {
+		m.AcceptedStatusCodes = []string{}
+	}
+}
+
+// Redacted returns a copy without the fields that can hold credentials, for clients
+// that may only read: header values, the body, and the URL's user info and query.
+func (m Monitor) Redacted() Monitor {
+	headers := make(map[string]string, len(m.Headers))
+	for name := range m.Headers {
+		headers[name] = redactedValue
+	}
+	m.Headers = headers
+	if m.Body != "" {
+		m.Body = redactedValue
+	}
+	if u, err := url.Parse(m.URL); err == nil && m.URL != "" {
+		u.User = nil
+		if u.RawQuery != "" {
+			u.RawQuery = redactedValue
+		}
+		u.Fragment = ""
+		m.URL = u.String()
+	} else if m.URL != "" {
+		m.URL = redactedValue
+	}
+	return m
 }
 
 // Validate reports the first problem with the configuration.
@@ -99,7 +141,13 @@ func (m *Monitor) Validate() error {
 		return fmt.Errorf("maxRetries must be from 0 to %d", maxRetries)
 	}
 
+	if m.ParentID != nil && *m.ParentID <= 0 {
+		return errors.New("parentId must be a positive integer")
+	}
+
 	switch m.Type {
+	case TypeGroup:
+		return nil
 	case TypeHTTP:
 		return m.validateHTTP()
 	case TypeKeyword:
@@ -116,7 +164,7 @@ func (m *Monitor) Validate() error {
 		}
 		return nil
 	default:
-		return fmt.Errorf("type must be one of %s, %s or %s", TypeHTTP, TypeKeyword, TypePort)
+		return fmt.Errorf("type must be one of %s, %s, %s or %s", TypeHTTP, TypeKeyword, TypePort, TypeGroup)
 	}
 }
 

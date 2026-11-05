@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -10,6 +11,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 )
 
 // newTestStore creates a throwaway database. It needs TEST_DATABASE_URL to point
@@ -219,10 +223,8 @@ func TestChartAndStatsMatchRawData(t *testing.T) {
 
 	t.Run("real-time, nothing materialized", check)
 
-	for _, view := range []string{"stat_hourly", "stat_daily"} {
-		if _, err := s.pool.Exec(ctx, fmt.Sprintf(`CALL refresh_continuous_aggregate('%s', NULL, NULL)`, view)); err != nil {
-			t.Fatal(err)
-		}
+	if err := s.RefreshAggregates(ctx); err != nil {
+		t.Fatal(err)
 	}
 	t.Run("after materializing", check)
 
@@ -268,5 +270,329 @@ func TestPercentiles(t *testing.T) {
 	}
 	if len(empty) != 2 || empty[0] != nil || empty[1] != nil {
 		t.Errorf("empty window: %v", empty)
+	}
+}
+
+func group(name string, parent *int32) monitor.Monitor {
+	m := monitor.New()
+	m.Name, m.Type, m.ParentID, m.Active = name, monitor.TypeGroup, parent, false
+	return m
+}
+
+func member(name string, parent *int32) monitor.Monitor {
+	m := monitor.New()
+	m.Name, m.Type, m.Hostname, m.Port, m.ParentID, m.Active = name, monitor.TypePort, "127.0.0.1", 1, parent, false
+	return m
+}
+
+func TestGroupTreeRules(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	top, err := s.CreateMonitor(ctx, group("top", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner, err := s.CreateMonitor(ctx, group("inner", &top.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf, err := s.CreateMonitor(ctx, member("leaf", &inner.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	missing := int32(99999)
+	if _, err := s.CreateMonitor(ctx, member("x", &missing)); !errors.Is(err, ErrInvalidParent) {
+		t.Errorf("missing parent: %v", err)
+	}
+	if _, err := s.CreateMonitor(ctx, member("x", &leaf.ID)); !errors.Is(err, ErrInvalidParent) {
+		t.Errorf("parent that isn't a group: %v", err)
+	}
+	top.ParentID = &inner.ID
+	if _, err := s.UpdateMonitor(ctx, top); !errors.Is(err, ErrInvalidParent) {
+		t.Errorf("cycle through a child: %v", err)
+	}
+	top.ParentID = &top.ID
+	if _, err := s.UpdateMonitor(ctx, top); !errors.Is(err, ErrInvalidParent) {
+		t.Errorf("group inside itself: %v", err)
+	}
+
+	children, err := s.GroupChildren(ctx, inner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(children) != 1 || children[0].Name != "leaf" || children[0].Status != nil {
+		t.Errorf("children: %+v", children)
+	}
+	if _, err := s.InsertBeats(ctx, []Beat{{MonitorID: leaf.ID, Time: time.Now().UTC().Truncate(time.Microsecond), Status: monitor.StatusDown}}); err != nil {
+		t.Fatal(err)
+	}
+	children, err = s.GroupChildren(ctx, inner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if children[0].Status == nil || *children[0].Status != monitor.StatusDown {
+		t.Errorf("child status: %+v", children[0])
+	}
+
+	// Deleting a group keeps its monitors.
+	if err := s.DeleteMonitor(ctx, inner.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetMonitor(ctx, leaf.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ParentID != nil {
+		t.Errorf("parent after deleting the group: %v", *got.ParentID)
+	}
+
+	// A group that changes type releases its children.
+	other, err := s.CreateMonitor(ctx, group("other", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got.ParentID = &other.ID
+	if _, err := s.UpdateMonitor(ctx, got); err != nil {
+		t.Fatal(err)
+	}
+	other.Type, other.Hostname, other.Port = monitor.TypePort, "127.0.0.1", 1
+	if _, err := s.UpdateMonitor(ctx, other); err != nil {
+		t.Fatal(err)
+	}
+	if got, err = s.GetMonitor(ctx, leaf.ID); err != nil || got.ParentID != nil {
+		t.Errorf("after the group changed type: %+v, %v", got.ParentID, err)
+	}
+}
+
+func TestGroupUptimeIsShareOfSuccessfulChecks(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	top, err := s.CreateMonitor(ctx, group("top", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner, err := s.CreateMonitor(ctx, group("inner", &top.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	direct, err := s.CreateMonitor(ctx, member("direct", &top.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nested, err := s.CreateMonitor(ctx, member("nested", &inner.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	outside, err := s.CreateMonitor(ctx, member("outside", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// direct: 3 up, 1 down. nested: 1 up, 1 pending, 2 maintenance. outside: 5 down.
+	// The group's own status beat must not count either.
+	now := time.Now().UTC().Truncate(time.Minute).Add(-30 * time.Minute)
+	statuses := map[int32][]int16{
+		direct.ID:  {1, 1, 1, 0},
+		nested.ID:  {1, 2, 3, 3},
+		outside.ID: {0, 0, 0, 0, 0},
+		top.ID:     {0, 0, 0, 0, 0, 0, 0},
+	}
+	var beats []Beat
+	for id, list := range statuses {
+		for i, status := range list {
+			beats = append(beats, Beat{MonitorID: id, Time: now.Add(time.Duration(i) * time.Second), Status: status})
+		}
+	}
+	if _, err := s.InsertBeats(ctx, beats); err != nil {
+		t.Fatal(err)
+	}
+
+	uptime := func(name string) float64 {
+		t.Helper()
+		var value float64
+		err := s.pool.QueryRow(ctx, `
+			SELECT sum(h.up)::float8 / NULLIF(sum(h.up + h.down), 0)
+			FROM stat_hourly h JOIN monitor_group_member g USING (monitor_id)
+			WHERE g.group_name = $1 AND h.bucket >= now() - INTERVAL '2 hours'`, name).Scan(&value)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		return value
+	}
+	// top: (3 + 1) up of (3 + 1 + 1 + 1) counted, inner: 1 of 2.
+	if got := uptime("top"); math.Abs(got-4.0/6.0) > 1e-9 {
+		t.Errorf("top = %v, want %v", got, 4.0/6.0)
+	}
+	if got := uptime("inner"); math.Abs(got-0.5) > 1e-9 {
+		t.Errorf("inner = %v, want 0.5", got)
+	}
+}
+
+func TestReadOnlyRoleCantSeeSecrets(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	password := "it's a \"tricky\" password"
+	role := fmt.Sprintf("kuma_grafana_%d", time.Now().UnixNano())
+	if err := s.EnsureReadOnlyRole(ctx, role, password); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = s.pool.Exec(ctx, `DROP OWNED BY "`+role+`"`)
+		_, _ = s.pool.Exec(ctx, `DROP ROLE "`+role+`"`)
+	})
+	if err := s.EnsureReadOnlyRole(ctx, role, password); err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+
+	config := s.pool.Config().ConnConfig.Copy()
+	config.User, config.Password = role, password
+	conn, err := pgx.ConnectConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	for _, allowed := range []string{
+		`SELECT count(*) FROM heartbeat`,
+		`SELECT count(*) FROM stat_hourly`,
+		`SELECT count(*) FROM stat_daily`,
+		`SELECT count(*) FROM monitor_group_member`,
+		`SELECT id, name, type, active, parent_id FROM monitor`,
+	} {
+		rows, err := conn.Query(ctx, allowed)
+		if err == nil {
+			rows.Close()
+			err = rows.Err()
+		}
+		if err != nil {
+			t.Errorf("%s: %v", allowed, err)
+		}
+	}
+	for _, denied := range []string{
+		`SELECT url FROM monitor`,
+		`SELECT headers FROM monitor`,
+		`SELECT body FROM monitor`,
+		`SELECT * FROM monitor`,
+		`DELETE FROM heartbeat`,
+		`UPDATE monitor SET name = 'x'`,
+		`INSERT INTO heartbeat (monitor_id, time, status) VALUES (1, now(), 1)`,
+	} {
+		rows, err := conn.Query(ctx, denied)
+		if err == nil {
+			rows.Close()
+			err = rows.Err()
+		}
+		if err == nil {
+			t.Errorf("%s should be denied", denied)
+		}
+	}
+}
+
+func TestRetryConcurrentRefresh(t *testing.T) {
+	concurrent := &pgconn.PgError{Code: pgLockNotAvailable}
+	other := errors.New("other failure")
+
+	attempts := 0
+	err := retryConcurrentRefresh(context.Background(), func() error {
+		attempts++
+		if attempts < 3 {
+			return fmt.Errorf("wrapped: %w", concurrent)
+		}
+		return nil
+	})
+	if err != nil || attempts != 3 {
+		t.Errorf("should retry until it works: %v after %d attempts", err, attempts)
+	}
+
+	attempts = 0
+	err = retryConcurrentRefresh(context.Background(), func() error {
+		attempts++
+		return other
+	})
+	if !errors.Is(err, other) || attempts != 1 {
+		t.Errorf("other errors must not retry: %v after %d attempts", err, attempts)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	err = retryConcurrentRefresh(ctx, func() error { return concurrent })
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		t.Errorf("should give up with the last error when the context ends: %v", err)
+	}
+}
+
+func TestOverlappingDeletesSucceed(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	at := time.Now().UTC().Truncate(time.Hour).Add(-48 * time.Hour)
+	var ids []int32
+	var beats []Beat
+	for i := 0; i < 8; i++ {
+		m, err := s.CreateMonitor(ctx, member(fmt.Sprintf("m%d", i), nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, m.ID)
+		for h := 0; h < 48; h++ {
+			beats = append(beats, Beat{MonitorID: m.ID, Time: at.Add(time.Duration(h) * time.Hour), Status: 1})
+		}
+	}
+	if _, err := s.InsertBeats(ctx, beats); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RefreshAggregates(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	errs := make(chan error, len(ids))
+	for _, id := range ids {
+		go func() { errs <- s.DeleteMonitor(ctx, id) }()
+	}
+	for range ids {
+		if err := <-errs; err != nil {
+			t.Errorf("overlapping delete: %v", err)
+		}
+	}
+	stats, err := s.Stats(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 0 {
+		t.Errorf("stats still report deleted monitors: %+v", stats)
+	}
+}
+
+func TestBeatsAfterARefreshStillCount(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	m, err := s.CreateMonitor(ctx, member("site", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	beat := func(at time.Time) {
+		t.Helper()
+		if _, err := s.InsertBeats(ctx, []Beat{{MonitorID: m.ID, Time: at, Status: monitor.StatusUp}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	beat(now.Add(-2 * time.Hour))
+	beat(now.Add(-2 * time.Second))
+	if err := s.RefreshAggregates(ctx); err != nil {
+		t.Fatal(err)
+	}
+	beat(now.Add(-time.Second))
+
+	for _, view := range []string{"stat_hourly", "stat_daily"} {
+		var up int64
+		err := s.pool.QueryRow(ctx, `SELECT COALESCE(sum(up), 0)::bigint FROM `+view+` WHERE monitor_id = $1`, m.ID).Scan(&up)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if up != 3 {
+			t.Errorf("%s has %d beats, want 3: a beat after a refresh went missing", view, up)
+		}
 	}
 }
