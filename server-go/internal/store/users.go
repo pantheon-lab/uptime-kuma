@@ -1,0 +1,210 @@
+package store
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+)
+
+var (
+	// ErrSetupDone means that a user already exists, so the first one can't be created.
+	ErrSetupDone = errors.New("a user already exists")
+	// ErrUsernameTaken means that another user has the username.
+	ErrUsernameTaken = errors.New("username is taken")
+)
+
+// User is a web UI account.
+type User struct {
+	ID           int32
+	Username     string
+	PasswordHash string
+	CreatedAt    time.Time
+}
+
+// Session is a web UI login. Only the token's hash is stored.
+type Session struct {
+	UserID    int32
+	Remember  bool
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
+// setupLockID serializes creating the first user.
+const setupLockID = 7_331_002
+
+// HasUser reports whether any web UI account exists.
+func (s *Store) HasUser(ctx context.Context) (bool, error) {
+	var exists bool
+	if err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM app_user)`).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check users: %w", err)
+	}
+	return exists, nil
+}
+
+// CreateFirstUser creates the first account, or returns ErrSetupDone if any account exists.
+func (s *Store) CreateFirstUser(ctx context.Context, username, passwordHash string) (User, error) {
+	var user User
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, setupLockID); err != nil {
+			return fmt.Errorf("lock setup: %w", err)
+		}
+		var exists bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM app_user)`).Scan(&exists); err != nil {
+			return fmt.Errorf("check users: %w", err)
+		}
+		if exists {
+			return ErrSetupDone
+		}
+		return tx.QueryRow(ctx, `
+			INSERT INTO app_user (username, password_hash) VALUES ($1, $2)
+			RETURNING id, username, password_hash, created_at`, username, passwordHash).
+			Scan(&user.ID, &user.Username, &user.PasswordHash, &user.CreatedAt)
+	})
+	if err != nil {
+		if errors.Is(err, ErrSetupDone) {
+			return User{}, err
+		}
+		return User{}, fmt.Errorf("create first user: %w", err)
+	}
+	return user, nil
+}
+
+func scanUser(row pgx.Row) (User, error) {
+	var u User
+	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return User{}, ErrNotFound
+	}
+	if err != nil {
+		return User{}, fmt.Errorf("read user: %w", err)
+	}
+	return u, nil
+}
+
+// UserByUsername returns an account or ErrNotFound. Usernames match case-insensitively.
+func (s *Store) UserByUsername(ctx context.Context, username string) (User, error) {
+	return scanUser(s.pool.QueryRow(ctx, `
+		SELECT id, username, password_hash, created_at FROM app_user
+		WHERE lower(username) = lower($1) ORDER BY id LIMIT 1`, username))
+}
+
+// UserByID returns an account or ErrNotFound.
+func (s *Store) UserByID(ctx context.Context, id int32) (User, error) {
+	return scanUser(s.pool.QueryRow(ctx, `
+		SELECT id, username, password_hash, created_at FROM app_user WHERE id = $1`, id))
+}
+
+// SetPassword replaces an account's password and ends its other sessions. keep is the hash
+// of the session to keep, or nil to end them all.
+func (s *Store) SetPassword(ctx context.Context, userID int32, passwordHash string, keep []byte) error {
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `UPDATE app_user SET password_hash = $2 WHERE id = $1`, userID, passwordHash)
+		if err != nil {
+			return fmt.Errorf("set password: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM app_session WHERE user_id = $1 AND token_hash IS DISTINCT FROM $2`,
+			userID, keep); err != nil {
+			return fmt.Errorf("end sessions: %w", err)
+		}
+		return nil
+	})
+}
+
+// CreateSession stores a login. Expired sessions are cleared on the way.
+func (s *Store) CreateSession(ctx context.Context, tokenHash []byte, session Session) error {
+	if _, err := s.pool.Exec(ctx, `DELETE FROM app_session WHERE expires_at < now()`); err != nil {
+		return fmt.Errorf("clear expired sessions: %w", err)
+	}
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO app_session (token_hash, user_id, remember, expires_at) VALUES ($1, $2, $3, $4)`,
+		tokenHash, session.UserID, session.Remember, session.ExpiresAt)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return ErrNotFound
+		}
+		return fmt.Errorf("create session: %w", err)
+	}
+	return nil
+}
+
+// FindSession returns a session that hasn't expired, with its user, or ErrNotFound.
+func (s *Store) FindSession(ctx context.Context, tokenHash []byte) (Session, User, error) {
+	var session Session
+	var user User
+	err := s.pool.QueryRow(ctx, `
+		SELECT s.user_id, s.remember, s.created_at, s.expires_at,
+		       u.id, u.username, u.password_hash, u.created_at
+		FROM app_session s JOIN app_user u ON u.id = s.user_id
+		WHERE s.token_hash = $1 AND s.expires_at > now()`, tokenHash).
+		Scan(&session.UserID, &session.Remember, &session.CreatedAt, &session.ExpiresAt,
+			&user.ID, &user.Username, &user.PasswordHash, &user.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, User{}, ErrNotFound
+	}
+	if err != nil {
+		return Session{}, User{}, fmt.Errorf("find session: %w", err)
+	}
+	return session, user, nil
+}
+
+// ExtendSession moves a session's expiry.
+func (s *Store) ExtendSession(ctx context.Context, tokenHash []byte, expiresAt time.Time) error {
+	if _, err := s.pool.Exec(ctx, `UPDATE app_session SET expires_at = $2 WHERE token_hash = $1`,
+		tokenHash, expiresAt); err != nil {
+		return fmt.Errorf("extend session: %w", err)
+	}
+	return nil
+}
+
+// DeleteSession ends a login. Ending one that doesn't exist isn't an error.
+func (s *Store) DeleteSession(ctx context.Context, tokenHash []byte) error {
+	if _, err := s.pool.Exec(ctx, `DELETE FROM app_session WHERE token_hash = $1`, tokenHash); err != nil {
+		return fmt.Errorf("delete session: %w", err)
+	}
+	return nil
+}
+
+// Settings returns every setting the web UI has saved.
+func (s *Store) Settings(ctx context.Context) (map[string]json.RawMessage, error) {
+	rows, err := s.pool.Query(ctx, `SELECT key, value FROM app_setting`)
+	if err != nil {
+		return nil, fmt.Errorf("query settings: %w", err)
+	}
+	defer rows.Close()
+	settings := map[string]json.RawMessage{}
+	for rows.Next() {
+		var key string
+		var value []byte
+		if err := rows.Scan(&key, &value); err != nil {
+			return nil, fmt.Errorf("read settings: %w", err)
+		}
+		settings[key] = value
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read settings: %w", err)
+	}
+	return settings, nil
+}
+
+// SaveSettings stores the given settings, leaving others as they are.
+func (s *Store) SaveSettings(ctx context.Context, settings map[string]json.RawMessage) error {
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		for key, value := range settings {
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO app_setting (key, value) VALUES ($1, $2)
+				ON CONFLICT (key) DO UPDATE SET value = excluded.value`, key, []byte(value)); err != nil {
+				return fmt.Errorf("save setting %s: %w", key, err)
+			}
+		}
+		return nil
+	})
+}

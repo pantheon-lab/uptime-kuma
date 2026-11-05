@@ -1,0 +1,197 @@
+// Package ui implements the backend contract of the Vue web UI in src/: login under /api/auth
+// (compatible with the better-auth client the UI uses), first-run setup, and the realtime
+// protocol under /api/realtime that replaced Socket.IO.
+//
+// It covers what the dashboard needs for HTTP, keyword, TCP port and group monitors and their
+// notifications. Events for features this service doesn't have yet, such as status pages,
+// maintenance windows and tags, get an empty answer when the UI asks for them on page load,
+// and a "not supported yet" error otherwise.
+package ui
+
+import (
+	"context"
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/notify"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
+)
+
+// Store is the database access the UI needs.
+type Store interface {
+	HasUser(ctx context.Context) (bool, error)
+	CreateFirstUser(ctx context.Context, username, passwordHash string) (store.User, error)
+	UserByUsername(ctx context.Context, username string) (store.User, error)
+	SetPassword(ctx context.Context, userID int32, passwordHash string, keep []byte) error
+	CreateSession(ctx context.Context, tokenHash []byte, session store.Session) error
+	FindSession(ctx context.Context, tokenHash []byte) (store.Session, store.User, error)
+	ExtendSession(ctx context.Context, tokenHash []byte, expiresAt time.Time) error
+	DeleteSession(ctx context.Context, tokenHash []byte) error
+	Settings(ctx context.Context) (map[string]json.RawMessage, error)
+	SaveSettings(ctx context.Context, settings map[string]json.RawMessage) error
+
+	ListMonitors(ctx context.Context) ([]monitor.Monitor, error)
+	GetMonitor(ctx context.Context, id int32) (monitor.Monitor, error)
+	CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
+	UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
+	SetMonitorActive(ctx context.Context, id int32, active bool) (monitor.Monitor, error)
+	DeleteMonitor(ctx context.Context, id int32) error
+
+	LatestBeats(ctx context.Context, monitorID int32, limit int) ([]store.Beat, error)
+	LatestBeatPerMonitor(ctx context.Context) ([]store.Beat, error)
+	BeatsSince(ctx context.Context, monitorID int32, since time.Time, limit int) ([]store.Beat, error)
+	ImportantBeats(ctx context.Context, monitorID *int32, offset, limit int) ([]store.Beat, error)
+	CountImportantBeats(ctx context.Context, monitorID *int32) (int64, error)
+	ClearEvents(ctx context.Context, monitorID int32) error
+	Chart(ctx context.Context, monitorID int32, hours int) ([]store.ChartPoint, error)
+	Stats(ctx context.Context) ([]store.MonitorStats, error)
+
+	ListNotifications(ctx context.Context) ([]store.Notification, error)
+	GetNotification(ctx context.Context, id int32) (store.Notification, error)
+	CreateNotification(ctx context.Context, n store.Notification, applyToAll bool) (store.Notification, error)
+	UpdateNotification(ctx context.Context, n store.Notification, applyToAll bool) (store.Notification, error)
+	DeleteNotification(ctx context.Context, id int32) error
+	SetMonitorNotifications(ctx context.Context, monitorID int32, ids []int32) error
+	AllMonitorNotificationIDs(ctx context.Context) (map[int32][]int32, error)
+}
+
+// Scheduler runs checks. Upsert starts, restarts or stops a monitor as its Active field says.
+type Scheduler interface {
+	Upsert(m monitor.Monitor)
+	Remove(ctx context.Context, id int32) error
+}
+
+// Beats delivers new beats as they are stored.
+type Beats interface {
+	Subscribe() (<-chan store.Beat, func())
+}
+
+// Options configures the server.
+type Options struct {
+	// Version is shown in the UI's footer and settings.
+	Version string
+	// BaseURL is the public address of the UI, used when the UI hasn't saved its own.
+	BaseURL string
+	// Location is the server's timezone.
+	Location *time.Location
+	// SetupWindow is how long after start the first account may be created. Zero means 10 minutes.
+	SetupWindow time.Duration
+}
+
+// Server serves the UI's API.
+type Server struct {
+	store     Store
+	scheduler Scheduler
+	notifyEnv *notify.Env
+	log       *slog.Logger
+	opts      Options
+	now       func() time.Time
+	started   time.Time
+	limiter   *loginLimiter
+
+	setupMu sync.Mutex
+
+	mu    sync.Mutex
+	conns map[string]*conn
+	// beatsSeen is set by new beats and cleared when stats are sent.
+	beatsSeen bool
+}
+
+// New creates the server.
+func New(s Store, scheduler Scheduler, notifyEnv *notify.Env, log *slog.Logger, opts Options) *Server {
+	if opts.Location == nil {
+		opts.Location = time.UTC
+	}
+	if opts.SetupWindow == 0 {
+		opts.SetupWindow = 10 * time.Minute
+	}
+	if opts.Version == "" {
+		opts.Version = "dev"
+	}
+	return &Server{
+		store:     s,
+		scheduler: scheduler,
+		notifyEnv: notifyEnv,
+		log:       log,
+		opts:      opts,
+		now:       time.Now,
+		started:   time.Now(),
+		limiter:   newLoginLimiter(),
+		conns:     map[string]*conn{},
+	}
+}
+
+// Register adds the UI's routes to mux.
+func (s *Server) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/entry-page", s.entryPage)
+	mux.HandleFunc("POST /api/setup", s.sameOrigin(s.setup))
+	mux.HandleFunc("POST /api/auth/sign-in/username", s.sameOrigin(s.signIn))
+	mux.HandleFunc("GET /api/auth/get-session", s.getSession)
+	mux.HandleFunc("POST /api/auth/sign-out", s.sameOrigin(s.signOut))
+	mux.HandleFunc("POST /api/auth/change-password", s.sameOrigin(s.changePassword))
+	mux.HandleFunc("/api/auth/", s.authNotSupported)
+	mux.HandleFunc("GET /api/realtime/stream", s.stream)
+	mux.HandleFunc("POST /api/realtime/send", s.sameOrigin(s.send))
+}
+
+// Run sends new beats and refreshed stats to logged-in browsers until ctx ends.
+func (s *Server) Run(ctx context.Context, beats Beats) {
+	ch, unsubscribe := beats.Subscribe()
+	defer func() { unsubscribe() }()
+	ticker := time.NewTicker(statsInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case beat, ok := <-ch:
+			if !ok {
+				// The source drops a subscriber that falls behind, and closes at shutdown.
+				// Browsers miss the dropped beats until they reload; the stats catch up.
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(time.Second):
+				}
+				ch, unsubscribe = beats.Subscribe()
+				continue
+			}
+			s.broadcast(encodeMessage("heartbeat", beatJSON(beat)))
+			s.mu.Lock()
+			s.beatsSeen = true
+			s.mu.Unlock()
+		case <-ticker.C:
+			s.mu.Lock()
+			seen := s.beatsSeen
+			s.beatsSeen = false
+			s.mu.Unlock()
+			if seen {
+				s.broadcastStats(ctx)
+			}
+		}
+	}
+}
+
+const statsInterval = 30 * time.Second
+
+func (s *Server) broadcastStats(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, handlerTimeout)
+	defer cancel()
+	stats, err := s.stats(ctx)
+	if err != nil {
+		s.log.Warn("ui stats", "error", err)
+		return
+	}
+	s.broadcast(encodeMessage("stats", stats))
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}

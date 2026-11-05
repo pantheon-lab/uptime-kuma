@@ -6,15 +6,38 @@ percentiles and dashboard stats over REST, plus new beats over Server-Sent Event
 traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
 **Status:** this is now the only backend, because the Node.js server and MariaDB support have
-been removed. It isn't feature complete. Not built yet: login, maintenance
-windows, status pages, tags, TLS certificate tracking, HTTP authentication options, proxies, all
-other monitor types.
+been removed. It isn't feature complete. Not built yet: maintenance windows, status pages, tags, TLS
+certificate tracking, proxies, two-factor login, more than one account, and all other monitor types.
+
+## Web UI
 
 The Docker image, built from the repository root's `Dockerfile`, embeds the web UI from `src/` and serves it
-on the same port as the API: `/api/` and `/healthz` go to the API, and every other path to the UI. The UI
-loads but can't log in or show data yet, because it calls endpoints this service doesn't have:
-`/api/auth/*` for login, `/api/setup` and `/api/realtime/*`. A plain `go build` leaves the UI out and
-serves only the API.
+on the same port as the API. `/api/v1/` and `/healthz` are the REST API, `/api/auth/`, `/api/setup` and
+`/api/realtime/` are the UI's own API, and every other path is the UI. A plain `go build` leaves the UI out.
+
+On first start, open the UI and create the account. Setup is only offered for **10 minutes after the
+service starts**, so that a stranger can't claim a server someone forgot to set up; restart the service if
+the window has passed. There's one account, and it can do everything.
+
+What works in the UI: logging in and out, changing the password, the dashboard with live beats, uptime and
+response times, the event list, adding, editing, pausing and deleting HTTP, keyword, TCP port and
+group monitors, charts, notifications (add, edit, test, delete, defaults), and saving settings.
+
+Everything else answers "This isn't supported by this server yet", or shows an empty list where a page asks
+on its own (tags, maintenance, API keys). In particular:
+
+- Saving a monitor with another type, a proxy, conditions, or an authentication method other than basic or
+  bearer is refused, so that a check never runs differently from what the form shows. Basic and bearer
+  authentication are saved as an `Authorization` header, and show up under Headers when you edit again.
+- Form settings this service doesn't have, such as certificate expiry notifications, aren't saved.
+- Settings are stored, but the service doesn't act on them yet. The timezone comes from `KUMA_TIMEZONE`.
+- Changes made through the REST API reach open browsers only when they reload.
+
+Sessions are a random token in an `HttpOnly`, `SameSite=Lax` cookie, `Secure` behind HTTPS (the proxy must
+send `X-Forwarded-Proto`). Only a SHA-256 hash of the token is stored. A remembered login lasts 7 days and is
+renewed while used, and changing the password ends every other login. Passwords are hashed with scrypt in
+better-auth's format, so accounts from the Node.js backend could be imported unchanged; the importer doesn't
+do that yet. Logins are limited to 10 a minute per username and 60 a minute overall.
 
 ## Run
 

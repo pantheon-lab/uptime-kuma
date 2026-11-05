@@ -193,6 +193,30 @@ var migrations = [][]string{
 			imported_at timestamptz NOT NULL DEFAULT now()
 		)`,
 	},
+	{
+		// Web UI login. Passwords and session tokens are stored only as hashes. The Grafana
+		// role gets no access to these tables.
+		`CREATE TABLE IF NOT EXISTS app_user (
+			id serial PRIMARY KEY,
+			username text NOT NULL UNIQUE,
+			password_hash text NOT NULL,
+			created_at timestamptz NOT NULL DEFAULT now()
+		)`,
+		`CREATE TABLE IF NOT EXISTS app_session (
+			token_hash bytea PRIMARY KEY,
+			user_id integer NOT NULL REFERENCES app_user (id) ON DELETE CASCADE,
+			remember boolean NOT NULL,
+			created_at timestamptz NOT NULL DEFAULT now(),
+			expires_at timestamptz NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS app_session_user_idx ON app_session (user_id)`,
+		`CREATE INDEX IF NOT EXISTS app_session_expires_idx ON app_session (expires_at)`,
+		// Settings the web UI saves. The backend reads none of them yet.
+		`CREATE TABLE IF NOT EXISTS app_setting (
+			key text PRIMARY KEY,
+			value jsonb NOT NULL
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.

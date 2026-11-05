@@ -22,10 +22,15 @@ import (
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/scheduler"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/telemetry"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/ui"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/webui"
 )
 
 const minTokenLength = 32
+
+// version is set at build time, to the web UI's version from package.json, which the UI
+// compares with its own.
+var version = "dev"
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -144,9 +149,23 @@ func run(log *slog.Logger) error {
 		}
 		apiServer.SetKeyRateLimit(perSecond, max(1, int(perSecond*4)))
 	}
+	uiServer := ui.New(db, sched, notifyEnv, log, ui.Options{
+		Version:  version,
+		BaseURL:  strings.TrimRight(os.Getenv("KUMA_BASE_URL"), "/"),
+		Location: location,
+	})
+	go uiServer.Run(ctx, hub)
+
+	// The REST API, and the web UI's own API. webui.Mount adds the UI's files.
+	routes := http.NewServeMux()
+	restAPI := apiServer.Handler()
+	routes.Handle("/api/v1/", restAPI)
+	routes.Handle("/healthz", restAPI)
+	uiServer.Register(routes)
+
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           webui.Mount(apiServer.Handler()),
+		Handler:           webui.Mount(routes),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      60 * time.Second,
