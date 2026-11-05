@@ -2,7 +2,8 @@
 
 This repository is Pantheon Lab's fork of
 [louislam/uptime-kuma](https://github.com/louislam/uptime-kuma). It is maintained
-independently and is not intended to be merged upstream.
+independently and is not intended to be merged upstream. The backend is the Go service in
+`server-go/`, and the Node.js server and MariaDB support have been removed.
 
 # For Code Agent
 

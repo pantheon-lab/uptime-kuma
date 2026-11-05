@@ -1,4 +1,3 @@
 # language files
 src/lang/*.json
 # vendored, kept close to upstream
-server/modules

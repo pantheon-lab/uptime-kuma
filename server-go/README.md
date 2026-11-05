@@ -1,14 +1,14 @@
 # kuma-analytics
 
-The Go rewrite of the Uptime Kuma backend, in progress. It runs HTTP, keyword, TCP and
+The Uptime Kuma backend, rewritten in Go and still in progress. It runs HTTP, keyword, TCP and
 group monitors, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
 percentiles and dashboard stats over REST, plus new beats over Server-Sent Events. It exports
 traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
-**Status:** it runs on its own, next to the Node.js backend, and doesn't share data
-with it. There's no way to import existing monitors yet, and these still exist only in
-Node.js: the web UI, login, notifications, maintenance windows, status pages, tags,
-TLS certificate tracking, HTTP authentication options, proxies and every other monitor type.
+**Status:** this is now the only backend, because the Node.js server and MariaDB support have
+been removed. It isn't feature complete. Not built yet: login, notifications, maintenance
+windows, status pages, tags, TLS certificate tracking, HTTP authentication options, proxies, all
+other monitor types, and any import of existing data. The web UI in `src/` can't connect to it yet.
 
 ## Run
 
@@ -140,7 +140,7 @@ child is down, and pending if it's empty or a child is pending. Paused children 
 `keyword` monitors also take `keyword` and `invertKeyword`. `port` monitors take
 `hostname` and `port` instead of the HTTP fields. Times are in seconds, a `timeout` of
 0 means 80% of the interval, and a `retryInterval` of 0 means the normal interval.
-Retries, upside-down mode and important beats follow the Node.js backend's rules.
+Retries, upside-down mode and important beats follow the rules of the original Node.js backend.
 Beats reach the database in batches, about once a second.
 
 Beats are unique per monitor and time, so a retry can't double count them.
