@@ -7,15 +7,19 @@ Update this file in the same pull request as each phase. Only mark a phase done 
 wasn't. The order of the planned phases is a proposal, and should follow what's actually in use: the dry run of
 `kuma-import` lists every monitor it can't bring over, and why.
 
-| Phase | Scope                                                           | Status  |
-| ----- | --------------------------------------------------------------- | ------- |
-| 0     | Core: checks, notifications, history, web UI, login, deployment | Done    |
-| 1     | Maintenance windows and public holidays, tags, TLS certificates | Done    |
-| 2     | Push, Ping and DNS monitors                                     | Done    |
-| 3     | Status pages and badges                                         | Done    |
-| 4     | Remaining monitor types                                         | Next    |
-| 5     | Accounts and administration                                     | Planned |
-| 6     | Integrations                                                    | Planned |
+| Phase | Scope                                                               | Status  |
+| ----- | ------------------------------------------------------------------- | ------- |
+| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done    |
+| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done    |
+| 2     | Push, Ping and DNS monitors                                         | Done    |
+| 3     | Status pages and badges                                             | Done    |
+| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done    |
+| 4b    | Other databases and messaging                                       | Next    |
+| 4c    | Network and game monitors                                           | Planned |
+| 4d    | Docker, system and remote browser monitors                          | Planned |
+| 4e    | HTTP options, proxies and domain expiry                             | Planned |
+| 5     | Accounts and administration                                         | Planned |
+| 6     | Integrations                                                        | Planned |
 
 ## Phase 0: Core (done)
 
@@ -107,23 +111,55 @@ Known limits and differences from Node.js:
 - Fixed in the UI: a public page showed "?" as its overall status, and grey status pills, because an upstream change
   had made it stop recording each monitor's newest beat.
 
-## Phase 4: Remaining monitor types (planned)
+## Phase 4: Remaining monitor types
 
-Do these in the order they're used, and add each to the importer as it's built.
+Phase 4 was split, because each monitor type is its own small project with its own library and test target. The order is a
+guess at what's used most; the dry run of `kuma-import` against the real database should decide it.
 
-| Category      | Types                                                                               |
-| ------------- | ----------------------------------------------------------------------------------- |
-| Network       | WebSocket upgrade, NTP, SNMP, SMTP, SIP options, RADIUS, Tailscale ping, Globalping |
-| Passive       | Manual                                                                              |
-| HTTP variants | JSON query, gRPC keyword, Real browser                                              |
-| Databases     | PostgreSQL, MySQL/MariaDB, SQL Server, Oracle, MongoDB, Redis                       |
-| Messaging     | MQTT, RabbitMQ, Kafka producer                                                      |
-| System        | Docker container, PM2, System service, SFTP                                         |
-| Games         | GameDig, Steam                                                                      |
+### Phase 4a: Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis (done)
 
-They also need what they depend on: Docker hosts, remote browsers, proxies, the monitor conditions engine, and the
-monitor options that are ignored or refused today, namely saved responses, cache busting, IP family, retrying only on
-status code failure, and NTLM, mTLS and OAuth logins. Domain expiry tracking belongs here too.
+- **Conditions:** the engine of Node.js's `server/monitor-conditions`, with groups, and/or and every operator. DNS and
+  MySQL monitors use it, as in Node.js. DNS monitors with conditions, which Phase 2 refused, now work.
+- **JSON query:** JSONata on the response of an HTTP request, compared with the expected value.
+- **Manual**, **WebSocket upgrade**, **PostgreSQL**, **MySQL/MariaDB** and **Redis**.
+- All of them in the REST API, the UI's form, and `kuma-import`.
+- Fixed in the UI: switching a new monitor to WebSocket kept HTTP's accepted status codes, so it was DOWN on a normal
+  close, because the form compared a code with a list of codes.
+
+Tested with the race detector against TimescaleDB, MariaDB and Redis. JSON query results were compared with Node.js's
+own `evaluateJsonQuery` running jsonata 2.2.2, for 37 queries. In headless Chromium against the built image, a monitor of
+each type was made through the form and checked against a real PostgreSQL, MariaDB, Redis, a public WebSocket echo server
+and DNS: `internal/e2e/browser/monitor-types.mjs`. The status page specs still pass.
+
+Not tested: TLS to the databases, and Redis Sentinel or Cluster URLs, which aren't supported.
+
+Known limits and differences from Node.js:
+
+- JSONata is version 1.5, where Node.js had 2.2. Functions added since then fail as unknown.
+- In JSON query errors, objects list their keys in order of name, and a `null` field shows as `undefined`.
+- A MySQL value is compared as the driver's text: a date is `2026-11-05 00:00:00`, where Node.js had JavaScript's
+  `Thu Nov 05 2026 …`.
+- PostgreSQL's `ssl=true` means verified TLS, and other settings are libpq's, as pgx reads them.
+- OAuth and mTLS on WebSocket monitors are refused, as they are on HTTP monitors.
+- A CAA record without an `issue` tag is left out of DNS conditions, where Node.js's check failed with an error.
+
+### Phase 4b: Other databases and messaging (next)
+
+SQL Server, Oracle and MongoDB, which SQL Server and Oracle's conditions need, and MQTT, RabbitMQ and Kafka producer.
+
+### Phase 4c: Network and game monitors (planned)
+
+NTP, SNMP, SMTP, SIP options, RADIUS, Tailscale ping, Globalping, GameDig and Steam.
+
+### Phase 4d: Docker, system and remote browser monitors (planned)
+
+Docker containers with Docker hosts, PM2, system services, SFTP, gRPC keyword, and Real browser with remote browsers.
+
+### Phase 4e: HTTP options, proxies and domain expiry (planned)
+
+The monitor options that are ignored or refused today: saved responses, cache busting, IP family, retrying only on status
+code failure, and NTLM, mTLS and OAuth logins. Proxies, and domain expiry tracking. Add each type to the importer as it's
+built.
 
 ## Phase 5: Accounts and administration (planned)
 

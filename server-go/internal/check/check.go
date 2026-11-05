@@ -92,8 +92,18 @@ func (c *Checker) Run(ctx context.Context, m monitor.Monitor) monitor.Result {
 	defer cancel()
 
 	switch m.Type {
-	case monitor.TypeHTTP, monitor.TypeKeyword:
+	case monitor.TypeHTTP, monitor.TypeKeyword, monitor.TypeJSONQuery:
 		return c.runHTTP(ctx, m, timeout)
+	case monitor.TypeWebSocket:
+		return c.runWebSocket(ctx, m)
+	case monitor.TypePostgres:
+		return runPostgres(ctx, m)
+	case monitor.TypeMySQL:
+		return runMySQL(ctx, m)
+	case monitor.TypeRedis:
+		return runRedis(ctx, m)
+	case monitor.TypeManual:
+		return runManual(m)
 	case monitor.TypePort:
 		return c.runPort(ctx, m)
 	case monitor.TypeGroup:
@@ -228,8 +238,16 @@ func (c *Checker) runHTTP(ctx context.Context, m monitor.Monitor, timeout time.D
 	}
 	msg := fmt.Sprintf("%d - %s", res.StatusCode, reason)
 
-	if m.Type == monitor.TypeHTTP {
+	switch m.Type {
+	case monitor.TypeHTTP:
 		return monitor.Result{OK: true, TLS: tlsState, Ping: &ping, Msg: msg}
+	case monitor.TypeJSONQuery:
+		result := evaluateJSONQuery(data, m)
+		result.TLS = tlsState
+		if result.OK {
+			result.Ping = &ping
+		}
+		return result
 	}
 
 	found := bytes.Contains(data, []byte(m.Keyword))

@@ -1,0 +1,265 @@
+{
+ "body": "{\"status\":\"ok\",\"count\":42,\"ratio\":0.25,\"big\":1e+21,\"tiny\":5e-7,\"up\":true,\"name\":\"Ünïcödé service\",\"items\":[{\"id\":1,\"state\":\"up\",\"load\":0.5},{\"id\":2,\"state\":\"down\",\"load\":1.5},{\"id\":3,\"state\":\"up\",\"load\":2}],\"nested\":{\"a\":{\"b\":{\"c\":\"deep\"}}},\"empty\":null,\"version\":\"1.10.2\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+ "cases": [
+  {
+   "jsonPath": "status",
+   "op": "==",
+   "expected": "ok",
+   "ok": true,
+   "msg": "JSON query passes (comparing ok == ok)"
+  },
+  {
+   "jsonPath": "status",
+   "op": "!=",
+   "expected": "ok",
+   "ok": false,
+   "msg": "JSON query does not pass (comparing ok != ok)"
+  },
+  {
+   "jsonPath": "status",
+   "op": "contains",
+   "expected": "o",
+   "ok": true,
+   "msg": "JSON query passes (comparing ok contains o)"
+  },
+  {
+   "jsonPath": "count",
+   "op": ">",
+   "expected": "41",
+   "ok": true,
+   "msg": "JSON query passes (comparing 42 > 41)"
+  },
+  {
+   "jsonPath": "count",
+   "op": ">=",
+   "expected": "42",
+   "ok": true,
+   "msg": "JSON query passes (comparing 42 >= 42)"
+  },
+  {
+   "jsonPath": "count",
+   "op": "<",
+   "expected": "42",
+   "ok": false,
+   "msg": "JSON query does not pass (comparing 42 < 42)"
+  },
+  {
+   "jsonPath": "count",
+   "op": "<=",
+   "expected": "42",
+   "ok": true,
+   "msg": "JSON query passes (comparing 42 <= 42)"
+  },
+  {
+   "jsonPath": "count",
+   "op": "==",
+   "expected": "42",
+   "ok": true,
+   "msg": "JSON query passes (comparing 42 == 42)"
+  },
+  {
+   "jsonPath": "ratio",
+   "op": "==",
+   "expected": "0.25",
+   "ok": true,
+   "msg": "JSON query passes (comparing 0.25 == 0.25)"
+  },
+  {
+   "jsonPath": "big",
+   "op": "==",
+   "expected": "1e+21",
+   "ok": true,
+   "msg": "JSON query passes (comparing 1e+21 == 1e+21)"
+  },
+  {
+   "jsonPath": "tiny",
+   "op": "==",
+   "expected": "5e-7",
+   "ok": true,
+   "msg": "JSON query passes (comparing 5e-7 == 5e-7)"
+  },
+  {
+   "jsonPath": "up",
+   "op": "==",
+   "expected": "true",
+   "ok": true,
+   "msg": "JSON query passes (comparing true == true)"
+  },
+  {
+   "jsonPath": "name",
+   "op": "contains",
+   "expected": "cödé",
+   "ok": true,
+   "msg": "JSON query passes (comparing Ünïcödé service contains cödé)"
+  },
+  {
+   "jsonPath": "$count(items)",
+   "op": "==",
+   "expected": "3",
+   "ok": true,
+   "msg": "JSON query passes (comparing 3 == 3)"
+  },
+  {
+   "jsonPath": "$count(items[state='up'])",
+   "op": ">=",
+   "expected": "2",
+   "ok": true,
+   "msg": "JSON query passes (comparing 2 >= 2)"
+  },
+  {
+   "jsonPath": "items[0].state",
+   "op": "==",
+   "expected": "up",
+   "ok": true,
+   "msg": "JSON query passes (comparing up == up)"
+  },
+  {
+   "jsonPath": "items[id=2].load",
+   "op": ">",
+   "expected": "1",
+   "ok": true,
+   "msg": "JSON query passes (comparing 1.5 > 1)"
+  },
+  {
+   "jsonPath": "$sum(items.load)",
+   "op": "==",
+   "expected": "4",
+   "ok": true,
+   "msg": "JSON query passes (comparing 4 == 4)"
+  },
+  {
+   "jsonPath": "nested.a.b.c",
+   "op": "==",
+   "expected": "deep",
+   "ok": true,
+   "msg": "JSON query passes (comparing deep == deep)"
+  },
+  {
+   "jsonPath": "missing",
+   "op": "==",
+   "expected": "x",
+   "ok": false,
+   "msg": "Error evaluating JSON query: Empty or undefined response. Check query syntax and response structure. Response from server was: undefined"
+  },
+  {
+   "jsonPath": "empty",
+   "op": "==",
+   "expected": "x",
+   "ok": false,
+   "msg": "Error evaluating JSON query: Empty or undefined response. Check query syntax and response structure. Response from server was: null"
+  },
+  {
+   "jsonPath": "items",
+   "op": "==",
+   "expected": "x",
+   "ok": false,
+   "msg": "Error evaluating JSON query: JSON query returned the array [{\"id\":1,\"state\":\"up\",\"lo...], but a primitive value is required. Modify your query to return a single value via [0] to get the first element or use an aggregation like $count(), $sum() or $boolean().. Response from server was: [{\"id\":1,\"state\":\"up\",\"load\":0.5},{\"id\":2,\"state\":\"down\",\"load\":1.5},{\"id\":3,\"state\":\"up\",\"load\":2}]… (truncated)"
+  },
+  {
+   "jsonPath": "nested",
+   "op": "==",
+   "expected": "x",
+   "ok": false,
+   "msg": "Error evaluating JSON query: The post-JSON query evaluated response from the server is of type object, which cannot be directly compared to the expected value. Response from server was: {\"a\":{\"b\":{\"c\":\"deep\"}}}"
+  },
+  {
+   "jsonPath": "items.state",
+   "op": "==",
+   "expected": "up",
+   "ok": false,
+   "msg": "Error evaluating JSON query: JSON query returned the array [\"up\",\"down\",\"up\"], but a primitive value is required. Modify your query to return a single value via [0] to get the first element or use an aggregation like $count(), $sum() or $boolean().. Response from server was: [\"up\",\"down\",\"up\"]"
+  },
+  {
+   "jsonPath": "status",
+   "op": ">",
+   "expected": "1",
+   "ok": false,
+   "msg": "Error evaluating JSON query: Unable to cast value to a number: \"ok\". Response from server was: \"ok\""
+  },
+  {
+   "jsonPath": "count",
+   "op": ">",
+   "expected": "abc",
+   "ok": false,
+   "msg": "Error evaluating JSON query: Unable to cast value to a number: \"abc\". Response from server was: 42"
+  },
+  {
+   "jsonPath": "$string(count)",
+   "op": "==",
+   "expected": "42",
+   "ok": true,
+   "msg": "JSON query passes (comparing 42 == 42)"
+  },
+  {
+   "jsonPath": "$uppercase(status)",
+   "op": "==",
+   "expected": "OK",
+   "ok": true,
+   "msg": "JSON query passes (comparing OK == OK)"
+  },
+  {
+   "jsonPath": "$boolean(items)",
+   "op": "==",
+   "expected": "true",
+   "ok": true,
+   "msg": "JSON query passes (comparing true == true)"
+  },
+  {
+   "jsonPath": "version",
+   "op": "contains",
+   "expected": "1.10",
+   "ok": true,
+   "msg": "JSON query passes (comparing 1.10.2 contains 1.10)"
+  },
+  {
+   "jsonPath": "text",
+   "op": "==",
+   "expected": "x",
+   "ok": false,
+   "msg": "JSON query does not pass (comparing xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx == x)"
+  },
+  {
+   "jsonPath": "",
+   "op": "contains",
+   "expected": "status",
+   "ok": false,
+   "msg": "Error evaluating JSON query: The post-JSON query evaluated response from the server is of type object, which cannot be directly compared to the expected value. Response from server was: {\"status\":\"ok\",\"count\":42,\"ratio\":0.25,\"big\":1e+21,\"tiny\":5e-7,\"up\":true,\"name\":\"Ünïcödé service\",\"i… (truncated)"
+  },
+  {
+   "jsonPath": "count * 2",
+   "op": "==",
+   "expected": "84",
+   "ok": true,
+   "msg": "JSON query passes (comparing 84 == 84)"
+  },
+  {
+   "jsonPath": "$exists(missing)",
+   "op": "==",
+   "expected": "false",
+   "ok": true,
+   "msg": "JSON query passes (comparing false == false)"
+  },
+  {
+   "jsonPath": "items[load>1].id",
+   "op": "==",
+   "expected": "x",
+   "ok": false,
+   "msg": "Error evaluating JSON query: JSON query returned the array [2,3], but a primitive value is required. Modify your query to return a single value via [0] to get the first element or use an aggregation like $count(), $sum() or $boolean().. Response from server was: [2,3]"
+  },
+  {
+   "jsonPath": "status = 'ok'",
+   "op": "==",
+   "expected": "true",
+   "ok": true,
+   "msg": "JSON query passes (comparing true == true)"
+  },
+  {
+   "body": "plain text",
+   "jsonPath": "",
+   "op": "contains",
+   "expected": "plain",
+   "ok": true,
+   "msg": "JSON query passes (comparing plain text contains plain)"
+  }
+ ]
+}

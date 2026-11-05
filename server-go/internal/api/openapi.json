@@ -2288,11 +2288,17 @@
             "enum": [
               "http",
               "keyword",
+              "json-query",
               "port",
-              "group",
-              "push",
               "ping",
-              "dns"
+              "dns",
+              "push",
+              "group",
+              "manual",
+              "websocket-upgrade",
+              "postgres",
+              "mysql",
+              "redis"
             ]
           },
           "active": {
@@ -2337,7 +2343,8 @@
             "description": "The group this monitor belongs to"
           },
           "url": {
-            "type": "string"
+            "type": "string",
+            "description": "http and keyword: http(s) URL. websocket-upgrade: ws(s) URL."
           },
           "method": {
             "type": "string",
@@ -2368,7 +2375,8 @@
             },
             "default": [
               "200-299"
-            ]
+            ],
+            "description": "HTTP status codes, or for websocket-upgrade the close codes, by default 1000"
           },
           "maxRedirects": {
             "type": "integer",
@@ -2452,6 +2460,68 @@
             "type": "string",
             "readOnly": true,
             "description": "DNS monitors: the last answer. Ignored in input."
+          },
+          "jsonPath": {
+            "type": "string",
+            "description": "json-query: a JSONata 1.5 expression evaluated on the response. Empty compares the whole response."
+          },
+          "jsonPathOperator": {
+            "type": "string",
+            "enum": [
+              "==",
+              "!=",
+              "contains",
+              ">",
+              ">=",
+              "<",
+              "<="
+            ],
+            "default": "=="
+          },
+          "expectedValue": {
+            "type": "string",
+            "description": "json-query: what the result is compared with"
+          },
+          "conditions": {
+            "type": "array",
+            "default": [],
+            "description": "dns and mysql: conditions on each record or the query's single value, as the web UI builds them",
+            "items": {
+              "type": "object"
+            }
+          },
+          "manualStatus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "enum": [
+              0,
+              1,
+              2,
+              null
+            ],
+            "description": "manual: 1 up, 0 down, 2 or null pending"
+          },
+          "wsSubprotocol": {
+            "type": "string",
+            "description": "websocket-upgrade: comma-separated subprotocols"
+          },
+          "wsIgnoreSecWebsocketAcceptHeader": {
+            "type": "boolean",
+            "default": false
+          },
+          "databaseConnectionString": {
+            "type": "string",
+            "description": "postgres, mysql and redis: a URL such as postgres://user:password@host:5432/db. Redacted for keys without monitors:write."
+          },
+          "databaseQuery": {
+            "type": "string",
+            "description": "postgres and mysql: the query, SELECT 1 when empty"
+          },
+          "databasePassword": {
+            "type": "string",
+            "description": "mysql: replaces the password in the connection string. Redacted for keys without monitors:write."
           }
         }
       },

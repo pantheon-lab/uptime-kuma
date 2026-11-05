@@ -1,7 +1,7 @@
 # kuma-analytics
 
-The Uptime Kuma backend, rewritten in Go and still in progress. It runs HTTP, keyword, TCP port,
-ping, DNS, push and group monitors, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
+The Uptime Kuma backend, rewritten in Go and still in progress. It runs HTTP, keyword, JSON query,
+TCP port, ping, DNS, push, group, manual, WebSocket, PostgreSQL, MySQL/MariaDB and Redis monitors, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
 percentiles and dashboard stats over REST, plus new beats over Server-Sent Events. It serves public
 status pages and badges, exports traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
@@ -23,15 +23,13 @@ service starts**, so that a stranger can't claim a server someone forgot to set 
 the window has passed. There's one account, and it can do everything.
 
 What works in the UI: logging in and out, changing the password, the dashboard with live beats, uptime and
-response times, the event list, adding, editing, pausing and deleting HTTP, keyword, TCP port, ping,
-DNS, push and group monitors, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public
+response times, the event list, adding, editing, pausing and deleting the monitor types above, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public
 holidays, tags, certificate details and expiry alerts, status pages with incidents, badges, and saving settings.
 
 Everything else answers "This isn't supported by this server yet", or shows an empty list where a page asks
 on its own (API keys). In particular:
 
-- Saving a monitor with another type, a proxy, conditions, or an authentication method other than basic or
-  bearer is refused, so that a check never runs differently from what the form shows. Basic and bearer
+- Saving a monitor with another type, a proxy, or an authentication method other than basic or bearer is refused, so that a check never runs differently from what the form shows. Basic and bearer
   authentication are saved as an `Authorization` header, and show up under Headers when you edit again.
 - Form settings this service doesn't have, such as certificate expiry notifications, aren't saved.
 - Settings are stored, but apart from the certificate expiry days the service doesn't act on them yet. The timezone comes from `KUMA_TIMEZONE`.
@@ -78,7 +76,30 @@ data size, and there's no numeric output setting, because there's no output to r
 **DNS** monitors look a record up (A, AAAA, CAA, CNAME, MX, NS, PTR, SOA, SRV or TXT) on a comma-separated list of
 resolvers, IP addresses or hostnames, tried in turn until one answers. They're UP if there's at least one record, and
 the message and the monitor page's last result are formatted as in the Node.js backend. A name that doesn't exist, or
-has no record of the type, is DOWN. Conditions on the record aren't supported yet, so a monitor with them is refused.
+has no record of the type, is DOWN. With conditions, a monitor is UP only if a record meets them: each address or name,
+each TXT string, the issuer of a CAA record, the host of an MX record, the target of an SRV record, the primary name
+server of SOA, or the first answer of CNAME.
+
+**JSON query** monitors make the same request as HTTP monitors, then pick a value out of the response with a
+[JSONata](https://jsonata.org) expression and compare it with the expected value: `==`, `!=` and `contains` compare
+text, and `<`, `<=`, `>` and `>=` numbers. An empty expression compares the whole response. The result must be a single
+value, not an array or object. Expressions are JSONata 1.5, from [jsonata-go](https://github.com/blues/jsonata-go),
+where Node.js had 2.2: the functions added since, such as `$distinct`, aren't there. Tests compare the results with
+Node.js's for a set of common queries.
+
+**Manual** monitors report the status chosen with the form's Up and Down buttons, PENDING until one is chosen. Down
+skips retries.
+
+**WebSocket** monitors open a `ws://` or `wss://` connection and close it at once. The close code must be one of the
+accepted codes, 1000 (a normal close) by default. Headers, basic and bearer authentication, subprotocols and **Ignore
+TLS/SSL errors** apply, and **Ignore Sec-WebSocket-Accept header** accepts servers that send a wrong one.
+
+**PostgreSQL**, **MySQL/MariaDB** and **Redis** monitors connect with a URL, such as
+`postgres://user:password@host:5432/db`, `mysql://user:password@host:3306/db` or `redis://:password@host:6379/0`
+(`rediss://` for TLS), and close the connection after each check. PostgreSQL and MySQL run the query, `SELECT 1` by
+default. A MySQL monitor's **Password** field replaces the password in the URL. MySQL can have conditions on the query's
+result, which must then be a single value; its message counts the rows otherwise. Redis sends `PING`. Connection
+strings and passwords are hidden from API keys without `monitors:write`, and left out of error messages.
 
 ## Status pages
 
@@ -441,7 +462,11 @@ docker run -d --rm --name kuma-go-test -p 127.0.0.1:55433:5432 \
 TEST_DATABASE_URL='postgres://postgres:test@127.0.0.1:55433/postgres' go test -race ./...
 ```
 
-Database tests are skipped when `TEST_DATABASE_URL` is not set.
+Database tests are skipped when `TEST_DATABASE_URL` is not set. The importer and the MySQL monitor test with
+`TEST_MARIADB_DSN`, such as `root:test@tcp(127.0.0.1:53306)/`, and the Redis monitor with `TEST_REDIS_URL`, such as
+`redis://:testpass@127.0.0.1:56379/0`.
+
+`internal/e2e/browser/` has scripts that drive the web UI in a browser against the built image. Each says what it needs.
 
 ## Licensing
 
