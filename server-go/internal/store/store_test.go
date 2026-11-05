@@ -563,3 +563,36 @@ func TestOverlappingDeletesSucceed(t *testing.T) {
 		t.Errorf("stats still report deleted monitors: %+v", stats)
 	}
 }
+
+func TestBeatsAfterARefreshStillCount(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	m, err := s.CreateMonitor(ctx, member("site", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	beat := func(at time.Time) {
+		t.Helper()
+		if _, err := s.InsertBeats(ctx, []Beat{{MonitorID: m.ID, Time: at, Status: monitor.StatusUp}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	beat(now.Add(-2 * time.Hour))
+	beat(now.Add(-2 * time.Second))
+	if err := s.RefreshAggregates(ctx); err != nil {
+		t.Fatal(err)
+	}
+	beat(now.Add(-time.Second))
+
+	for _, view := range []string{"stat_hourly", "stat_daily"} {
+		var up int64
+		err := s.pool.QueryRow(ctx, `SELECT COALESCE(sum(up), 0)::bigint FROM `+view+` WHERE monitor_id = $1`, m.ID).Scan(&up)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if up != 3 {
+			t.Errorf("%s has %d beats, want 3: a beat after a refresh went missing", view, up)
+		}
+	}
+}
