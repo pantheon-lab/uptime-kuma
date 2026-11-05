@@ -1,0 +1,119 @@
+{
+ "provider": "evolution",
+ "variants": {
+  "default": {
+   "config": {
+    "evolutionAuthToken": "v-evolutionAuthToken",
+    "evolutionCustomMessage": "v-evolutionCustomMessage",
+    "evolutionUseCustomMessage": "v-evolutionUseCustomMessage",
+    "evolutionRecipient": "v-evolutionRecipient",
+    "evolutionApiUrl": "https://svc.example/evolutionApiUrl",
+    "evolutionInstanceName": "v-evolutionInstanceName",
+    "type": "evolution"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/evolutionApiUrl/message/sendText/v-evolutionInstanceName",
+       "headers": {
+        "Content-Type": "application/json",
+        "apikey": "v-evolutionAuthToken"
+       },
+       "body": "{\"number\":\"v-evolutionRecipient\",\"text\":\"v-evolutionCustomMessage\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/evolutionApiUrl/message/sendText/v-evolutionInstanceName",
+       "headers": {
+        "Content-Type": "application/json",
+        "apikey": "v-evolutionAuthToken"
+       },
+       "body": "{\"number\":\"v-evolutionRecipient\",\"text\":\"v-evolutionCustomMessage\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/evolutionApiUrl/message/sendText/v-evolutionInstanceName",
+       "headers": {
+        "Content-Type": "application/json",
+        "apikey": "v-evolutionAuthToken"
+       },
+       "body": "{\"number\":\"v-evolutionRecipient\",\"text\":\"v-evolutionCustomMessage\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "evolutionAuthToken": "v-evolutionAuthToken",
+    "evolutionRecipient": "v-evolutionRecipient",
+    "evolutionApiUrl": "https://svc.example/evolutionApiUrl",
+    "evolutionInstanceName": "v-evolutionInstanceName",
+    "type": "evolution"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/evolutionApiUrl/message/sendText/v-evolutionInstanceName",
+       "headers": {
+        "Content-Type": "application/json",
+        "apikey": "v-evolutionAuthToken"
+       },
+       "body": "{\"number\":\"v-evolutionRecipient\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/evolutionApiUrl/message/sendText/v-evolutionInstanceName",
+       "headers": {
+        "Content-Type": "application/json",
+        "apikey": "v-evolutionAuthToken"
+       },
+       "body": "{\"number\":\"v-evolutionRecipient\",\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/evolutionApiUrl/message/sendText/v-evolutionInstanceName",
+       "headers": {
+        "Content-Type": "application/json",
+        "apikey": "v-evolutionAuthToken"
+       },
+       "body": "{\"number\":\"v-evolutionRecipient\",\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

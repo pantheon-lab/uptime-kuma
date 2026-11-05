@@ -1,0 +1,244 @@
+{
+ "provider": "webhook",
+ "variants": {
+  "default": {
+   "config": {
+    "httpMethod": "post",
+    "webhookContentType": "json",
+    "webhookCustomBody": "https://svc.example/webhookCustomBody",
+    "webhookAdditionalHeaders": "{\"X-Team\":\"ops\"}",
+    "webhookURL": "https://svc.example/webhookURL",
+    "type": "webhook"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Team": "ops"
+       },
+       "body": "{\"heartbeat\":{\"monitorID\":42,\"status\":0,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"connect ECONNREFUSED\",\"ping\":null,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\"},\"monitor\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null,\"interval\":60,\"active\":true,\"parent\":null,\"pathName\":\"Team / Example Site\",\"description\":null,\"maxretries\":1,\"keyword\":null,\"tags\":[]},\"msg\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Team": "ops"
+       },
+       "body": "{\"heartbeat\":{\"monitorID\":42,\"status\":1,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"200 - OK\",\"ping\":123,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\",\"lastDownTime\":\"2026-01-02 02:04:05.678\"},\"monitor\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null,\"interval\":60,\"active\":true,\"parent\":null,\"pathName\":\"Team / Example Site\",\"description\":null,\"maxretries\":1,\"keyword\":null,\"tags\":[]},\"msg\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Team": "ops"
+       },
+       "body": "{\"heartbeat\":null,\"monitor\":null,\"msg\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "httpMethod": "v-httpMethod",
+    "webhookContentType": "https://svc.example/webhookContentType",
+    "webhookAdditionalHeaders": "https://svc.example/webhookAdditionalHeaders",
+    "webhookURL": "https://svc.example/webhookURL",
+    "type": "webhook"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [],
+     "error": "Additional Headers is not a valid JSON"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [],
+     "error": "Additional Headers is not a valid JSON"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [],
+     "error": "Additional Headers is not a valid JSON"
+    }
+   }
+  },
+  "get": {
+   "config": {
+    "httpMethod": "GET",
+    "webhookContentType": "https://svc.example/webhookContentType",
+    "webhookCustomBody": "https://svc.example/webhookCustomBody",
+    "webhookAdditionalHeaders": "",
+    "webhookURL": "https://svc.example/webhookURL",
+    "type": "webhook"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/webhookURL?msg=[Example+Site]+[%F0%9F%94%B4+Down]+connect+ECONNREFUSED&heartbeat=%7B%22monitorID%22:42,%22status%22:0,%22time%22:%222026-01-02+03:04:05.678%22,%22msg%22:%22connect+ECONNREFUSED%22,%22ping%22:null,%22important%22:true,%22duration%22:60,%22retries%22:0,%22timezone%22:%22Asia%2FHong_Kong%22,%22timezoneOffset%22:%22%2B08:00%22,%22localDateTime%22:%222026-01-02+11:04:05%22%7D&monitor=%7B%22id%22:42,%22name%22:%22Example+Site%22,%22type%22:%22http%22,%22url%22:%22https:%2F%2Fsite.example%2Fhealth%22,%22hostname%22:null,%22port%22:null,%22interval%22:60,%22active%22:true,%22parent%22:null,%22pathName%22:%22Team+%2F+Example+Site%22,%22description%22:null,%22maxretries%22:1,%22keyword%22:null,%22tags%22:[]%7D",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/webhookURL?msg=[Example+Site]+[%E2%9C%85+Up]+200+-+OK&heartbeat=%7B%22monitorID%22:42,%22status%22:1,%22time%22:%222026-01-02+03:04:05.678%22,%22msg%22:%22200+-+OK%22,%22ping%22:123,%22important%22:true,%22duration%22:60,%22retries%22:0,%22timezone%22:%22Asia%2FHong_Kong%22,%22timezoneOffset%22:%22%2B08:00%22,%22localDateTime%22:%222026-01-02+11:04:05%22,%22lastDownTime%22:%222026-01-02+02:04:05.678%22%7D&monitor=%7B%22id%22:42,%22name%22:%22Example+Site%22,%22type%22:%22http%22,%22url%22:%22https:%2F%2Fsite.example%2Fhealth%22,%22hostname%22:null,%22port%22:null,%22interval%22:60,%22active%22:true,%22parent%22:null,%22pathName%22:%22Team+%2F+Example+Site%22,%22description%22:null,%22maxretries%22:1,%22keyword%22:null,%22tags%22:[]%7D",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/webhookURL?msg=My+Monitor+Testing",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "form": {
+   "config": {
+    "httpMethod": "post",
+    "webhookContentType": "form-data",
+    "webhookCustomBody": "https://svc.example/webhookCustomBody",
+    "webhookAdditionalHeaders": "",
+    "webhookURL": "https://svc.example/webhookURL",
+    "type": "webhook"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "multipart/form-data; boundary=--------------------------abababababababababababab"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"data\"\r\n\r\n{\"heartbeat\":{\"monitorID\":42,\"status\":0,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"connect ECONNREFUSED\",\"ping\":null,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\"},\"monitor\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null,\"interval\":60,\"active\":true,\"parent\":null,\"pathName\":\"Team / Example Site\",\"description\":null,\"maxretries\":1,\"keyword\":null,\"tags\":[]},\"msg\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "multipart/form-data; boundary=--------------------------abababababababababababab"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"data\"\r\n\r\n{\"heartbeat\":{\"monitorID\":42,\"status\":1,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"200 - OK\",\"ping\":123,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\",\"lastDownTime\":\"2026-01-02 02:04:05.678\"},\"monitor\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null,\"interval\":60,\"active\":true,\"parent\":null,\"pathName\":\"Team / Example Site\",\"description\":null,\"maxretries\":1,\"keyword\":null,\"tags\":[]},\"msg\":\"[Example Site] [✅ Up] 200 - OK\"}\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "multipart/form-data; boundary=--------------------------abababababababababababab"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"data\"\r\n\r\n{\"heartbeat\":null,\"monitor\":null,\"msg\":\"My Monitor Testing\"}\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "custom": {
+   "config": {
+    "httpMethod": "post",
+    "webhookContentType": "custom",
+    "webhookCustomBody": "{{ name }} {{ status }} {{ hostnameOrURL }} {{ msg }}",
+    "webhookAdditionalHeaders": "{\"Content-Type\":\"text/plain\"}",
+    "webhookURL": "https://svc.example/webhookURL",
+    "type": "webhook"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "text/plain"
+       },
+       "body": "Example Site 🔴 Down https://site.example/health [Example Site] [🔴 Down] connect ECONNREFUSED"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "text/plain"
+       },
+       "body": "Example Site ✅ Up https://site.example/health [Example Site] [✅ Up] 200 - OK"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "text/plain"
+       },
+       "body": "Monitor Name not available ⚠️ Test testing.hostname My Monitor Testing"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

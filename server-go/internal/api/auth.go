@@ -25,10 +25,12 @@ import (
 
 // API key scopes.
 const (
-	ScopeMonitorsRead  = "monitors:read"
-	ScopeMonitorsWrite = "monitors:write"
-	ScopeBeatsRead     = "beats:read"
-	ScopeBeatsWrite    = "beats:write"
+	ScopeMonitorsRead       = "monitors:read"
+	ScopeMonitorsWrite      = "monitors:write"
+	ScopeBeatsRead          = "beats:read"
+	ScopeBeatsWrite         = "beats:write"
+	ScopeNotificationsRead  = "notifications:read"
+	ScopeNotificationsWrite = "notifications:write"
 
 	// scopeAdmin can't be granted to a key: only the admin token has it.
 	scopeAdmin = "admin"
@@ -42,7 +44,7 @@ const (
 	defaultKeyBurst = 200
 )
 
-var grantableScopes = []string{ScopeMonitorsRead, ScopeMonitorsWrite, ScopeBeatsRead, ScopeBeatsWrite}
+var grantableScopes = []string{ScopeMonitorsRead, ScopeMonitorsWrite, ScopeBeatsRead, ScopeBeatsWrite, ScopeNotificationsRead, ScopeNotificationsWrite}
 
 // principal is who is making a request. keyID is 0 for the admin token.
 type principal struct {

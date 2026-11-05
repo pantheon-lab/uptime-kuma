@@ -55,7 +55,9 @@ type Monitor struct {
 	RetryInterval int32   `json:"retryInterval"`
 	Timeout       float64 `json:"timeout"`
 	MaxRetries    int32   `json:"maxRetries"`
-	UpsideDown    bool    `json:"upsideDown"`
+	// ResendInterval repeats the alert every this many DOWN beats. 0 alerts once.
+	ResendInterval int32 `json:"resendInterval"`
+	UpsideDown     bool  `json:"upsideDown"`
 	// ParentID is the group that this monitor belongs to, if any.
 	ParentID *int32 `json:"parentId"`
 
@@ -139,6 +141,8 @@ func (m *Monitor) Validate() error {
 		return fmt.Errorf("timeout must be from 0 to %d seconds", maxIntervalSeconds)
 	case m.MaxRetries < 0 || m.MaxRetries > maxRetries:
 		return fmt.Errorf("maxRetries must be from 0 to %d", maxRetries)
+	case m.ResendInterval < 0:
+		return errors.New("resendInterval must not be negative")
 	}
 
 	if m.ParentID != nil && *m.ParentID <= 0 {

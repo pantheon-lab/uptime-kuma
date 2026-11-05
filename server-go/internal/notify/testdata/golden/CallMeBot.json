@@ -1,0 +1,87 @@
+{
+ "provider": "CallMeBot",
+ "variants": {
+  "default": {
+   "config": {
+    "callMeBotEndpoint": "https://svc.example/callMeBotEndpoint",
+    "type": "CallMeBot"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/callMeBotEndpoint?text=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/callMeBotEndpoint?text=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/callMeBotEndpoint?text=My+Monitor+Testing",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "callMeBotEndpoint": "https://svc.example/callMeBotEndpoint",
+    "type": "CallMeBot"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/callMeBotEndpoint?text=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/callMeBotEndpoint?text=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/callMeBotEndpoint?text=My+Monitor+Testing",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

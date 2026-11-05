@@ -1,0 +1,186 @@
+{
+ "provider": "VKTeams",
+ "variants": {
+  "default": {
+   "config": {
+    "vkteamsBaseUrl": "https://svc.example/vkteamsBaseUrl",
+    "vkteamsBotToken": "v-vkteamsBotToken",
+    "vkteamsChatId": "v-vkteamsChatId",
+    "vkteamsUseTemplate": "v-vkteamsUseTemplate",
+    "vkteamsTemplate": "v-vkteamsTemplate",
+    "vkteamsTemplateFormat": "v-vkteamsTemplateFormat",
+    "type": "VKTeams"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/vkteamsBaseUrl/bot/v1/messages/sendText?token=v-vkteamsBotToken&chatId=v-vkteamsChatId&text=v-vkteamsTemplate&parseMode=v-vkteamsTemplateFormat",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/vkteamsBaseUrl/bot/v1/messages/sendText?token=v-vkteamsBotToken&chatId=v-vkteamsChatId&text=v-vkteamsTemplate&parseMode=v-vkteamsTemplateFormat",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/vkteamsBaseUrl/bot/v1/messages/sendText?token=v-vkteamsBotToken&chatId=v-vkteamsChatId&text=v-vkteamsTemplate&parseMode=v-vkteamsTemplateFormat",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "vkteamsBaseUrl": "https://svc.example/vkteamsBaseUrl",
+    "vkteamsBotToken": "v-vkteamsBotToken",
+    "vkteamsChatId": "v-vkteamsChatId",
+    "type": "VKTeams"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/vkteamsBaseUrl/bot/v1/messages/sendText?token=v-vkteamsBotToken&chatId=v-vkteamsChatId&text=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/vkteamsBaseUrl/bot/v1/messages/sendText?token=v-vkteamsBotToken&chatId=v-vkteamsChatId&text=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/vkteamsBaseUrl/bot/v1/messages/sendText?token=v-vkteamsBotToken&chatId=v-vkteamsChatId&text=My+Monitor+Testing",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "md": {
+   "config": {
+    "vkteamsBaseUrl": "https://svc.example/vkteamsBaseUrl",
+    "vkteamsBotToken": "v-vkteamsBotToken",
+    "vkteamsChatId": "v-vkteamsChatId",
+    "vkteamsUseTemplate": true,
+    "vkteamsTemplate": "{{ name }}",
+    "vkteamsTemplateFormat": "HTML",
+    "type": "VKTeams"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/vkteamsBaseUrl/bot/v1/messages/sendText?token=v-vkteamsBotToken&chatId=v-vkteamsChatId&text=Example+Site&parseMode=HTML",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/vkteamsBaseUrl/bot/v1/messages/sendText?token=v-vkteamsBotToken&chatId=v-vkteamsChatId&text=Example+Site&parseMode=HTML",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/vkteamsBaseUrl/bot/v1/messages/sendText?token=v-vkteamsBotToken&chatId=v-vkteamsChatId&text=Monitor+Name+not+available&parseMode=HTML",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "plain": {
+   "config": {
+    "vkteamsBaseUrl": "https://svc.example/vkteamsBaseUrl",
+    "vkteamsBotToken": "v-vkteamsBotToken",
+    "vkteamsChatId": "v-vkteamsChatId",
+    "vkteamsUseTemplate": false,
+    "vkteamsTemplate": "v-vkteamsTemplate",
+    "vkteamsTemplateFormat": "v-vkteamsTemplateFormat",
+    "type": "VKTeams"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/vkteamsBaseUrl/bot/v1/messages/sendText?token=v-vkteamsBotToken&chatId=v-vkteamsChatId&text=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/vkteamsBaseUrl/bot/v1/messages/sendText?token=v-vkteamsBotToken&chatId=v-vkteamsChatId&text=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/vkteamsBaseUrl/bot/v1/messages/sendText?token=v-vkteamsBotToken&chatId=v-vkteamsChatId&text=My+Monitor+Testing",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

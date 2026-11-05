@@ -1,0 +1,105 @@
+{
+ "provider": "GrafanaOncall",
+ "variants": {
+  "default": {
+   "config": {
+    "GrafanaOncallURL": "https://svc.example/GrafanaOncallURL",
+    "type": "GrafanaOncall"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/GrafanaOncallURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"Example Site is down\",\"message\":\"connect ECONNREFUSED\",\"state\":\"alerting\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/GrafanaOncallURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"Example Site is up\",\"message\":\"200 - OK\",\"state\":\"ok\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/GrafanaOncallURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"General notification\",\"message\":\"My Monitor Testing\",\"state\":\"alerting\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "GrafanaOncallURL": "https://svc.example/GrafanaOncallURL",
+    "type": "GrafanaOncall"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/GrafanaOncallURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"Example Site is down\",\"message\":\"connect ECONNREFUSED\",\"state\":\"alerting\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/GrafanaOncallURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"Example Site is up\",\"message\":\"200 - OK\",\"state\":\"ok\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/GrafanaOncallURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"General notification\",\"message\":\"My Monitor Testing\",\"state\":\"alerting\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,119 @@
+{
+ "provider": "Brevo",
+ "variants": {
+  "default": {
+   "config": {
+    "brevoApiKey": "v-brevoApiKey",
+    "brevoToEmail": "v-brevoToEmail",
+    "brevoFromEmail": "v-brevoFromEmail",
+    "brevoFromName": "v-brevoFromName",
+    "brevoSubject": "v-brevoSubject",
+    "brevoCcEmail": "v-brevoCcEmail",
+    "brevoBccEmail": "v-brevoBccEmail",
+    "type": "Brevo"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.brevo.com/v3/smtp/email",
+       "headers": {
+        "Content-Type": "application/json",
+        "api-key": "v-brevoApiKey"
+       },
+       "body": "{\"sender\":{\"email\":\"v-brevoFromEmail\",\"name\":\"v-brevoFromName\"},\"to\":[{\"email\":\"v-brevoToEmail\"}],\"subject\":\"v-brevoSubject\",\"htmlContent\":\"<html><head></head><body><p>[Example Site] [🔴 Down] connect ECONNREFUSED</p></body></html>\",\"cc\":[{\"email\":\"v-brevoCcEmail\"}],\"bcc\":[{\"email\":\"v-brevoBccEmail\"}]}"
+      }
+     ],
+     "error": "Unexpected status code: 200"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.brevo.com/v3/smtp/email",
+       "headers": {
+        "Content-Type": "application/json",
+        "api-key": "v-brevoApiKey"
+       },
+       "body": "{\"sender\":{\"email\":\"v-brevoFromEmail\",\"name\":\"v-brevoFromName\"},\"to\":[{\"email\":\"v-brevoToEmail\"}],\"subject\":\"v-brevoSubject\",\"htmlContent\":\"<html><head></head><body><p>[Example Site] [✅ Up] 200 - OK</p></body></html>\",\"cc\":[{\"email\":\"v-brevoCcEmail\"}],\"bcc\":[{\"email\":\"v-brevoBccEmail\"}]}"
+      }
+     ],
+     "error": "Unexpected status code: 200"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.brevo.com/v3/smtp/email",
+       "headers": {
+        "Content-Type": "application/json",
+        "api-key": "v-brevoApiKey"
+       },
+       "body": "{\"sender\":{\"email\":\"v-brevoFromEmail\",\"name\":\"v-brevoFromName\"},\"to\":[{\"email\":\"v-brevoToEmail\"}],\"subject\":\"v-brevoSubject\",\"htmlContent\":\"<html><head></head><body><p>My Monitor Testing</p></body></html>\",\"cc\":[{\"email\":\"v-brevoCcEmail\"}],\"bcc\":[{\"email\":\"v-brevoBccEmail\"}]}"
+      }
+     ],
+     "error": "Unexpected status code: 200"
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "brevoApiKey": "v-brevoApiKey",
+    "brevoToEmail": "v-brevoToEmail",
+    "brevoFromEmail": "v-brevoFromEmail",
+    "type": "Brevo"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.brevo.com/v3/smtp/email",
+       "headers": {
+        "Content-Type": "application/json",
+        "api-key": "v-brevoApiKey"
+       },
+       "body": "{\"sender\":{\"email\":\"v-brevoFromEmail\",\"name\":\"Uptime Kuma\"},\"to\":[{\"email\":\"v-brevoToEmail\"}],\"subject\":\"Notification from Your Uptime Kuma\",\"htmlContent\":\"<html><head></head><body><p>[Example Site] [🔴 Down] connect ECONNREFUSED</p></body></html>\"}"
+      }
+     ],
+     "error": "Unexpected status code: 200"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.brevo.com/v3/smtp/email",
+       "headers": {
+        "Content-Type": "application/json",
+        "api-key": "v-brevoApiKey"
+       },
+       "body": "{\"sender\":{\"email\":\"v-brevoFromEmail\",\"name\":\"Uptime Kuma\"},\"to\":[{\"email\":\"v-brevoToEmail\"}],\"subject\":\"Notification from Your Uptime Kuma\",\"htmlContent\":\"<html><head></head><body><p>[Example Site] [✅ Up] 200 - OK</p></body></html>\"}"
+      }
+     ],
+     "error": "Unexpected status code: 200"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.brevo.com/v3/smtp/email",
+       "headers": {
+        "Content-Type": "application/json",
+        "api-key": "v-brevoApiKey"
+       },
+       "body": "{\"sender\":{\"email\":\"v-brevoFromEmail\",\"name\":\"Uptime Kuma\"},\"to\":[{\"email\":\"v-brevoToEmail\"}],\"subject\":\"Notification from Your Uptime Kuma\",\"htmlContent\":\"<html><head></head><body><p>My Monitor Testing</p></body></html>\"}"
+      }
+     ],
+     "error": "Unexpected status code: 200"
+    }
+   }
+  }
+ }
+}

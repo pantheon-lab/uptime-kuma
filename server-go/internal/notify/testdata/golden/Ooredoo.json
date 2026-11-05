@@ -1,0 +1,176 @@
+{
+ "provider": "Ooredoo",
+ "variants": {
+  "default": {
+   "config": {
+    "ooredooServerUrl": "https://svc.example/ooredooServerUrl",
+    "ooredooToNumber": "v-ooredooToNumber",
+    "ooredooBearerToken": "v-ooredooBearerToken",
+    "ooredooUsername": "v-ooredooUsername",
+    "ooredooAccessKey": "v-ooredooAccessKey",
+    "type": "Ooredoo"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ooredooServerUrl",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "Bearer v-ooredooBearerToken"
+       },
+       "body": "username=v-ooredooUsername&access_key=di1vb3JlZG9vQWNjZXNzS2V5&message=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&batch=v-ooredooToNumber"
+      }
+     ],
+     "error": "Ooredoo rejected the message: response_code=undefined"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ooredooServerUrl",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "Bearer v-ooredooBearerToken"
+       },
+       "body": "username=v-ooredooUsername&access_key=di1vb3JlZG9vQWNjZXNzS2V5&message=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&batch=v-ooredooToNumber"
+      }
+     ],
+     "error": "Ooredoo rejected the message: response_code=undefined"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ooredooServerUrl",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "Bearer v-ooredooBearerToken"
+       },
+       "body": "username=v-ooredooUsername&access_key=di1vb3JlZG9vQWNjZXNzS2V5&message=My+Monitor+Testing&batch=v-ooredooToNumber"
+      }
+     ],
+     "error": "Ooredoo rejected the message: response_code=undefined"
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "ooredooServerUrl": "https://svc.example/ooredooServerUrl",
+    "ooredooToNumber": "v-ooredooToNumber",
+    "ooredooBearerToken": "v-ooredooBearerToken",
+    "ooredooUsername": "v-ooredooUsername",
+    "ooredooAccessKey": "v-ooredooAccessKey",
+    "type": "Ooredoo"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ooredooServerUrl",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "Bearer v-ooredooBearerToken"
+       },
+       "body": "username=v-ooredooUsername&access_key=di1vb3JlZG9vQWNjZXNzS2V5&message=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&batch=v-ooredooToNumber"
+      }
+     ],
+     "error": "Ooredoo rejected the message: response_code=undefined"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ooredooServerUrl",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "Bearer v-ooredooBearerToken"
+       },
+       "body": "username=v-ooredooUsername&access_key=di1vb3JlZG9vQWNjZXNzS2V5&message=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&batch=v-ooredooToNumber"
+      }
+     ],
+     "error": "Ooredoo rejected the message: response_code=undefined"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ooredooServerUrl",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "Bearer v-ooredooBearerToken"
+       },
+       "body": "username=v-ooredooUsername&access_key=di1vb3JlZG9vQWNjZXNzS2V5&message=My+Monitor+Testing&batch=v-ooredooToNumber"
+      }
+     ],
+     "error": "Ooredoo rejected the message: response_code=undefined"
+    }
+   }
+  },
+  "many": {
+   "config": {
+    "ooredooServerUrl": "https://svc.example/ooredooServerUrl",
+    "ooredooToNumber": "1234567 +9601234567, 9601111111",
+    "ooredooBearerToken": "v-ooredooBearerToken",
+    "ooredooUsername": "v-ooredooUsername",
+    "ooredooAccessKey": "v-ooredooAccessKey",
+    "type": "Ooredoo"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ooredooServerUrl",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "Bearer v-ooredooBearerToken"
+       },
+       "body": "username=v-ooredooUsername&access_key=di1vb3JlZG9vQWNjZXNzS2V5&message=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&batch=9601234567+9601234567+9601111111"
+      }
+     ],
+     "error": "Ooredoo rejected the message: response_code=undefined"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ooredooServerUrl",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "Bearer v-ooredooBearerToken"
+       },
+       "body": "username=v-ooredooUsername&access_key=di1vb3JlZG9vQWNjZXNzS2V5&message=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&batch=9601234567+9601234567+9601111111"
+      }
+     ],
+     "error": "Ooredoo rejected the message: response_code=undefined"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ooredooServerUrl",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "Bearer v-ooredooBearerToken"
+       },
+       "body": "username=v-ooredooUsername&access_key=di1vb3JlZG9vQWNjZXNzS2V5&message=My+Monitor+Testing&batch=9601234567+9601234567+9601111111"
+      }
+     ],
+     "error": "Ooredoo rejected the message: response_code=undefined"
+    }
+   }
+  }
+ }
+}

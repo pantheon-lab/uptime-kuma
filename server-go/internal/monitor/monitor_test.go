@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -137,10 +138,10 @@ func TestIsImportantMatchesNodeTable(t *testing.T) {
 }
 
 func TestSanitizeMsg(t *testing.T) {
-	if got := sanitizeMsg("a\x00b\xffc"); got != "ab�c" {
+	if got := SanitizeMsg("a\x00b\xffc"); got != "ab�c" {
 		t.Errorf("got %q", got)
 	}
-	long := sanitizeMsg(strings.Repeat("é", maxMsgBytes))
+	long := SanitizeMsg(strings.Repeat("é", maxMsgBytes))
 	if len(long) > maxMsgBytes+3 || !utf8.ValidString(long) {
 		t.Errorf("truncation produced %d bytes, valid=%v", len(long), utf8.ValidString(long))
 	}
@@ -191,5 +192,64 @@ func TestRedactedRemovesCredentials(t *testing.T) {
 	}
 	if got := (Monitor{URL: "::not a url"}).Redacted(); got.URL != "***" {
 		t.Errorf("unparsable url: %q", got.URL)
+	}
+}
+
+func TestNotifyRules(t *testing.T) {
+	const d, u, p, x = StatusDown, StatusUp, StatusPending, StatusMaintenance
+	wanted := map[[2]int16]bool{{x, d}: true, {u, d}: true, {d, u}: true, {p, d}: true}
+	for _, from := range []int16{d, u, p, x} {
+		for _, to := range []int16{d, u, p, x} {
+			if got := ImportantForNotification(from, to); got != wanted[[2]int16{from, to}] {
+				t.Errorf("%d -> %d: got %v", from, to, got)
+			}
+		}
+	}
+
+	m := Monitor{}
+	if out := m.Next(nil, Result{OK: true}); out.Notify {
+		t.Error("a healthy first beat must not alert")
+	}
+	if out := m.Next(nil, Result{}); !out.Notify {
+		t.Error("a failing first beat must alert")
+	}
+	if out := m.Next(&Previous{Status: StatusUp}, Result{}); !out.Notify {
+		t.Error("going down must alert")
+	}
+	if out := m.Next(&Previous{Status: StatusDown}, Result{OK: true}); !out.Notify {
+		t.Error("recovering must alert")
+	}
+	if out := m.Next(&Previous{Status: StatusDown}, Result{}); out.Notify {
+		t.Error("staying down must not alert without resendInterval")
+	}
+	if out := m.Next(&Previous{Status: StatusUp}, Result{OK: true}); out.Notify {
+		t.Error("staying up must not alert")
+	}
+	retrying := Monitor{MaxRetries: 1}
+	if out := retrying.Next(&Previous{Status: StatusUp}, Result{}); out.Notify || out.Status != StatusPending {
+		t.Errorf("a retry must not alert: %+v", out)
+	}
+}
+
+func TestResendInterval(t *testing.T) {
+	m := Monitor{ResendInterval: 3}
+	prev := &Previous{Status: StatusUp}
+	out := m.Next(prev, Result{})
+	if !out.Notify || out.DownCount != 0 {
+		t.Fatalf("going down: %+v", out)
+	}
+	var notified []bool
+	prev = &Previous{Status: out.Status, Retries: out.Retries, DownCount: out.DownCount}
+	for i := 0; i < 7; i++ {
+		out = m.Next(prev, Result{})
+		notified = append(notified, out.Notify)
+		prev = &Previous{Status: out.Status, Retries: out.Retries, DownCount: out.DownCount}
+	}
+	if !slices.Equal(notified, []bool{false, false, true, false, false, true, false}) {
+		t.Errorf("alerts: %v", notified)
+	}
+	out = m.Next(prev, Result{OK: true})
+	if !out.Notify || out.DownCount != 0 {
+		t.Errorf("recovery: %+v", out)
 	}
 }

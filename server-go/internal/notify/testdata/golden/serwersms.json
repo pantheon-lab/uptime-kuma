@@ -1,0 +1,224 @@
+{
+ "provider": "serwersms",
+ "variants": {
+  "default": {
+   "config": {
+    "serwersmsUsername": "v-serwersmsUsername",
+    "serwersmsPassword": "v-serwersmsPassword",
+    "serwersmsSenderName": "v-serwersmsSenderName",
+    "serwersmsRecipientType": "v-serwersmsRecipientType",
+    "serwersmsGroupId": "v-serwersmsGroupId",
+    "serwersmsPhoneNumber": "v-serwersmsPhoneNumber",
+    "type": "serwersms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.serwersms.pl/messages/send_sms",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-serwersmsUsername\",\"password\":\"v-serwersmsPassword\",\"text\":\"[Example Site] [ Down] connect ECONNREFUSED\",\"sender\":\"v-serwersmsSenderName\",\"phone\":\"v-serwersmsPhoneNumber\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.serwersms.pl/messages/send_sms",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-serwersmsUsername\",\"password\":\"v-serwersmsPassword\",\"text\":\"[Example Site] [ Up] 200 - OK\",\"sender\":\"v-serwersmsSenderName\",\"phone\":\"v-serwersmsPhoneNumber\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.serwersms.pl/messages/send_sms",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-serwersmsUsername\",\"password\":\"v-serwersmsPassword\",\"text\":\"My Monitor Testing\",\"sender\":\"v-serwersmsSenderName\",\"phone\":\"v-serwersmsPhoneNumber\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "serwersmsUsername": "v-serwersmsUsername",
+    "serwersmsPassword": "v-serwersmsPassword",
+    "serwersmsSenderName": "v-serwersmsSenderName",
+    "serwersmsRecipientType": "v-serwersmsRecipientType",
+    "serwersmsPhoneNumber": "v-serwersmsPhoneNumber",
+    "type": "serwersms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.serwersms.pl/messages/send_sms",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-serwersmsUsername\",\"password\":\"v-serwersmsPassword\",\"text\":\"[Example Site] [ Down] connect ECONNREFUSED\",\"sender\":\"v-serwersmsSenderName\",\"phone\":\"v-serwersmsPhoneNumber\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.serwersms.pl/messages/send_sms",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-serwersmsUsername\",\"password\":\"v-serwersmsPassword\",\"text\":\"[Example Site] [ Up] 200 - OK\",\"sender\":\"v-serwersmsSenderName\",\"phone\":\"v-serwersmsPhoneNumber\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.serwersms.pl/messages/send_sms",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-serwersmsUsername\",\"password\":\"v-serwersmsPassword\",\"text\":\"My Monitor Testing\",\"sender\":\"v-serwersmsSenderName\",\"phone\":\"v-serwersmsPhoneNumber\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "group": {
+   "config": {
+    "serwersmsUsername": "v-serwersmsUsername",
+    "serwersmsPassword": "v-serwersmsPassword",
+    "serwersmsSenderName": "v-serwersmsSenderName",
+    "serwersmsRecipientType": "group",
+    "serwersmsGroupId": "v-serwersmsGroupId",
+    "serwersmsPhoneNumber": "v-serwersmsPhoneNumber",
+    "type": "serwersms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.serwersms.pl/messages/send_sms",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-serwersmsUsername\",\"password\":\"v-serwersmsPassword\",\"text\":\"[Example Site] [ Down] connect ECONNREFUSED\",\"sender\":\"v-serwersmsSenderName\",\"group_id\":\"v-serwersmsGroupId\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.serwersms.pl/messages/send_sms",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-serwersmsUsername\",\"password\":\"v-serwersmsPassword\",\"text\":\"[Example Site] [ Up] 200 - OK\",\"sender\":\"v-serwersmsSenderName\",\"group_id\":\"v-serwersmsGroupId\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.serwersms.pl/messages/send_sms",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-serwersmsUsername\",\"password\":\"v-serwersmsPassword\",\"text\":\"My Monitor Testing\",\"sender\":\"v-serwersmsSenderName\",\"group_id\":\"v-serwersmsGroupId\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "phone": {
+   "config": {
+    "serwersmsUsername": "v-serwersmsUsername",
+    "serwersmsPassword": "v-serwersmsPassword",
+    "serwersmsSenderName": "v-serwersmsSenderName",
+    "serwersmsRecipientType": "to",
+    "serwersmsGroupId": "v-serwersmsGroupId",
+    "serwersmsPhoneNumber": "v-serwersmsPhoneNumber",
+    "type": "serwersms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.serwersms.pl/messages/send_sms",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-serwersmsUsername\",\"password\":\"v-serwersmsPassword\",\"text\":\"[Example Site] [ Down] connect ECONNREFUSED\",\"sender\":\"v-serwersmsSenderName\",\"phone\":\"v-serwersmsPhoneNumber\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.serwersms.pl/messages/send_sms",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-serwersmsUsername\",\"password\":\"v-serwersmsPassword\",\"text\":\"[Example Site] [ Up] 200 - OK\",\"sender\":\"v-serwersmsSenderName\",\"phone\":\"v-serwersmsPhoneNumber\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.serwersms.pl/messages/send_sms",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-serwersmsUsername\",\"password\":\"v-serwersmsPassword\",\"text\":\"My Monitor Testing\",\"sender\":\"v-serwersmsSenderName\",\"phone\":\"v-serwersmsPhoneNumber\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

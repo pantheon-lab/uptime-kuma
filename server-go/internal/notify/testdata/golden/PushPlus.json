@@ -1,0 +1,105 @@
+{
+ "provider": "PushPlus",
+ "variants": {
+  "default": {
+   "config": {
+    "pushPlusSendKey": "v-pushPlusSendKey",
+    "type": "PushPlus"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.pushplus.plus/send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"token\":\"v-pushPlusSendKey\",\"title\":\"UptimeKuma Monitor Down Example Site\",\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"template\":\"html\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.pushplus.plus/send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"token\":\"v-pushPlusSendKey\",\"title\":\"UptimeKuma Monitor Up Example Site\",\"content\":\"[Example Site] [✅ Up] 200 - OK\",\"template\":\"html\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.pushplus.plus/send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"token\":\"v-pushPlusSendKey\",\"title\":\"UptimeKuma Message\",\"content\":\"My Monitor Testing\",\"template\":\"html\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "pushPlusSendKey": "v-pushPlusSendKey",
+    "type": "PushPlus"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.pushplus.plus/send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"token\":\"v-pushPlusSendKey\",\"title\":\"UptimeKuma Monitor Down Example Site\",\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"template\":\"html\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.pushplus.plus/send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"token\":\"v-pushPlusSendKey\",\"title\":\"UptimeKuma Monitor Up Example Site\",\"content\":\"[Example Site] [✅ Up] 200 - OK\",\"template\":\"html\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.pushplus.plus/send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"token\":\"v-pushPlusSendKey\",\"title\":\"UptimeKuma Message\",\"content\":\"My Monitor Testing\",\"template\":\"html\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,93 @@
+{
+ "provider": "egosms",
+ "variants": {
+  "default": {
+   "config": {
+    "egosmsPhoneNumber": "v-egosmsPhoneNumber",
+    "egosmsUsername": "v-egosmsUsername",
+    "egosmsPassword": "v-egosmsPassword",
+    "egosmsSender": "v-egosmsSender",
+    "type": "egosms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://www.egosms.co/api/v1/plain/?number=v-egosmsPhoneNumber&message=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&username=v-egosmsUsername&password=v-egosmsPassword&sender=v-egosmsSender&priority=0",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://www.egosms.co/api/v1/plain/?number=v-egosmsPhoneNumber&message=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&username=v-egosmsUsername&password=v-egosmsPassword&sender=v-egosmsSender&priority=0",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://www.egosms.co/api/v1/plain/?number=v-egosmsPhoneNumber&message=My+Monitor+Testing&username=v-egosmsUsername&password=v-egosmsPassword&sender=v-egosmsSender&priority=0",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "egosmsPhoneNumber": "v-egosmsPhoneNumber",
+    "egosmsUsername": "v-egosmsUsername",
+    "egosmsPassword": "v-egosmsPassword",
+    "egosmsSender": "v-egosmsSender",
+    "type": "egosms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://www.egosms.co/api/v1/plain/?number=v-egosmsPhoneNumber&message=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&username=v-egosmsUsername&password=v-egosmsPassword&sender=v-egosmsSender&priority=0",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://www.egosms.co/api/v1/plain/?number=v-egosmsPhoneNumber&message=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&username=v-egosmsUsername&password=v-egosmsPassword&sender=v-egosmsSender&priority=0",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://www.egosms.co/api/v1/plain/?number=v-egosmsPhoneNumber&message=My+Monitor+Testing&username=v-egosmsUsername&password=v-egosmsPassword&sender=v-egosmsSender&priority=0",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

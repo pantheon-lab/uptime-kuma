@@ -1,0 +1,117 @@
+{
+ "provider": "waha",
+ "variants": {
+  "default": {
+   "config": {
+    "wahaApiKey": "v-wahaApiKey",
+    "wahaSession": "v-wahaSession",
+    "wahaChatId": "v-wahaChatId",
+    "wahaApiUrl": "https://svc.example/wahaApiUrl",
+    "type": "waha"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/wahaApiUrl/api/sendText",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Api-Key": "v-wahaApiKey"
+       },
+       "body": "{\"session\":\"v-wahaSession\",\"chatId\":\"v-wahaChatId\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/wahaApiUrl/api/sendText",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Api-Key": "v-wahaApiKey"
+       },
+       "body": "{\"session\":\"v-wahaSession\",\"chatId\":\"v-wahaChatId\",\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/wahaApiUrl/api/sendText",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Api-Key": "v-wahaApiKey"
+       },
+       "body": "{\"session\":\"v-wahaSession\",\"chatId\":\"v-wahaChatId\",\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "wahaApiKey": "v-wahaApiKey",
+    "wahaSession": "v-wahaSession",
+    "wahaChatId": "v-wahaChatId",
+    "wahaApiUrl": "https://svc.example/wahaApiUrl",
+    "type": "waha"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/wahaApiUrl/api/sendText",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Api-Key": "v-wahaApiKey"
+       },
+       "body": "{\"session\":\"v-wahaSession\",\"chatId\":\"v-wahaChatId\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/wahaApiUrl/api/sendText",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Api-Key": "v-wahaApiKey"
+       },
+       "body": "{\"session\":\"v-wahaSession\",\"chatId\":\"v-wahaChatId\",\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/wahaApiUrl/api/sendText",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Api-Key": "v-wahaApiKey"
+       },
+       "body": "{\"session\":\"v-wahaSession\",\"chatId\":\"v-wahaChatId\",\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

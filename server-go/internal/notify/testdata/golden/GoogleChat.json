@@ -1,0 +1,214 @@
+{
+ "provider": "GoogleChat",
+ "variants": {
+  "default": {
+   "config": {
+    "googleChatMaxRetries": 1,
+    "googleChatUseTemplate": "v-googleChatUseTemplate",
+    "googleChatTemplate": "v-googleChatTemplate",
+    "googleChatWebhookURL": "https://svc.example/googleChatWebhookURL",
+    "type": "GoogleChat"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleChatWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"v-googleChatTemplate\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleChatWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"v-googleChatTemplate\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleChatWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"v-googleChatTemplate\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "googleChatWebhookURL": "https://svc.example/googleChatWebhookURL",
+    "type": "GoogleChat"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleChatWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"fallbackText\":\"🔴 Example Site went down\",\"cardsV2\":[{\"card\":{\"header\":{\"title\":\"🔴 Example Site went down\"},\"sections\":[{\"widgets\":[{\"textParagraph\":{\"text\":\"<b>Message:</b>\\n[Example Site] [🔴 Down] connect ECONNREFUSED\"}},{\"textParagraph\":{\"text\":\"<b>Time (Asia/Hong_Kong):</b>\\n2026-01-02 11:04:05\"}},{\"textParagraph\":{\"text\":\"<b>Address:</b>\\nhttps://site.example/health\"}},{\"buttonList\":{\"buttons\":[{\"text\":\"Visit Uptime Kuma\",\"onClick\":{\"openLink\":{\"url\":\"https://kuma.example/dashboard/42\"}}}]}}]}]}}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleChatWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"fallbackText\":\"✅ Example Site is back online\",\"cardsV2\":[{\"card\":{\"header\":{\"title\":\"✅ Example Site is back online\"},\"sections\":[{\"widgets\":[{\"textParagraph\":{\"text\":\"<b>Message:</b>\\n[Example Site] [✅ Up] 200 - OK\"}},{\"textParagraph\":{\"text\":\"<b>Time (Asia/Hong_Kong):</b>\\n2026-01-02 11:04:05\"}},{\"textParagraph\":{\"text\":\"<b>Address:</b>\\nhttps://site.example/health\"}},{\"buttonList\":{\"buttons\":[{\"text\":\"Visit Uptime Kuma\",\"onClick\":{\"openLink\":{\"url\":\"https://kuma.example/dashboard/42\"}}}]}}]}]}}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleChatWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"fallbackText\":\"Uptime Kuma Alert\",\"cardsV2\":[{\"card\":{\"header\":{\"title\":\"Uptime Kuma Alert\"},\"sections\":[{\"widgets\":[{\"textParagraph\":{\"text\":\"<b>Message:</b>\\nMy Monitor Testing\"}},{\"buttonList\":{\"buttons\":[{\"text\":\"Visit Uptime Kuma\",\"onClick\":{\"openLink\":{\"url\":\"https://kuma.example/\"}}}]}}]}]}}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "template": {
+   "config": {
+    "googleChatMaxRetries": 1,
+    "googleChatUseTemplate": true,
+    "googleChatTemplate": "{{ name }}: {{ msg }}",
+    "googleChatWebhookURL": "https://svc.example/googleChatWebhookURL",
+    "type": "GoogleChat"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleChatWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"Example Site: [Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleChatWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"Example Site: [Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleChatWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"Monitor Name not available: My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "plain": {
+   "config": {
+    "googleChatMaxRetries": 1,
+    "googleChatUseTemplate": false,
+    "googleChatTemplate": "v-googleChatTemplate",
+    "googleChatWebhookURL": "https://svc.example/googleChatWebhookURL",
+    "type": "GoogleChat"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleChatWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"fallbackText\":\"🔴 Example Site went down\",\"cardsV2\":[{\"card\":{\"header\":{\"title\":\"🔴 Example Site went down\"},\"sections\":[{\"widgets\":[{\"textParagraph\":{\"text\":\"<b>Message:</b>\\n[Example Site] [🔴 Down] connect ECONNREFUSED\"}},{\"textParagraph\":{\"text\":\"<b>Time (Asia/Hong_Kong):</b>\\n2026-01-02 11:04:05\"}},{\"textParagraph\":{\"text\":\"<b>Address:</b>\\nhttps://site.example/health\"}},{\"buttonList\":{\"buttons\":[{\"text\":\"Visit Uptime Kuma\",\"onClick\":{\"openLink\":{\"url\":\"https://kuma.example/dashboard/42\"}}}]}}]}]}}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleChatWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"fallbackText\":\"✅ Example Site is back online\",\"cardsV2\":[{\"card\":{\"header\":{\"title\":\"✅ Example Site is back online\"},\"sections\":[{\"widgets\":[{\"textParagraph\":{\"text\":\"<b>Message:</b>\\n[Example Site] [✅ Up] 200 - OK\"}},{\"textParagraph\":{\"text\":\"<b>Time (Asia/Hong_Kong):</b>\\n2026-01-02 11:04:05\"}},{\"textParagraph\":{\"text\":\"<b>Address:</b>\\nhttps://site.example/health\"}},{\"buttonList\":{\"buttons\":[{\"text\":\"Visit Uptime Kuma\",\"onClick\":{\"openLink\":{\"url\":\"https://kuma.example/dashboard/42\"}}}]}}]}]}}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleChatWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"fallbackText\":\"Uptime Kuma Alert\",\"cardsV2\":[{\"card\":{\"header\":{\"title\":\"Uptime Kuma Alert\"},\"sections\":[{\"widgets\":[{\"textParagraph\":{\"text\":\"<b>Message:</b>\\nMy Monitor Testing\"}},{\"buttonList\":{\"buttons\":[{\"text\":\"Visit Uptime Kuma\",\"onClick\":{\"openLink\":{\"url\":\"https://kuma.example/\"}}}]}}]}]}}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

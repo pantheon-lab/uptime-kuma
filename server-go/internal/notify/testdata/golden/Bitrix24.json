@@ -1,0 +1,89 @@
+{
+ "provider": "Bitrix24",
+ "variants": {
+  "default": {
+   "config": {
+    "bitrix24UserID": "v-bitrix24UserID",
+    "bitrix24WebhookURL": "https://svc.example/bitrix24WebhookURL",
+    "type": "Bitrix24"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/bitrix24WebhookURL/im.notify.system.add.json?user_id=v-bitrix24UserID&message=[B]Uptime+Kuma[%2FB]&ATTACH[COLOR]=%2367b518&ATTACH[BLOCKS][0][MESSAGE]=[Example+Site]+[%F0%9F%94%B4+Down]+connect+ECONNREFUSED",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/bitrix24WebhookURL/im.notify.system.add.json?user_id=v-bitrix24UserID&message=[B]Uptime+Kuma[%2FB]&ATTACH[COLOR]=%23b73419&ATTACH[BLOCKS][0][MESSAGE]=[Example+Site]+[%E2%9C%85+Up]+200+-+OK",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/bitrix24WebhookURL/im.notify.system.add.json?user_id=v-bitrix24UserID&message=[B]Uptime+Kuma[%2FB]&ATTACH[COLOR]=%2367b518&ATTACH[BLOCKS][0][MESSAGE]=My+Monitor+Testing",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "bitrix24UserID": "v-bitrix24UserID",
+    "bitrix24WebhookURL": "https://svc.example/bitrix24WebhookURL",
+    "type": "Bitrix24"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/bitrix24WebhookURL/im.notify.system.add.json?user_id=v-bitrix24UserID&message=[B]Uptime+Kuma[%2FB]&ATTACH[COLOR]=%2367b518&ATTACH[BLOCKS][0][MESSAGE]=[Example+Site]+[%F0%9F%94%B4+Down]+connect+ECONNREFUSED",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/bitrix24WebhookURL/im.notify.system.add.json?user_id=v-bitrix24UserID&message=[B]Uptime+Kuma[%2FB]&ATTACH[COLOR]=%23b73419&ATTACH[BLOCKS][0][MESSAGE]=[Example+Site]+[%E2%9C%85+Up]+200+-+OK",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/bitrix24WebhookURL/im.notify.system.add.json?user_id=v-bitrix24UserID&message=[B]Uptime+Kuma[%2FB]&ATTACH[COLOR]=%2367b518&ATTACH[BLOCKS][0][MESSAGE]=My+Monitor+Testing",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

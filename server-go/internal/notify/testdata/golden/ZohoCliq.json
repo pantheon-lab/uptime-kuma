@@ -1,0 +1,105 @@
+{
+ "provider": "ZohoCliq",
+ "variants": {
+  "default": {
+   "config": {
+    "webhookUrl": "https://svc.example/webhookUrl",
+    "type": "ZohoCliq"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"🔴 [Example Site] went down\\n\\n*Description:* connect ECONNREFUSED\\n*URL:* https://site.example/health\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"### ✅ [Example Site] is back online\\n\\n*Description:* 200 - OK\\n*URL:* https://site.example/health\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"Notification\\n\\n*Description:* My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "webhookUrl": "https://svc.example/webhookUrl",
+    "type": "ZohoCliq"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"🔴 [Example Site] went down\\n\\n*Description:* connect ECONNREFUSED\\n*URL:* https://site.example/health\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"### ✅ [Example Site] is back online\\n\\n*Description:* 200 - OK\\n*URL:* https://site.example/health\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"Notification\\n\\n*Description:* My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

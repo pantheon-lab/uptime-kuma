@@ -1,0 +1,107 @@
+{
+ "provider": "YZJ",
+ "variants": {
+  "default": {
+   "config": {
+    "yzjWebHookUrl": "https://svc.example/yzjWebHookUrl",
+    "yzjToken": "v-yzjToken",
+    "type": "YZJ"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/yzjWebHookUrl?yzjtype=0&yzjtoken=v-yzjToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"content\":\"❌ Example Site \\n> connect ECONNREFUSED\\n> Time (Asia/Hong_Kong): 2026-01-02 11:04:05\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/yzjWebHookUrl?yzjtype=0&yzjtoken=v-yzjToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"content\":\"✅ Example Site \\n> 200 - OK\\n> Time (Asia/Hong_Kong): 2026-01-02 11:04:05\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/yzjWebHookUrl?yzjtype=0&yzjtoken=v-yzjToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"content\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "yzjWebHookUrl": "https://svc.example/yzjWebHookUrl",
+    "yzjToken": "v-yzjToken",
+    "type": "YZJ"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/yzjWebHookUrl?yzjtype=0&yzjtoken=v-yzjToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"content\":\"❌ Example Site \\n> connect ECONNREFUSED\\n> Time (Asia/Hong_Kong): 2026-01-02 11:04:05\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/yzjWebHookUrl?yzjtype=0&yzjtoken=v-yzjToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"content\":\"✅ Example Site \\n> 200 - OK\\n> Time (Asia/Hong_Kong): 2026-01-02 11:04:05\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/yzjWebHookUrl?yzjtype=0&yzjtoken=v-yzjToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"content\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

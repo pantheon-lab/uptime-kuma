@@ -1,0 +1,121 @@
+{
+ "provider": "promosms",
+ "variants": {
+  "default": {
+   "config": {
+    "promosmsAllowLongSMS": "v-promosmsAllowLongSMS",
+    "promosmsLogin": "v-promosmsLogin",
+    "promosmsPassword": "v-promosmsPassword",
+    "promosmsPhoneNumber": "v-promosmsPhoneNumber",
+    "promosmsSMSType": "v-promosmsSMSType",
+    "promosmsSenderName": "v-promosmsSenderName",
+    "type": "promosms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://promosms.com/api/rest/v3_2/sms",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wcm9tb3Ntc0xvZ2luOnYtcHJvbW9zbXNQYXNzd29yZA=="
+       },
+       "body": "{\"recipients\":[\"v-promosmsPhoneNumber\"],\"text\":\"[Example Site] [ Down] connect ECONNREFUSED\",\"long-sms\":\"v-promosmsAllowLongSMS\",\"type\":null,\"sender\":\"v-promosmsSenderName\"}"
+      }
+     ],
+     "error": "Cannot read properties of undefined (reading 'status')"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://promosms.com/api/rest/v3_2/sms",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wcm9tb3Ntc0xvZ2luOnYtcHJvbW9zbXNQYXNzd29yZA=="
+       },
+       "body": "{\"recipients\":[\"v-promosmsPhoneNumber\"],\"text\":\"[Example Site] [ Up] 200 - OK\",\"long-sms\":\"v-promosmsAllowLongSMS\",\"type\":null,\"sender\":\"v-promosmsSenderName\"}"
+      }
+     ],
+     "error": "Cannot read properties of undefined (reading 'status')"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://promosms.com/api/rest/v3_2/sms",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wcm9tb3Ntc0xvZ2luOnYtcHJvbW9zbXNQYXNzd29yZA=="
+       },
+       "body": "{\"recipients\":[\"v-promosmsPhoneNumber\"],\"text\":\"My Monitor Testing\",\"long-sms\":\"v-promosmsAllowLongSMS\",\"type\":null,\"sender\":\"v-promosmsSenderName\"}"
+      }
+     ],
+     "error": "Cannot read properties of undefined (reading 'status')"
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "promosmsAllowLongSMS": "v-promosmsAllowLongSMS",
+    "promosmsLogin": "v-promosmsLogin",
+    "promosmsPassword": "v-promosmsPassword",
+    "promosmsPhoneNumber": "v-promosmsPhoneNumber",
+    "promosmsSMSType": "v-promosmsSMSType",
+    "promosmsSenderName": "v-promosmsSenderName",
+    "type": "promosms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://promosms.com/api/rest/v3_2/sms",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wcm9tb3Ntc0xvZ2luOnYtcHJvbW9zbXNQYXNzd29yZA=="
+       },
+       "body": "{\"recipients\":[\"v-promosmsPhoneNumber\"],\"text\":\"[Example Site] [ Down] connect ECONNREFUSED\",\"long-sms\":\"v-promosmsAllowLongSMS\",\"type\":null,\"sender\":\"v-promosmsSenderName\"}"
+      }
+     ],
+     "error": "Cannot read properties of undefined (reading 'status')"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://promosms.com/api/rest/v3_2/sms",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wcm9tb3Ntc0xvZ2luOnYtcHJvbW9zbXNQYXNzd29yZA=="
+       },
+       "body": "{\"recipients\":[\"v-promosmsPhoneNumber\"],\"text\":\"[Example Site] [ Up] 200 - OK\",\"long-sms\":\"v-promosmsAllowLongSMS\",\"type\":null,\"sender\":\"v-promosmsSenderName\"}"
+      }
+     ],
+     "error": "Cannot read properties of undefined (reading 'status')"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://promosms.com/api/rest/v3_2/sms",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wcm9tb3Ntc0xvZ2luOnYtcHJvbW9zbXNQYXNzd29yZA=="
+       },
+       "body": "{\"recipients\":[\"v-promosmsPhoneNumber\"],\"text\":\"My Monitor Testing\",\"long-sms\":\"v-promosmsAllowLongSMS\",\"type\":null,\"sender\":\"v-promosmsSenderName\"}"
+      }
+     ],
+     "error": "Cannot read properties of undefined (reading 'status')"
+    }
+   }
+  }
+ }
+}

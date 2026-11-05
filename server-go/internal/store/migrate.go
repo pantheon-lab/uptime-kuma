@@ -125,6 +125,74 @@ var migrations = [][]string{
 			last_used_at timestamptz
 		)`,
 	},
+	{
+		// source_id is the monitor's id in the source database. Imported uptime applies before
+		// cutover, and this service's own beats after it, so nothing counts twice.
+		`CREATE TABLE IF NOT EXISTS monitor_import (
+			source_id integer PRIMARY KEY,
+			monitor_id integer NOT NULL UNIQUE REFERENCES monitor (id) ON DELETE CASCADE,
+			source_active boolean NOT NULL,
+			cutover timestamptz NOT NULL,
+			imported_at timestamptz NOT NULL DEFAULT now()
+		)`,
+		`CREATE TABLE IF NOT EXISTS imported_stat_hourly (
+			monitor_id integer NOT NULL REFERENCES monitor (id) ON DELETE CASCADE,
+			bucket timestamptz NOT NULL,
+			up bigint NOT NULL,
+			down bigint NOT NULL,
+			maintenance bigint NOT NULL,
+			ping_sum double precision NOT NULL,
+			ping_count bigint NOT NULL,
+			min_ping double precision,
+			max_ping double precision,
+			PRIMARY KEY (monitor_id, bucket)
+		)`,
+		`CREATE TABLE IF NOT EXISTS imported_stat_daily (LIKE imported_stat_hourly INCLUDING ALL)`,
+		`ALTER TABLE imported_stat_daily DROP CONSTRAINT IF EXISTS imported_stat_daily_monitor_id_fkey`,
+		`ALTER TABLE imported_stat_daily ADD CONSTRAINT imported_stat_daily_monitor_id_fkey
+			FOREIGN KEY (monitor_id) REFERENCES monitor (id) ON DELETE CASCADE`,
+		`CREATE OR REPLACE VIEW uptime_hourly AS
+			SELECT s.monitor_id, s.bucket, s.up::bigint AS up, s.down::bigint AS down, s.maintenance::bigint AS maintenance,
+			       s.ping_sum, s.ping_count::bigint AS ping_count, s.min_ping, s.max_ping
+			FROM stat_hourly s LEFT JOIN monitor_import i USING (monitor_id)
+			WHERE i.cutover IS NULL OR s.bucket >= i.cutover
+			UNION ALL
+			SELECT monitor_id, bucket, up, down, maintenance, ping_sum, ping_count, min_ping, max_ping
+			FROM imported_stat_hourly`,
+		`CREATE OR REPLACE VIEW uptime_daily AS
+			SELECT s.monitor_id, s.bucket, s.up::bigint AS up, s.down::bigint AS down, s.maintenance::bigint AS maintenance,
+			       s.ping_sum, s.ping_count::bigint AS ping_count, s.min_ping, s.max_ping
+			FROM stat_daily s LEFT JOIN monitor_import i USING (monitor_id)
+			WHERE i.cutover IS NULL OR s.bucket >= date_trunc('day', i.cutover, 'UTC')
+			UNION ALL
+			SELECT monitor_id, bucket, up, down, maintenance, ping_sum, ping_count, min_ping, max_ping
+			FROM imported_stat_daily`,
+	},
+	{
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS resend_interval integer NOT NULL DEFAULT 0`,
+		`ALTER TABLE heartbeat ADD COLUMN IF NOT EXISTS down_count integer NOT NULL DEFAULT 0`,
+		`CREATE TABLE IF NOT EXISTS notification (
+			id serial PRIMARY KEY,
+			name text NOT NULL,
+			type text NOT NULL,
+			config jsonb NOT NULL,
+			active boolean NOT NULL DEFAULT true,
+			is_default boolean NOT NULL DEFAULT false,
+			created_at timestamptz NOT NULL DEFAULT now(),
+			updated_at timestamptz NOT NULL DEFAULT now()
+		)`,
+		`CREATE TABLE IF NOT EXISTS monitor_notification (
+			monitor_id integer NOT NULL REFERENCES monitor (id) ON DELETE CASCADE,
+			notification_id integer NOT NULL REFERENCES notification (id) ON DELETE CASCADE,
+			PRIMARY KEY (monitor_id, notification_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS notification_import (
+			source_id integer PRIMARY KEY,
+			notification_id integer NOT NULL UNIQUE REFERENCES notification (id) ON DELETE CASCADE,
+			source_active boolean NOT NULL,
+			imported_at timestamptz NOT NULL DEFAULT now()
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.
@@ -188,7 +256,7 @@ func (s *Store) EnsureReadOnlyRole(ctx context.Context, role, password string) e
 	statements := []string{
 		verb + ` ROLE ` + quoted + ` LOGIN PASSWORD ` + literal,
 		`GRANT USAGE ON SCHEMA public TO ` + quoted,
-		`GRANT SELECT ON heartbeat, stat_hourly, stat_daily, monitor_group_member TO ` + quoted,
+		`GRANT SELECT ON heartbeat, stat_hourly, stat_daily, uptime_hourly, uptime_daily, monitor_group_member TO ` + quoted,
 		`GRANT SELECT (id, name, type, active, parent_id, interval_seconds) ON monitor TO ` + quoted,
 	}
 	for _, statement := range statements {

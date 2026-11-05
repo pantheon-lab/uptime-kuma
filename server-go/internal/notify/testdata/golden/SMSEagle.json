@@ -1,0 +1,395 @@
+{
+ "provider": "SMSEagle",
+ "variants": {
+  "default": {
+   "config": {
+    "smseagleApiType": "smseagle-apiv2",
+    "smseagleRecipientType": "v-smseagleRecipientType",
+    "smseagleMsgType": "smseagle-sms",
+    "smseagleDuration": "v-smseagleDuration",
+    "smseagleTtsModel": "v-smseagleTtsModel",
+    "smseagleUrl": "https://svc.example/smseagleUrl",
+    "smseagleToken": "v-smseagleToken",
+    "smseagleRecipient": "v-smseagleRecipient",
+    "smseagleEncoding": true,
+    "smseaglePriority": 2,
+    "smseagleRecipientContact": "1,2",
+    "smseagleRecipientGroup": "3",
+    "smseagleRecipientTo": "+1,+2",
+    "type": "SMSEagle"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smseagleUrl/api/v2/messages/sms",
+       "headers": {
+        "Content-Type": "application/json",
+        "access-token": "v-smseagleToken"
+       },
+       "body": "{\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"encoding\":\"unicode\",\"priority\":2,\"contacts\":[1,2],\"groups\":[3],\"to\":[\"+1\",\"+2\"]}"
+      }
+     ],
+     "error": "resp.data.filter is not a function"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smseagleUrl/api/v2/messages/sms",
+       "headers": {
+        "Content-Type": "application/json",
+        "access-token": "v-smseagleToken"
+       },
+       "body": "{\"text\":\"[Example Site] [✅ Up] 200 - OK\",\"encoding\":\"unicode\",\"priority\":2,\"contacts\":[1,2],\"groups\":[3],\"to\":[\"+1\",\"+2\"]}"
+      }
+     ],
+     "error": "resp.data.filter is not a function"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smseagleUrl/api/v2/messages/sms",
+       "headers": {
+        "Content-Type": "application/json",
+        "access-token": "v-smseagleToken"
+       },
+       "body": "{\"text\":\"My Monitor Testing\",\"encoding\":\"unicode\",\"priority\":2,\"contacts\":[1,2],\"groups\":[3],\"to\":[\"+1\",\"+2\"]}"
+      }
+     ],
+     "error": "resp.data.filter is not a function"
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "type": "SMSEagle"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [],
+     "error": null
+    }
+   }
+  },
+  "v2ring": {
+   "config": {
+    "smseagleApiType": "smseagle-apiv2",
+    "smseagleRecipientType": "v-smseagleRecipientType",
+    "smseagleMsgType": "smseagle-ring",
+    "smseagleDuration": 7,
+    "smseagleTtsModel": "v-smseagleTtsModel",
+    "smseagleUrl": "https://svc.example/smseagleUrl",
+    "smseagleToken": "v-smseagleToken",
+    "smseagleRecipient": "v-smseagleRecipient",
+    "smseagleEncoding": "v-smseagleEncoding",
+    "smseaglePriority": "v-smseaglePriority",
+    "smseagleRecipientTo": "+1",
+    "type": "SMSEagle"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smseagleUrl/api/v2/calls/ring",
+       "headers": {
+        "Content-Type": "application/json",
+        "access-token": "v-smseagleToken"
+       },
+       "body": "{\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"encoding\":\"unicode\",\"priority\":\"v-smseaglePriority\",\"to\":[\"+1\"],\"duration\":7}"
+      }
+     ],
+     "error": "resp.data.filter is not a function"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smseagleUrl/api/v2/calls/ring",
+       "headers": {
+        "Content-Type": "application/json",
+        "access-token": "v-smseagleToken"
+       },
+       "body": "{\"text\":\"[Example Site] [✅ Up] 200 - OK\",\"encoding\":\"unicode\",\"priority\":\"v-smseaglePriority\",\"to\":[\"+1\"],\"duration\":7}"
+      }
+     ],
+     "error": "resp.data.filter is not a function"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smseagleUrl/api/v2/calls/ring",
+       "headers": {
+        "Content-Type": "application/json",
+        "access-token": "v-smseagleToken"
+       },
+       "body": "{\"text\":\"My Monitor Testing\",\"encoding\":\"unicode\",\"priority\":\"v-smseaglePriority\",\"to\":[\"+1\"],\"duration\":7}"
+      }
+     ],
+     "error": "resp.data.filter is not a function"
+    }
+   }
+  },
+  "v2tts": {
+   "config": {
+    "smseagleApiType": "smseagle-apiv2",
+    "smseagleRecipientType": "v-smseagleRecipientType",
+    "smseagleMsgType": "smseagle-tts-advanced",
+    "smseagleDuration": "v-smseagleDuration",
+    "smseagleTtsModel": 4,
+    "smseagleUrl": "https://svc.example/smseagleUrl",
+    "smseagleToken": "v-smseagleToken",
+    "smseagleRecipient": "v-smseagleRecipient",
+    "smseagleEncoding": "v-smseagleEncoding",
+    "smseaglePriority": "v-smseaglePriority",
+    "smseagleRecipientTo": "+1",
+    "type": "SMSEagle"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smseagleUrl/api/v2/calls/tts_advanced",
+       "headers": {
+        "Content-Type": "application/json",
+        "access-token": "v-smseagleToken"
+       },
+       "body": "{\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"encoding\":\"unicode\",\"priority\":\"v-smseaglePriority\",\"to\":[\"+1\"],\"duration\":\"v-smseagleDuration\",\"voice_id\":4}"
+      }
+     ],
+     "error": "resp.data.filter is not a function"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smseagleUrl/api/v2/calls/tts_advanced",
+       "headers": {
+        "Content-Type": "application/json",
+        "access-token": "v-smseagleToken"
+       },
+       "body": "{\"text\":\"[Example Site] [✅ Up] 200 - OK\",\"encoding\":\"unicode\",\"priority\":\"v-smseaglePriority\",\"to\":[\"+1\"],\"duration\":\"v-smseagleDuration\",\"voice_id\":4}"
+      }
+     ],
+     "error": "resp.data.filter is not a function"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smseagleUrl/api/v2/calls/tts_advanced",
+       "headers": {
+        "Content-Type": "application/json",
+        "access-token": "v-smseagleToken"
+       },
+       "body": "{\"text\":\"My Monitor Testing\",\"encoding\":\"unicode\",\"priority\":\"v-smseaglePriority\",\"to\":[\"+1\"],\"duration\":\"v-smseagleDuration\",\"voice_id\":4}"
+      }
+     ],
+     "error": "resp.data.filter is not a function"
+    }
+   }
+  },
+  "v1": {
+   "config": {
+    "smseagleApiType": "smseagle-apiv1",
+    "smseagleRecipientType": "smseagle-to",
+    "smseagleMsgType": "smseagle-sms",
+    "smseagleDuration": "v-smseagleDuration",
+    "smseagleTtsModel": "v-smseagleTtsModel",
+    "smseagleUrl": "https://svc.example/smseagleUrl",
+    "smseagleToken": "v-smseagleToken",
+    "smseagleRecipient": "+1",
+    "smseagleEncoding": "v-smseagleEncoding",
+    "smseaglePriority": "v-smseaglePriority",
+    "smseagleRecipientContact": "v-smseagleRecipientContact",
+    "smseagleRecipientGroup": "v-smseagleRecipientGroup",
+    "smseagleRecipientTo": "v-smseagleRecipientTo",
+    "type": "SMSEagle"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/smseagleUrl/http_api/send_sms?access_token=v-smseagleToken&to=%2B1&duration=undefined&message=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.indexOf is not a function"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/smseagleUrl/http_api/send_sms?access_token=v-smseagleToken&to=%2B1&duration=undefined&message=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.indexOf is not a function"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/smseagleUrl/http_api/send_sms?access_token=v-smseagleToken&to=%2B1&duration=undefined&message=My+Monitor+Testing",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.indexOf is not a function"
+    }
+   }
+  },
+  "v1tts": {
+   "config": {
+    "smseagleApiType": "smseagle-apiv1",
+    "smseagleRecipientType": "smseagle-to",
+    "smseagleMsgType": "smseagle-tts",
+    "smseagleDuration": "v-smseagleDuration",
+    "smseagleTtsModel": "v-smseagleTtsModel",
+    "smseagleUrl": "https://svc.example/smseagleUrl",
+    "smseagleToken": "v-smseagleToken",
+    "smseagleRecipient": "+1",
+    "smseagleEncoding": "v-smseagleEncoding",
+    "smseaglePriority": "v-smseaglePriority",
+    "smseagleRecipientContact": "v-smseagleRecipientContact",
+    "smseagleRecipientGroup": "v-smseagleRecipientGroup",
+    "smseagleRecipientTo": "v-smseagleRecipientTo",
+    "type": "SMSEagle"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/smseagleUrl/http_api/tts_call?access_token=v-smseagleToken&to=%2B1&duration=v-smseagleDuration&message=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.indexOf is not a function"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/smseagleUrl/http_api/tts_call?access_token=v-smseagleToken&to=%2B1&duration=v-smseagleDuration&message=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.indexOf is not a function"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/smseagleUrl/http_api/tts_call?access_token=v-smseagleToken&to=%2B1&duration=v-smseagleDuration&message=My+Monitor+Testing",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.indexOf is not a function"
+    }
+   }
+  },
+  "v1contact": {
+   "config": {
+    "smseagleApiType": "smseagle-apiv1",
+    "smseagleRecipientType": "smseagle-contact",
+    "smseagleMsgType": "v-smseagleMsgType",
+    "smseagleDuration": "v-smseagleDuration",
+    "smseagleTtsModel": "v-smseagleTtsModel",
+    "smseagleUrl": "https://svc.example/smseagleUrl",
+    "smseagleToken": "v-smseagleToken",
+    "smseagleRecipient": "c",
+    "smseagleEncoding": "v-smseagleEncoding",
+    "smseaglePriority": "v-smseaglePriority",
+    "smseagleRecipientContact": "v-smseagleRecipientContact",
+    "smseagleRecipientGroup": "v-smseagleRecipientGroup",
+    "smseagleRecipientTo": "v-smseagleRecipientTo",
+    "type": "SMSEagle"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/smseagleUrl/http_api/send_tocontact?access_token=v-smseagleToken&contactname=c&duration=undefined&message=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.indexOf is not a function"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/smseagleUrl/http_api/send_tocontact?access_token=v-smseagleToken&contactname=c&duration=undefined&message=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.indexOf is not a function"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/smseagleUrl/http_api/send_tocontact?access_token=v-smseagleToken&contactname=c&duration=undefined&message=My+Monitor+Testing",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.indexOf is not a function"
+    }
+   }
+  }
+ }
+}

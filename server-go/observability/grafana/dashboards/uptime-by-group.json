@@ -31,7 +31,7 @@
           },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT sum(h.up)::float8 / NULLIF(sum(h.up + h.down), 0) AS uptime FROM stat_hourly h WHERE $__timeFilter(h.bucket) AND h.monitor_id IN (SELECT monitor_id FROM monitor_group_member WHERE group_name IN ($group))",
+          "rawSql": "SELECT sum(h.up)::float8 / NULLIF(sum(h.up + h.down), 0) AS uptime FROM uptime_hourly h WHERE $__timeFilter(h.bucket) AND h.monitor_id IN (SELECT monitor_id FROM monitor_group_member WHERE group_name IN ($group))",
           "editorMode": "code"
         }
       ],
@@ -122,7 +122,7 @@
           },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT coalesce(sum(h.down), 0) AS failed FROM stat_hourly h WHERE $__timeFilter(h.bucket) AND h.monitor_id IN (SELECT monitor_id FROM monitor_group_member WHERE group_name IN ($group))",
+          "rawSql": "SELECT coalesce(sum(h.down), 0) AS failed FROM uptime_hourly h WHERE $__timeFilter(h.bucket) AND h.monitor_id IN (SELECT monitor_id FROM monitor_group_member WHERE group_name IN ($group))",
           "editorMode": "code"
         }
       ],
@@ -217,7 +217,7 @@
           },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT g.group_name AS \"Group\", count(DISTINCT g.monitor_id) AS \"Monitors\",\nSUM(h.up) FILTER (WHERE h.bucket >= now() - INTERVAL '24 hours')::float8 / NULLIF(SUM(h.up + h.down) FILTER (WHERE h.bucket >= now() - INTERVAL '24 hours'), 0) AS \"24 hours\", SUM(h.up) FILTER (WHERE h.bucket >= now() - INTERVAL '7 days')::float8 / NULLIF(SUM(h.up + h.down) FILTER (WHERE h.bucket >= now() - INTERVAL '7 days'), 0) AS \"7 days\", SUM(h.up) FILTER (WHERE h.bucket >= now() - INTERVAL '30 days')::float8 / NULLIF(SUM(h.up + h.down) FILTER (WHERE h.bucket >= now() - INTERVAL '30 days'), 0) AS \"30 days\",\nsum(h.down) FILTER (WHERE h.bucket >= now() - INTERVAL '24 hours') AS \"Failed checks (24h)\"\nFROM monitor_group_member g LEFT JOIN stat_hourly h ON h.monitor_id = g.monitor_id AND h.bucket >= now() - INTERVAL '30 days'\nWHERE g.group_name IN ($group) GROUP BY g.group_name ORDER BY 3 ASC NULLS LAST",
+          "rawSql": "SELECT g.group_name AS \"Group\", count(DISTINCT g.monitor_id) AS \"Monitors\",\nSUM(h.up) FILTER (WHERE h.bucket >= now() - INTERVAL '24 hours')::float8 / NULLIF(SUM(h.up + h.down) FILTER (WHERE h.bucket >= now() - INTERVAL '24 hours'), 0) AS \"24 hours\", SUM(h.up) FILTER (WHERE h.bucket >= now() - INTERVAL '7 days')::float8 / NULLIF(SUM(h.up + h.down) FILTER (WHERE h.bucket >= now() - INTERVAL '7 days'), 0) AS \"7 days\", SUM(h.up) FILTER (WHERE h.bucket >= now() - INTERVAL '30 days')::float8 / NULLIF(SUM(h.up + h.down) FILTER (WHERE h.bucket >= now() - INTERVAL '30 days'), 0) AS \"30 days\",\nsum(h.down) FILTER (WHERE h.bucket >= now() - INTERVAL '24 hours') AS \"Failed checks (24h)\"\nFROM monitor_group_member g LEFT JOIN uptime_hourly h ON h.monitor_id = g.monitor_id AND h.bucket >= now() - INTERVAL '30 days'\nWHERE g.group_name IN ($group) GROUP BY g.group_name ORDER BY 3 ASC NULLS LAST",
           "editorMode": "code"
         }
       ],
@@ -383,7 +383,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT h.bucket AS time, g.group_name AS metric, sum(h.up)::float8 / NULLIF(sum(h.up + h.down), 0) AS uptime\nFROM stat_hourly h JOIN monitor_group_member g USING (monitor_id)\nWHERE $__timeFilter(h.bucket) AND g.group_name IN ($group) GROUP BY 1, 2 ORDER BY 1",
+          "rawSql": "SELECT h.bucket AS time, g.group_name AS metric, sum(h.up)::float8 / NULLIF(sum(h.up + h.down), 0) AS uptime\nFROM uptime_hourly h JOIN monitor_group_member g USING (monitor_id)\nWHERE $__timeFilter(h.bucket) AND g.group_name IN ($group) GROUP BY 1, 2 ORDER BY 1",
           "editorMode": "code"
         }
       ],
@@ -438,7 +438,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT h.bucket AS time, g.group_name AS metric, sum(h.ping_sum) / NULLIF(sum(h.ping_count), 0) AS ping\nFROM stat_hourly h JOIN monitor_group_member g USING (monitor_id)\nWHERE $__timeFilter(h.bucket) AND g.group_name IN ($group) GROUP BY 1, 2 ORDER BY 1",
+          "rawSql": "SELECT h.bucket AS time, g.group_name AS metric, sum(h.ping_sum) / NULLIF(sum(h.ping_count), 0) AS ping\nFROM uptime_hourly h JOIN monitor_group_member g USING (monitor_id)\nWHERE $__timeFilter(h.bucket) AND g.group_name IN ($group) GROUP BY 1, 2 ORDER BY 1",
           "editorMode": "code"
         }
       ],
@@ -477,7 +477,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT h.bucket AS time, g.group_name AS metric, sum(h.down) AS failed\nFROM stat_hourly h JOIN monitor_group_member g USING (monitor_id)\nWHERE $__timeFilter(h.bucket) AND g.group_name IN ($group) GROUP BY 1, 2 ORDER BY 1",
+          "rawSql": "SELECT h.bucket AS time, g.group_name AS metric, sum(h.down) AS failed\nFROM uptime_hourly h JOIN monitor_group_member g USING (monitor_id)\nWHERE $__timeFilter(h.bucket) AND g.group_name IN ($group) GROUP BY 1, 2 ORDER BY 1",
           "editorMode": "code"
         }
       ],
@@ -519,7 +519,7 @@
           },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT g.group_name AS \"Group\", g.monitor_name AS \"Monitor\",\nCASE l.status WHEN 1 THEN 'Up' WHEN 0 THEN 'Down' WHEN 2 THEN 'Pending' WHEN 3 THEN 'Maintenance' ELSE 'No data' END AS \"Status\",\nsum(h.up)::float8 / NULLIF(sum(h.up + h.down), 0) AS \"Uptime\", sum(h.ping_sum) / NULLIF(sum(h.ping_count), 0) AS \"Avg response\"\nFROM monitor_group_member g\nLEFT JOIN stat_hourly h ON h.monitor_id = g.monitor_id AND $__timeFilter(h.bucket)\nLEFT JOIN LATERAL (SELECT status FROM heartbeat b WHERE b.monitor_id = g.monitor_id ORDER BY b.time DESC LIMIT 1) l ON true\nWHERE g.group_name IN ($group) GROUP BY 1, 2, 3 ORDER BY 4 ASC NULLS LAST",
+          "rawSql": "SELECT g.group_name AS \"Group\", g.monitor_name AS \"Monitor\",\nCASE l.status WHEN 1 THEN 'Up' WHEN 0 THEN 'Down' WHEN 2 THEN 'Pending' WHEN 3 THEN 'Maintenance' ELSE 'No data' END AS \"Status\",\nsum(h.up)::float8 / NULLIF(sum(h.up + h.down), 0) AS \"Uptime\", sum(h.ping_sum) / NULLIF(sum(h.ping_count), 0) AS \"Avg response\"\nFROM monitor_group_member g\nLEFT JOIN uptime_hourly h ON h.monitor_id = g.monitor_id AND $__timeFilter(h.bucket)\nLEFT JOIN LATERAL (SELECT status FROM heartbeat b WHERE b.monitor_id = g.monitor_id ORDER BY b.time DESC LIMIT 1) l ON true\nWHERE g.group_name IN ($group) GROUP BY 1, 2, 3 ORDER BY 4 ASC NULLS LAST",
           "editorMode": "code"
         }
       ],

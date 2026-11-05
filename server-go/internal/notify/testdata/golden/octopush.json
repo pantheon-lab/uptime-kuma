@@ -1,0 +1,170 @@
+{
+ "provider": "octopush",
+ "variants": {
+  "default": {
+   "config": {
+    "octopushVersion": "2",
+    "octopushAPIKey": "v-octopushAPIKey",
+    "octopushLogin": "v-octopushLogin",
+    "octopushPhoneNumber": "v-octopushPhoneNumber",
+    "octopushSMSType": "v-octopushSMSType",
+    "octopushSenderName": "v-octopushSenderName",
+    "octopushDMLogin": "l",
+    "octopushDMAPIKey": "v-octopushDMAPIKey",
+    "octopushDMPhoneNumber": "v-octopushDMPhoneNumber",
+    "octopushDMSenderName": "v-octopushDMSenderName",
+    "octopushDMSMSType": "v-octopushDMSMSType",
+    "type": "octopush"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.octopush.com/v1/public/sms-campaign/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "api-key": "v-octopushAPIKey",
+        "api-login": "v-octopushLogin",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"recipients\":[{\"phone_number\":\"v-octopushPhoneNumber\"}],\"text\":\"[Example Site] [ Down] connect ECONNREFUSED\",\"type\":\"v-octopushSMSType\",\"purpose\":\"alert\",\"sender\":\"v-octopushSenderName\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.octopush.com/v1/public/sms-campaign/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "api-key": "v-octopushAPIKey",
+        "api-login": "v-octopushLogin",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"recipients\":[{\"phone_number\":\"v-octopushPhoneNumber\"}],\"text\":\"[Example Site] [ Up] 200 - OK\",\"type\":\"v-octopushSMSType\",\"purpose\":\"alert\",\"sender\":\"v-octopushSenderName\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.octopush.com/v1/public/sms-campaign/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "api-key": "v-octopushAPIKey",
+        "api-login": "v-octopushLogin",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"recipients\":[{\"phone_number\":\"v-octopushPhoneNumber\"}],\"text\":\"My Monitor Testing\",\"type\":\"v-octopushSMSType\",\"purpose\":\"alert\",\"sender\":\"v-octopushSenderName\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "octopushVersion": "v-octopushVersion",
+    "octopushAPIKey": "v-octopushAPIKey",
+    "octopushLogin": "v-octopushLogin",
+    "octopushPhoneNumber": "v-octopushPhoneNumber",
+    "octopushSMSType": "v-octopushSMSType",
+    "octopushSenderName": "v-octopushSenderName",
+    "octopushDMLogin": "v-octopushDMLogin",
+    "octopushDMAPIKey": "v-octopushDMAPIKey",
+    "octopushDMPhoneNumber": "v-octopushDMPhoneNumber",
+    "octopushDMSenderName": "v-octopushDMSenderName",
+    "octopushDMSMSType": "v-octopushDMSMSType",
+    "type": "octopush"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [],
+     "error": "Unknown Octopush version!"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [],
+     "error": "Unknown Octopush version!"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [],
+     "error": "Unknown Octopush version!"
+    }
+   }
+  },
+  "v1": {
+   "config": {
+    "octopushVersion": "1",
+    "octopushAPIKey": "v-octopushAPIKey",
+    "octopushLogin": "v-octopushLogin",
+    "octopushPhoneNumber": "v-octopushPhoneNumber",
+    "octopushSMSType": "v-octopushSMSType",
+    "octopushSenderName": "v-octopushSenderName",
+    "octopushDMLogin": "v-octopushDMLogin",
+    "octopushDMAPIKey": "v-octopushDMAPIKey",
+    "octopushDMPhoneNumber": "v-octopushDMPhoneNumber",
+    "octopushDMSenderName": "v-octopushDMSenderName",
+    "octopushDMSMSType": "v-octopushDMSMSType",
+    "type": "octopush"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.octopush-dm.com/api/sms/json?user_login=v-octopushDMLogin&api_key=v-octopushDMAPIKey&sms_recipients=v-octopushDMPhoneNumber&sms_sender=v-octopushDMSenderName&sms_type=XXX&transactional=1&sms_text=[Example+Site]+[+Down]+connect+ECONNREFUSED",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.octopush-dm.com/api/sms/json?user_login=v-octopushDMLogin&api_key=v-octopushDMAPIKey&sms_recipients=v-octopushDMPhoneNumber&sms_sender=v-octopushDMSenderName&sms_type=XXX&transactional=1&sms_text=[Example+Site]+[+Up]+200+-+OK",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.octopush-dm.com/api/sms/json?user_login=v-octopushDMLogin&api_key=v-octopushDMAPIKey&sms_recipients=v-octopushDMPhoneNumber&sms_sender=v-octopushDMSenderName&sms_type=XXX&transactional=1&sms_text=My+Monitor+Testing",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

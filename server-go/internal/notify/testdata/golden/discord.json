@@ -1,0 +1,374 @@
+{
+ "provider": "discord",
+ "variants": {
+  "default": {
+   "config": {
+    "discordUsername": "v-discordUsername",
+    "discordWebhookUrl": "https://svc.example/discordWebhookUrl",
+    "discordChannelType": "v-discordChannelType",
+    "threadId": "v-threadId",
+    "discordMessageFormat": "v-discordMessageFormat",
+    "discordUseMessageTemplate": "v-discordUseMessageTemplate",
+    "discordMessageTemplate": "v-discordMessageTemplate",
+    "postName": "v-postName",
+    "discordSuppressNotifications": "v-discordSuppressNotifications",
+    "disableUrl": "https://svc.example/disableUrl",
+    "discordPrefixMessage": "v-discordPrefixMessage",
+    "type": "discord"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"embeds\":[{\"title\":\"❌ Your service Example Site went down. ❌\",\"color\":16711680,\"timestamp\":\"2026-01-02 03:04:05.678\",\"fields\":[{\"name\":\"Service Name\",\"value\":\"Example Site\"},{\"name\":\"Went Offline\",\"value\":\"<t:1767323045:F>\"},{\"name\":\"Time (Asia/Hong_Kong)\",\"value\":\"2026-01-02 11:04:05\"},{\"name\":\"Error\",\"value\":\"connect ECONNREFUSED\"}]}],\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"content\":\"v-discordPrefixMessage\",\"flags\":4096}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"embeds\":[{\"title\":\"✅ Your service Example Site is up! ✅\",\"color\":65280,\"timestamp\":\"2026-01-02 03:04:05.678\",\"fields\":[{\"name\":\"Service Name\",\"value\":\"Example Site\"},{\"name\":\"Went Offline\",\"value\":\"<t:1767319445:F>\"},{\"name\":\"Downtime Duration\",\"value\":\"1h\"},{\"name\":\"Time (Asia/Hong_Kong)\",\"value\":\"2026-01-02 11:04:05\"},{\"name\":\"Ping\",\"value\":\"123 ms\"}]}],\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"content\":\"v-discordPrefixMessage\",\"flags\":4096}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"content\":\"My Monitor Testing\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"flags\":4096}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "discordUsername": "v-discordUsername",
+    "discordWebhookUrl": "https://svc.example/discordWebhookUrl",
+    "discordChannelType": "v-discordChannelType",
+    "threadId": "v-threadId",
+    "discordMessageFormat": "v-discordMessageFormat",
+    "postName": "v-postName",
+    "type": "discord"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"embeds\":[{\"title\":\"❌ Your service Example Site went down. ❌\",\"color\":16711680,\"timestamp\":\"2026-01-02 03:04:05.678\",\"fields\":[{\"name\":\"Service Name\",\"value\":\"Example Site\"},{\"name\":\"Service URL\",\"value\":\"https://site.example/health\"},{\"name\":\"Went Offline\",\"value\":\"<t:1767323045:F>\"},{\"name\":\"Time (Asia/Hong_Kong)\",\"value\":\"2026-01-02 11:04:05\"},{\"name\":\"Error\",\"value\":\"connect ECONNREFUSED\"}]}],\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"embeds\":[{\"title\":\"✅ Your service Example Site is up! ✅\",\"color\":65280,\"timestamp\":\"2026-01-02 03:04:05.678\",\"fields\":[{\"name\":\"Service Name\",\"value\":\"Example Site\"},{\"name\":\"Service URL\",\"value\":\"https://site.example/health\"},{\"name\":\"Went Offline\",\"value\":\"<t:1767319445:F>\"},{\"name\":\"Downtime Duration\",\"value\":\"1h\"},{\"name\":\"Time (Asia/Hong_Kong)\",\"value\":\"2026-01-02 11:04:05\"},{\"name\":\"Ping\",\"value\":\"123 ms\"}]}],\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"content\":\"My Monitor Testing\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "normal": {
+   "config": {
+    "discordUsername": "v-discordUsername",
+    "discordWebhookUrl": "https://svc.example/discordWebhookUrl",
+    "discordChannelType": "channel",
+    "threadId": "v-threadId",
+    "discordMessageFormat": "normal",
+    "discordUseMessageTemplate": "v-discordUseMessageTemplate",
+    "discordMessageTemplate": "v-discordMessageTemplate",
+    "postName": "v-postName",
+    "discordSuppressNotifications": false,
+    "disableUrl": false,
+    "type": "discord"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"embeds\":[{\"title\":\"❌ Your service Example Site went down. ❌\",\"color\":16711680,\"timestamp\":\"2026-01-02 03:04:05.678\",\"fields\":[{\"name\":\"Service Name\",\"value\":\"Example Site\"},{\"name\":\"Service URL\",\"value\":\"https://site.example/health\"},{\"name\":\"Went Offline\",\"value\":\"<t:1767323045:F>\"},{\"name\":\"Time (Asia/Hong_Kong)\",\"value\":\"2026-01-02 11:04:05\"},{\"name\":\"Error\",\"value\":\"connect ECONNREFUSED\"}]}],\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"embeds\":[{\"title\":\"✅ Your service Example Site is up! ✅\",\"color\":65280,\"timestamp\":\"2026-01-02 03:04:05.678\",\"fields\":[{\"name\":\"Service Name\",\"value\":\"Example Site\"},{\"name\":\"Service URL\",\"value\":\"https://site.example/health\"},{\"name\":\"Went Offline\",\"value\":\"<t:1767319445:F>\"},{\"name\":\"Downtime Duration\",\"value\":\"1h\"},{\"name\":\"Time (Asia/Hong_Kong)\",\"value\":\"2026-01-02 11:04:05\"},{\"name\":\"Ping\",\"value\":\"123 ms\"}]}],\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"content\":\"My Monitor Testing\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimalist": {
+   "config": {
+    "discordUsername": "v-discordUsername",
+    "discordWebhookUrl": "https://svc.example/discordWebhookUrl",
+    "discordChannelType": "postToThread",
+    "threadId": "v-threadId",
+    "discordMessageFormat": "minimalist",
+    "discordUseMessageTemplate": "v-discordUseMessageTemplate",
+    "discordMessageTemplate": "v-discordMessageTemplate",
+    "postName": "v-postName",
+    "discordSuppressNotifications": "v-discordSuppressNotifications",
+    "disableUrl": "https://svc.example/disableUrl",
+    "discordPrefixMessage": "v-discordPrefixMessage",
+    "type": "discord"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl?thread_id=v-threadId",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl?thread_id=v-threadId",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"content\":\"🔴 Example Site is down.\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"flags\":4096}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl?thread_id=v-threadId",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl?thread_id=v-threadId",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"content\":\"🟢 Example Site is up.\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"flags\":4096}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl?thread_id=v-threadId",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl?thread_id=v-threadId",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"content\":\"Test: My Monitor Testing\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"flags\":4096}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "custom": {
+   "config": {
+    "discordUsername": "v-discordUsername",
+    "discordWebhookUrl": "https://svc.example/discordWebhookUrl",
+    "discordChannelType": "createNewForumPost",
+    "threadId": "v-threadId",
+    "discordMessageFormat": "custom",
+    "discordUseMessageTemplate": "v-discordUseMessageTemplate",
+    "discordMessageTemplate": "{{ name }}!",
+    "postName": "v-postName",
+    "discordSuppressNotifications": "v-discordSuppressNotifications",
+    "disableUrl": "https://svc.example/disableUrl",
+    "discordPrefixMessage": "v-discordPrefixMessage",
+    "type": "discord"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"content\":\"Example Site!\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"thread_name\":\"v-postName\",\"flags\":4096}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"content\":\"Example Site!\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"thread_name\":\"v-postName\",\"flags\":4096}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/discordWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-discordUsername\",\"content\":\"Monitor Name not available!\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"thread_name\":\"v-postName\",\"flags\":4096}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

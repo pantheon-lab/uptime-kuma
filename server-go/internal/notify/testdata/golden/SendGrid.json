@@ -1,0 +1,118 @@
+{
+ "provider": "SendGrid",
+ "variants": {
+  "default": {
+   "config": {
+    "sendgridApiKey": "v-sendgridApiKey",
+    "sendgridToEmail": "v-sendgridToEmail",
+    "sendgridCcEmail": "v-sendgridCcEmail",
+    "sendgridBccEmail": "v-sendgridBccEmail",
+    "sendgridFromEmail": "v-sendgridFromEmail",
+    "sendgridSubject": "v-sendgridSubject",
+    "type": "SendGrid"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sendgrid.com/v3/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-sendgridApiKey"
+       },
+       "body": "{\"personalizations\":[{\"to\":[{\"email\":\"v-sendgridToEmail\"}],\"cc\":[{\"email\":\"v-sendgridCcEmail\"}],\"bcc\":[{\"email\":\"v-sendgridBccEmail\"}]}],\"from\":{\"email\":\"v-sendgridFromEmail\"},\"subject\":\"v-sendgridSubject\",\"content\":[{\"type\":\"text/plain\",\"value\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sendgrid.com/v3/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-sendgridApiKey"
+       },
+       "body": "{\"personalizations\":[{\"to\":[{\"email\":\"v-sendgridToEmail\"}],\"cc\":[{\"email\":\"v-sendgridCcEmail\"}],\"bcc\":[{\"email\":\"v-sendgridBccEmail\"}]}],\"from\":{\"email\":\"v-sendgridFromEmail\"},\"subject\":\"v-sendgridSubject\",\"content\":[{\"type\":\"text/plain\",\"value\":\"[Example Site] [✅ Up] 200 - OK\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sendgrid.com/v3/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-sendgridApiKey"
+       },
+       "body": "{\"personalizations\":[{\"to\":[{\"email\":\"v-sendgridToEmail\"}],\"cc\":[{\"email\":\"v-sendgridCcEmail\"}],\"bcc\":[{\"email\":\"v-sendgridBccEmail\"}]}],\"from\":{\"email\":\"v-sendgridFromEmail\"},\"subject\":\"v-sendgridSubject\",\"content\":[{\"type\":\"text/plain\",\"value\":\"My Monitor Testing\"}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "sendgridApiKey": "v-sendgridApiKey",
+    "sendgridToEmail": "v-sendgridToEmail",
+    "sendgridFromEmail": "v-sendgridFromEmail",
+    "type": "SendGrid"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sendgrid.com/v3/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-sendgridApiKey"
+       },
+       "body": "{\"personalizations\":[{\"to\":[{\"email\":\"v-sendgridToEmail\"}]}],\"from\":{\"email\":\"v-sendgridFromEmail\"},\"subject\":\"Notification from Your Uptime Kuma\",\"content\":[{\"type\":\"text/plain\",\"value\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sendgrid.com/v3/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-sendgridApiKey"
+       },
+       "body": "{\"personalizations\":[{\"to\":[{\"email\":\"v-sendgridToEmail\"}]}],\"from\":{\"email\":\"v-sendgridFromEmail\"},\"subject\":\"Notification from Your Uptime Kuma\",\"content\":[{\"type\":\"text/plain\",\"value\":\"[Example Site] [✅ Up] 200 - OK\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sendgrid.com/v3/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-sendgridApiKey"
+       },
+       "body": "{\"personalizations\":[{\"to\":[{\"email\":\"v-sendgridToEmail\"}]}],\"from\":{\"email\":\"v-sendgridFromEmail\"},\"subject\":\"Notification from Your Uptime Kuma\",\"content\":[{\"type\":\"text/plain\",\"value\":\"My Monitor Testing\"}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

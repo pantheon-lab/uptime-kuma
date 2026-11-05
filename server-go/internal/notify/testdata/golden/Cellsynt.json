@@ -1,0 +1,109 @@
+{
+ "provider": "Cellsynt",
+ "variants": {
+  "default": {
+   "config": {
+    "cellsyntLogin": "v-cellsyntLogin",
+    "cellsyntPassword": "v-cellsyntPassword",
+    "cellsyntDestination": "v-cellsyntDestination",
+    "cellsyntOriginatortype": "v-cellsyntOriginatortype",
+    "cellsyntOriginator": "v-cellsyntOriginator",
+    "cellsyntAllowLongSMS": "v-cellsyntAllowLongSMS",
+    "type": "Cellsynt"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://se-1.cellsynt.net/sms.php?username=v-cellsyntLogin&password=v-cellsyntPassword&destination=v-cellsyntDestination&text=[Example+Site]+[+Down]+connect+ECONNREFUSED&originatortype=v-cellsyntOriginatortype&originator=v-cellsyntOriginator&allowconcat=6",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.includes is not a function"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://se-1.cellsynt.net/sms.php?username=v-cellsyntLogin&password=v-cellsyntPassword&destination=v-cellsyntDestination&text=[Example+Site]+[+Up]+200+-+OK&originatortype=v-cellsyntOriginatortype&originator=v-cellsyntOriginator&allowconcat=6",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.includes is not a function"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://se-1.cellsynt.net/sms.php?username=v-cellsyntLogin&password=v-cellsyntPassword&destination=v-cellsyntDestination&text=My+Monitor+Testing&originatortype=v-cellsyntOriginatortype&originator=v-cellsyntOriginator&allowconcat=6",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.includes is not a function"
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "cellsyntLogin": "v-cellsyntLogin",
+    "cellsyntPassword": "v-cellsyntPassword",
+    "cellsyntDestination": "v-cellsyntDestination",
+    "cellsyntOriginatortype": "v-cellsyntOriginatortype",
+    "cellsyntOriginator": "v-cellsyntOriginator",
+    "cellsyntAllowLongSMS": "v-cellsyntAllowLongSMS",
+    "type": "Cellsynt"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://se-1.cellsynt.net/sms.php?username=v-cellsyntLogin&password=v-cellsyntPassword&destination=v-cellsyntDestination&text=[Example+Site]+[+Down]+connect+ECONNREFUSED&originatortype=v-cellsyntOriginatortype&originator=v-cellsyntOriginator&allowconcat=6",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.includes is not a function"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://se-1.cellsynt.net/sms.php?username=v-cellsyntLogin&password=v-cellsyntPassword&destination=v-cellsyntDestination&text=[Example+Site]+[+Up]+200+-+OK&originatortype=v-cellsyntOriginatortype&originator=v-cellsyntOriginator&allowconcat=6",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.includes is not a function"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://se-1.cellsynt.net/sms.php?username=v-cellsyntLogin&password=v-cellsyntPassword&destination=v-cellsyntDestination&text=My+Monitor+Testing&originatortype=v-cellsyntOriginatortype&originator=v-cellsyntOriginator&allowconcat=6",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+      }
+     ],
+     "error": "resp.data.includes is not a function"
+    }
+   }
+  }
+ }
+}

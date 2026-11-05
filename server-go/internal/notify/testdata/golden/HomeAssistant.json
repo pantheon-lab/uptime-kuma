@@ -1,0 +1,168 @@
+{
+ "provider": "HomeAssistant",
+ "variants": {
+  "default": {
+   "config": {
+    "longLivedAccessToken": "v-longLivedAccessToken",
+    "homeAssistantUrl": "https://svc.example/homeAssistantUrl",
+    "type": "HomeAssistant"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/homeAssistantUrl/api/services/notify/notify",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-longLivedAccessToken"
+       },
+       "body": "{\"title\":\"Uptime Kuma\",\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"data\":{\"name\":\"Example Site\",\"status\":0,\"channel\":\"Uptime Kuma\",\"icon_url\":\"https://github.com/louislam/uptime-kuma/blob/master/public/icon.png?raw=true\"}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/homeAssistantUrl/api/services/notify/notify",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-longLivedAccessToken"
+       },
+       "body": "{\"title\":\"Uptime Kuma\",\"message\":\"[Example Site] [✅ Up] 200 - OK\",\"data\":{\"name\":\"Example Site\",\"status\":1,\"channel\":\"Uptime Kuma\",\"icon_url\":\"https://github.com/louislam/uptime-kuma/blob/master/public/icon.png?raw=true\"}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/homeAssistantUrl/api/services/notify/notify",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-longLivedAccessToken"
+       },
+       "body": "{\"title\":\"Uptime Kuma\",\"message\":\"My Monitor Testing\",\"data\":{\"channel\":\"Uptime Kuma\",\"icon_url\":\"https://github.com/louislam/uptime-kuma/blob/master/public/icon.png?raw=true\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "longLivedAccessToken": "v-longLivedAccessToken",
+    "homeAssistantUrl": "https://svc.example/homeAssistantUrl",
+    "type": "HomeAssistant"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/homeAssistantUrl/api/services/notify/notify",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-longLivedAccessToken"
+       },
+       "body": "{\"title\":\"Uptime Kuma\",\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"data\":{\"name\":\"Example Site\",\"status\":0,\"channel\":\"Uptime Kuma\",\"icon_url\":\"https://github.com/louislam/uptime-kuma/blob/master/public/icon.png?raw=true\"}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/homeAssistantUrl/api/services/notify/notify",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-longLivedAccessToken"
+       },
+       "body": "{\"title\":\"Uptime Kuma\",\"message\":\"[Example Site] [✅ Up] 200 - OK\",\"data\":{\"name\":\"Example Site\",\"status\":1,\"channel\":\"Uptime Kuma\",\"icon_url\":\"https://github.com/louislam/uptime-kuma/blob/master/public/icon.png?raw=true\"}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/homeAssistantUrl/api/services/notify/notify",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-longLivedAccessToken"
+       },
+       "body": "{\"title\":\"Uptime Kuma\",\"message\":\"My Monitor Testing\",\"data\":{\"channel\":\"Uptime Kuma\",\"icon_url\":\"https://github.com/louislam/uptime-kuma/blob/master/public/icon.png?raw=true\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "persistent": {
+   "config": {
+    "longLivedAccessToken": "v-longLivedAccessToken",
+    "homeAssistantUrl": "https://svc.example/homeAssistantUrl",
+    "type": "HomeAssistant",
+    "notificationService": "persistent_notification"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/homeAssistantUrl/api/services/notify/persistent_notification",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-longLivedAccessToken"
+       },
+       "body": "{\"title\":\"Uptime Kuma\",\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/homeAssistantUrl/api/services/notify/persistent_notification",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-longLivedAccessToken"
+       },
+       "body": "{\"title\":\"Uptime Kuma\",\"message\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/homeAssistantUrl/api/services/notify/persistent_notification",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-longLivedAccessToken"
+       },
+       "body": "{\"title\":\"Uptime Kuma\",\"message\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

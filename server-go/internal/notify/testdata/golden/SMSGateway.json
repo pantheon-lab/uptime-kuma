@@ -1,0 +1,115 @@
+{
+ "provider": "SMSGateway",
+ "variants": {
+  "default": {
+   "config": {
+    "smsgatewayUrl": "https://svc.example/smsgatewayUrl",
+    "smsgatewayTo": "v-smsgatewayTo",
+    "smsgatewayApiKey": "v-smsgatewayApiKey",
+    "type": "SMSGateway"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smsgatewayUrl/api/v1/sms/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsgatewayApiKey"
+       },
+       "body": "{\"to\":\"v-smsgatewayTo\",\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smsgatewayUrl/api/v1/sms/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsgatewayApiKey"
+       },
+       "body": "{\"to\":\"v-smsgatewayTo\",\"body\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smsgatewayUrl/api/v1/sms/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsgatewayApiKey"
+       },
+       "body": "{\"to\":\"v-smsgatewayTo\",\"body\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "smsgatewayUrl": "https://svc.example/smsgatewayUrl",
+    "smsgatewayTo": "v-smsgatewayTo",
+    "smsgatewayApiKey": "v-smsgatewayApiKey",
+    "type": "SMSGateway"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smsgatewayUrl/api/v1/sms/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsgatewayApiKey"
+       },
+       "body": "{\"to\":\"v-smsgatewayTo\",\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smsgatewayUrl/api/v1/sms/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsgatewayApiKey"
+       },
+       "body": "{\"to\":\"v-smsgatewayTo\",\"body\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/smsgatewayUrl/api/v1/sms/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsgatewayApiKey"
+       },
+       "body": "{\"to\":\"v-smsgatewayTo\",\"body\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

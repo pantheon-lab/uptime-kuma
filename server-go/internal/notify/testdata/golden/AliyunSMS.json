@@ -1,0 +1,169 @@
+{
+ "provider": "AliyunSMS",
+ "variants": {
+  "default": {
+   "config": {
+    "optionalParameters": "v-optionalParameters",
+    "phonenumber": "v-phonenumber",
+    "templateCode": "v-templateCode",
+    "signName": "v-signName",
+    "accessKeyId": "v-accessKeyId",
+    "secretAccessKey": "v-secretAccessKey",
+    "type": "AliyunSMS"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://dysmsapi.aliyuncs.com/",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "PhoneNumbers=v-phonenumber&TemplateCode=v-templateCode&SignName=v-signName&TemplateParam=%7B%22name%22%3A%22Example%20Site%22%2C%22time%22%3A%222026-01-02%2011%3A04%3A05%22%2C%22status%22%3A%22DOWN%22%2C%22msg%22%3A%22connect%20ECONNREFUSED%22%7D&AccessKeyId=v-accessKeyId&Format=JSON&SignatureMethod=HMAC-SHA1&SignatureVersion=1.0&SignatureNonce=0.5&Timestamp=2026-01-02T03%3A04%3A05.678Z&Action=SendSms&Version=2017-05-25&Signature=1VdEBHFG7MB4zgG7pzui7%2BGAcno%3D"
+      }
+     ],
+     "error": "Error"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://dysmsapi.aliyuncs.com/",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "PhoneNumbers=v-phonenumber&TemplateCode=v-templateCode&SignName=v-signName&TemplateParam=%7B%22name%22%3A%22Example%20Site%22%2C%22time%22%3A%222026-01-02%2011%3A04%3A05%22%2C%22status%22%3A%22UP%22%2C%22msg%22%3A%22200%20-%20OK%22%7D&AccessKeyId=v-accessKeyId&Format=JSON&SignatureMethod=HMAC-SHA1&SignatureVersion=1.0&SignatureNonce=0.5&Timestamp=2026-01-02T03%3A04%3A05.678Z&Action=SendSms&Version=2017-05-25&Signature=LookebkwstwyinMU7XYSOtDh3PE%3D"
+      }
+     ],
+     "error": "Error"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://dysmsapi.aliyuncs.com/",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "PhoneNumbers=v-phonenumber&TemplateCode=v-templateCode&SignName=v-signName&TemplateParam=%7B%22name%22%3A%22%22%2C%22time%22%3A%22%22%2C%22status%22%3A%22%22%2C%22msg%22%3A%22My%20Monitor%20Testing%22%7D&AccessKeyId=v-accessKeyId&Format=JSON&SignatureMethod=HMAC-SHA1&SignatureVersion=1.0&SignatureNonce=0.5&Timestamp=2026-01-02T03%3A04%3A05.678Z&Action=SendSms&Version=2017-05-25&Signature=VYQ%2B4mMNRQzGTHOrEc2boZ8r9OY%3D"
+      }
+     ],
+     "error": "Error"
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "phonenumber": "v-phonenumber",
+    "templateCode": "v-templateCode",
+    "signName": "v-signName",
+    "accessKeyId": "v-accessKeyId",
+    "secretAccessKey": "v-secretAccessKey",
+    "type": "AliyunSMS"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://dysmsapi.aliyuncs.com/",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "PhoneNumbers=v-phonenumber&TemplateCode=v-templateCode&SignName=v-signName&TemplateParam=%7B%22name%22%3A%22Example%20Site%22%2C%22time%22%3A%222026-01-02%2011%3A04%3A05%22%2C%22status%22%3A%22DOWN%22%7D&AccessKeyId=v-accessKeyId&Format=JSON&SignatureMethod=HMAC-SHA1&SignatureVersion=1.0&SignatureNonce=0.5&Timestamp=2026-01-02T03%3A04%3A05.678Z&Action=SendSms&Version=2017-05-25&Signature=8O3kcyTk1s0MKfa9NVGLyyY5Iso%3D"
+      }
+     ],
+     "error": "Error"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://dysmsapi.aliyuncs.com/",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "PhoneNumbers=v-phonenumber&TemplateCode=v-templateCode&SignName=v-signName&TemplateParam=%7B%22name%22%3A%22Example%20Site%22%2C%22time%22%3A%222026-01-02%2011%3A04%3A05%22%2C%22status%22%3A%22UP%22%7D&AccessKeyId=v-accessKeyId&Format=JSON&SignatureMethod=HMAC-SHA1&SignatureVersion=1.0&SignatureNonce=0.5&Timestamp=2026-01-02T03%3A04%3A05.678Z&Action=SendSms&Version=2017-05-25&Signature=Df1GdeokTrJeKwwgVob97bnXChU%3D"
+      }
+     ],
+     "error": "Error"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://dysmsapi.aliyuncs.com/",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "PhoneNumbers=v-phonenumber&TemplateCode=v-templateCode&SignName=v-signName&TemplateParam=%7B%22name%22%3A%22%22%2C%22time%22%3A%22%22%2C%22status%22%3A%22%22%7D&AccessKeyId=v-accessKeyId&Format=JSON&SignatureMethod=HMAC-SHA1&SignatureVersion=1.0&SignatureNonce=0.5&Timestamp=2026-01-02T03%3A04%3A05.678Z&Action=SendSms&Version=2017-05-25&Signature=DZLwxWOMkJdIcpJ9P%2BSTGJZJzZQ%3D"
+      }
+     ],
+     "error": "Error"
+    }
+   }
+  },
+  "optional": {
+   "config": {
+    "optionalParameters": true,
+    "phonenumber": "v-phonenumber",
+    "templateCode": "v-templateCode",
+    "signName": "v-signName",
+    "accessKeyId": "v-accessKeyId",
+    "secretAccessKey": "v-secretAccessKey",
+    "type": "AliyunSMS"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://dysmsapi.aliyuncs.com/",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "PhoneNumbers=v-phonenumber&TemplateCode=v-templateCode&SignName=v-signName&TemplateParam=%7B%22name%22%3A%22Example%20Site%22%2C%22time%22%3A%222026-01-02%2011%3A04%3A05%22%2C%22status%22%3A%22DOWN%22%2C%22msg%22%3A%22connect%20ECONNREFUSED%22%7D&AccessKeyId=v-accessKeyId&Format=JSON&SignatureMethod=HMAC-SHA1&SignatureVersion=1.0&SignatureNonce=0.5&Timestamp=2026-01-02T03%3A04%3A05.678Z&Action=SendSms&Version=2017-05-25&Signature=1VdEBHFG7MB4zgG7pzui7%2BGAcno%3D"
+      }
+     ],
+     "error": "Error"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://dysmsapi.aliyuncs.com/",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "PhoneNumbers=v-phonenumber&TemplateCode=v-templateCode&SignName=v-signName&TemplateParam=%7B%22name%22%3A%22Example%20Site%22%2C%22time%22%3A%222026-01-02%2011%3A04%3A05%22%2C%22status%22%3A%22UP%22%2C%22msg%22%3A%22200%20-%20OK%22%7D&AccessKeyId=v-accessKeyId&Format=JSON&SignatureMethod=HMAC-SHA1&SignatureVersion=1.0&SignatureNonce=0.5&Timestamp=2026-01-02T03%3A04%3A05.678Z&Action=SendSms&Version=2017-05-25&Signature=LookebkwstwyinMU7XYSOtDh3PE%3D"
+      }
+     ],
+     "error": "Error"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://dysmsapi.aliyuncs.com/",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "PhoneNumbers=v-phonenumber&TemplateCode=v-templateCode&SignName=v-signName&TemplateParam=%7B%22name%22%3A%22%22%2C%22time%22%3A%22%22%2C%22status%22%3A%22%22%2C%22msg%22%3A%22My%20Monitor%20Testing%22%7D&AccessKeyId=v-accessKeyId&Format=JSON&SignatureMethod=HMAC-SHA1&SignatureVersion=1.0&SignatureNonce=0.5&Timestamp=2026-01-02T03%3A04%3A05.678Z&Action=SendSms&Version=2017-05-25&Signature=VYQ%2B4mMNRQzGTHOrEc2boZ8r9OY%3D"
+      }
+     ],
+     "error": "Error"
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,341 @@
+{
+ "provider": "MicrosoftGraph",
+ "variants": {
+  "default": {
+   "config": {
+    "msGraphTo": "v-msGraphTo",
+    "msGraphCC": "v-msGraphCC",
+    "msGraphBCC": "v-msGraphBCC",
+    "msGraphMailbox": "v-msGraphMailbox",
+    "customSubject": "v-customSubject",
+    "customBody": "v-customBody",
+    "htmlBody": "v-htmlBody",
+    "msGraphTenantId": "v-msGraphTenantId",
+    "msGraphClientId": "v-msGraphClientId",
+    "msGraphClientSecret": "v-msGraphClientSecret",
+    "type": "MicrosoftGraph"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://login.microsoftonline.com/v-msGraphTenantId/oauth2/v2.0/token",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "client_id=v-msGraphClientId&client_secret=v-msGraphClientSecret&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&grant_type=client_credentials"
+      },
+      {
+       "method": "POST",
+       "url": "https://graph.microsoft.com/v1.0/users/v-msGraphMailbox/sendMail",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer stub-access-token"
+       },
+       "body": "{\"message\":{\"subject\":\"v-customSubject\",\"body\":{\"contentType\":\"HTML\",\"content\":\"v-customBody\"},\"toRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphTo\"}}],\"ccRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphCC\"}}],\"bccRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphBCC\"}}]},\"saveToSentItems\":false}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://login.microsoftonline.com/v-msGraphTenantId/oauth2/v2.0/token",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "client_id=v-msGraphClientId&client_secret=v-msGraphClientSecret&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&grant_type=client_credentials"
+      },
+      {
+       "method": "POST",
+       "url": "https://graph.microsoft.com/v1.0/users/v-msGraphMailbox/sendMail",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer stub-access-token"
+       },
+       "body": "{\"message\":{\"subject\":\"v-customSubject\",\"body\":{\"contentType\":\"HTML\",\"content\":\"v-customBody\"},\"toRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphTo\"}}],\"ccRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphCC\"}}],\"bccRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphBCC\"}}]},\"saveToSentItems\":false}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://login.microsoftonline.com/v-msGraphTenantId/oauth2/v2.0/token",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "client_id=v-msGraphClientId&client_secret=v-msGraphClientSecret&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&grant_type=client_credentials"
+      },
+      {
+       "method": "POST",
+       "url": "https://graph.microsoft.com/v1.0/users/v-msGraphMailbox/sendMail",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer stub-access-token"
+       },
+       "body": "{\"message\":{\"subject\":\"v-customSubject\",\"body\":{\"contentType\":\"HTML\",\"content\":\"v-customBody\"},\"toRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphTo\"}}],\"ccRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphCC\"}}],\"bccRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphBCC\"}}]},\"saveToSentItems\":false}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "msGraphTo": "v-msGraphTo",
+    "msGraphMailbox": "v-msGraphMailbox",
+    "msGraphTenantId": "v-msGraphTenantId",
+    "msGraphClientId": "v-msGraphClientId",
+    "msGraphClientSecret": "v-msGraphClientSecret",
+    "type": "MicrosoftGraph"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://login.microsoftonline.com/v-msGraphTenantId/oauth2/v2.0/token",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "client_id=v-msGraphClientId&client_secret=v-msGraphClientSecret&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&grant_type=client_credentials"
+      },
+      {
+       "method": "POST",
+       "url": "https://graph.microsoft.com/v1.0/users/v-msGraphMailbox/sendMail",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer stub-access-token"
+       },
+       "body": "{\"message\":{\"subject\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"body\":{\"contentType\":\"Text\",\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"},\"toRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphTo\"}}],\"ccRecipients\":[],\"bccRecipients\":[]},\"saveToSentItems\":false}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://login.microsoftonline.com/v-msGraphTenantId/oauth2/v2.0/token",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "client_id=v-msGraphClientId&client_secret=v-msGraphClientSecret&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&grant_type=client_credentials"
+      },
+      {
+       "method": "POST",
+       "url": "https://graph.microsoft.com/v1.0/users/v-msGraphMailbox/sendMail",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer stub-access-token"
+       },
+       "body": "{\"message\":{\"subject\":\"[Example Site] [✅ Up] 200 - OK\",\"body\":{\"contentType\":\"Text\",\"content\":\"[Example Site] [✅ Up] 200 - OK\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"},\"toRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphTo\"}}],\"ccRecipients\":[],\"bccRecipients\":[]},\"saveToSentItems\":false}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://login.microsoftonline.com/v-msGraphTenantId/oauth2/v2.0/token",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "client_id=v-msGraphClientId&client_secret=v-msGraphClientSecret&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&grant_type=client_credentials"
+      },
+      {
+       "method": "POST",
+       "url": "https://graph.microsoft.com/v1.0/users/v-msGraphMailbox/sendMail",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer stub-access-token"
+       },
+       "body": "{\"message\":{\"subject\":\"My Monitor Testing\",\"body\":{\"contentType\":\"Text\",\"content\":\"My Monitor Testing\"},\"toRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphTo\"}}],\"ccRecipients\":[],\"bccRecipients\":[]},\"saveToSentItems\":false}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "plain": {
+   "config": {
+    "msGraphTo": "v-msGraphTo",
+    "msGraphCC": "a@b; c@d",
+    "msGraphMailbox": "v-msGraphMailbox",
+    "htmlBody": "v-htmlBody",
+    "msGraphTenantId": "v-msGraphTenantId",
+    "msGraphClientId": "v-msGraphClientId",
+    "msGraphClientSecret": "v-msGraphClientSecret",
+    "type": "MicrosoftGraph"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://login.microsoftonline.com/v-msGraphTenantId/oauth2/v2.0/token",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "client_id=v-msGraphClientId&client_secret=v-msGraphClientSecret&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&grant_type=client_credentials"
+      },
+      {
+       "method": "POST",
+       "url": "https://graph.microsoft.com/v1.0/users/v-msGraphMailbox/sendMail",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer stub-access-token"
+       },
+       "body": "{\"message\":{\"subject\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"body\":{\"contentType\":\"Text\",\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"},\"toRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphTo\"}}],\"ccRecipients\":[{\"emailAddress\":{\"address\":\"a@b\"}},{\"emailAddress\":{\"address\":\"c@d\"}}],\"bccRecipients\":[]},\"saveToSentItems\":false}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://login.microsoftonline.com/v-msGraphTenantId/oauth2/v2.0/token",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "client_id=v-msGraphClientId&client_secret=v-msGraphClientSecret&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&grant_type=client_credentials"
+      },
+      {
+       "method": "POST",
+       "url": "https://graph.microsoft.com/v1.0/users/v-msGraphMailbox/sendMail",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer stub-access-token"
+       },
+       "body": "{\"message\":{\"subject\":\"[Example Site] [✅ Up] 200 - OK\",\"body\":{\"contentType\":\"Text\",\"content\":\"[Example Site] [✅ Up] 200 - OK\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"},\"toRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphTo\"}}],\"ccRecipients\":[{\"emailAddress\":{\"address\":\"a@b\"}},{\"emailAddress\":{\"address\":\"c@d\"}}],\"bccRecipients\":[]},\"saveToSentItems\":false}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://login.microsoftonline.com/v-msGraphTenantId/oauth2/v2.0/token",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "client_id=v-msGraphClientId&client_secret=v-msGraphClientSecret&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&grant_type=client_credentials"
+      },
+      {
+       "method": "POST",
+       "url": "https://graph.microsoft.com/v1.0/users/v-msGraphMailbox/sendMail",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer stub-access-token"
+       },
+       "body": "{\"message\":{\"subject\":\"My Monitor Testing\",\"body\":{\"contentType\":\"Text\",\"content\":\"My Monitor Testing\"},\"toRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphTo\"}}],\"ccRecipients\":[{\"emailAddress\":{\"address\":\"a@b\"}},{\"emailAddress\":{\"address\":\"c@d\"}}],\"bccRecipients\":[]},\"saveToSentItems\":false}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "html": {
+   "config": {
+    "msGraphTo": "v-msGraphTo",
+    "msGraphCC": "v-msGraphCC",
+    "msGraphBCC": "v-msGraphBCC",
+    "msGraphMailbox": "v-msGraphMailbox",
+    "customSubject": "{{ name }}",
+    "customBody": "<b>{{ msg }}</b>",
+    "htmlBody": true,
+    "msGraphTenantId": "v-msGraphTenantId",
+    "msGraphClientId": "v-msGraphClientId",
+    "msGraphClientSecret": "v-msGraphClientSecret",
+    "type": "MicrosoftGraph"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://login.microsoftonline.com/v-msGraphTenantId/oauth2/v2.0/token",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "client_id=v-msGraphClientId&client_secret=v-msGraphClientSecret&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&grant_type=client_credentials"
+      },
+      {
+       "method": "POST",
+       "url": "https://graph.microsoft.com/v1.0/users/v-msGraphMailbox/sendMail",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer stub-access-token"
+       },
+       "body": "{\"message\":{\"subject\":\"Example Site\",\"body\":{\"contentType\":\"HTML\",\"content\":\"<b>[Example Site] [🔴 Down] connect ECONNREFUSED</b>\"},\"toRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphTo\"}}],\"ccRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphCC\"}}],\"bccRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphBCC\"}}]},\"saveToSentItems\":false}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://login.microsoftonline.com/v-msGraphTenantId/oauth2/v2.0/token",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "client_id=v-msGraphClientId&client_secret=v-msGraphClientSecret&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&grant_type=client_credentials"
+      },
+      {
+       "method": "POST",
+       "url": "https://graph.microsoft.com/v1.0/users/v-msGraphMailbox/sendMail",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer stub-access-token"
+       },
+       "body": "{\"message\":{\"subject\":\"Example Site\",\"body\":{\"contentType\":\"HTML\",\"content\":\"<b>[Example Site] [✅ Up] 200 - OK</b>\"},\"toRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphTo\"}}],\"ccRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphCC\"}}],\"bccRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphBCC\"}}]},\"saveToSentItems\":false}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://login.microsoftonline.com/v-msGraphTenantId/oauth2/v2.0/token",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+       },
+       "body": "client_id=v-msGraphClientId&client_secret=v-msGraphClientSecret&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&grant_type=client_credentials"
+      },
+      {
+       "method": "POST",
+       "url": "https://graph.microsoft.com/v1.0/users/v-msGraphMailbox/sendMail",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer stub-access-token"
+       },
+       "body": "{\"message\":{\"subject\":\"Monitor Name not available\",\"body\":{\"contentType\":\"HTML\",\"content\":\"<b>My Monitor Testing</b>\"},\"toRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphTo\"}}],\"ccRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphCC\"}}],\"bccRecipients\":[{\"emailAddress\":{\"address\":\"v-msGraphBCC\"}}]},\"saveToSentItems\":false}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

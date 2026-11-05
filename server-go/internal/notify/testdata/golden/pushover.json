@@ -1,0 +1,115 @@
+{
+ "provider": "pushover",
+ "variants": {
+  "default": {
+   "config": {
+    "pushoveruserkey": "v-pushoveruserkey",
+    "pushoverapptoken": "v-pushoverapptoken",
+    "pushoversounds": "v-pushoversounds",
+    "pushoverpriority": "v-pushoverpriority",
+    "pushovertitle": "v-pushovertitle",
+    "pushoverdevice": "v-pushoverdevice",
+    "pushoverttl": "v-pushoverttl",
+    "pushoversounds_up": "v-pushoversounds_up",
+    "type": "pushover"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushover.net/1/messages.json",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\\n<b>Time (Asia/Hong_Kong)</b>: 2026-01-02 11:04:05\",\"user\":\"v-pushoveruserkey\",\"token\":\"v-pushoverapptoken\",\"sound\":\"v-pushoversounds\",\"priority\":\"v-pushoverpriority\",\"title\":\"v-pushovertitle\",\"retry\":\"30\",\"expire\":\"3600\",\"html\":1,\"url\":\"https://kuma.example/dashboard/42\",\"url_title\":\"Link to Monitor\",\"device\":\"v-pushoverdevice\",\"ttl\":\"v-pushoverttl\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushover.net/1/messages.json",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"[Example Site] [✅ Up] 200 - OK\\n<b>Time (Asia/Hong_Kong)</b>: 2026-01-02 11:04:05\",\"user\":\"v-pushoveruserkey\",\"token\":\"v-pushoverapptoken\",\"sound\":\"v-pushoversounds_up\",\"priority\":\"v-pushoverpriority\",\"title\":\"v-pushovertitle\",\"retry\":\"30\",\"expire\":\"3600\",\"html\":1,\"url\":\"https://kuma.example/dashboard/42\",\"url_title\":\"Link to Monitor\",\"device\":\"v-pushoverdevice\",\"ttl\":\"v-pushoverttl\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushover.net/1/messages.json",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"user\":\"v-pushoveruserkey\",\"token\":\"v-pushoverapptoken\",\"sound\":\"v-pushoversounds\",\"priority\":\"v-pushoverpriority\",\"title\":\"v-pushovertitle\",\"retry\":\"30\",\"expire\":\"3600\",\"html\":1,\"device\":\"v-pushoverdevice\",\"ttl\":\"v-pushoverttl\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "pushoveruserkey": "v-pushoveruserkey",
+    "pushoverapptoken": "v-pushoverapptoken",
+    "pushoverpriority": "v-pushoverpriority",
+    "pushovertitle": "v-pushovertitle",
+    "type": "pushover"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushover.net/1/messages.json",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\\n<b>Time (Asia/Hong_Kong)</b>: 2026-01-02 11:04:05\",\"user\":\"v-pushoveruserkey\",\"token\":\"v-pushoverapptoken\",\"priority\":\"v-pushoverpriority\",\"title\":\"v-pushovertitle\",\"retry\":\"30\",\"expire\":\"3600\",\"html\":1,\"url\":\"https://kuma.example/dashboard/42\",\"url_title\":\"Link to Monitor\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushover.net/1/messages.json",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"[Example Site] [✅ Up] 200 - OK\\n<b>Time (Asia/Hong_Kong)</b>: 2026-01-02 11:04:05\",\"user\":\"v-pushoveruserkey\",\"token\":\"v-pushoverapptoken\",\"priority\":\"v-pushoverpriority\",\"title\":\"v-pushovertitle\",\"retry\":\"30\",\"expire\":\"3600\",\"html\":1,\"url\":\"https://kuma.example/dashboard/42\",\"url_title\":\"Link to Monitor\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushover.net/1/messages.json",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"user\":\"v-pushoveruserkey\",\"token\":\"v-pushoverapptoken\",\"priority\":\"v-pushoverpriority\",\"title\":\"v-pushovertitle\",\"retry\":\"30\",\"expire\":\"3600\",\"html\":1}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

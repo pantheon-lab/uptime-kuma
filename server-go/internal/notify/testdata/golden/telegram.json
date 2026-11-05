@@ -1,0 +1,288 @@
+{
+ "provider": "telegram",
+ "variants": {
+  "default": {
+   "config": {
+    "telegramServerUrl": "https://svc.example/telegramServerUrl",
+    "telegramChatID": "v-telegramChatID",
+    "telegramSendSilently": "v-telegramSendSilently",
+    "telegramProtectContent": "v-telegramProtectContent",
+    "telegramMessageThreadID": "v-telegramMessageThreadID",
+    "telegramUseTemplate": "v-telegramUseTemplate",
+    "telegramTemplateParseMode": "v-telegramTemplateParseMode",
+    "telegramTemplate": "v-telegramTemplate",
+    "telegramBotToken": "v-telegramBotToken",
+    "type": "telegram"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"v-telegramTemplate\",\"disable_notification\":\"v-telegramSendSilently\",\"protect_content\":\"v-telegramProtectContent\",\"link_preview_options\":{\"is_disabled\":true},\"message_thread_id\":\"v-telegramMessageThreadID\",\"parse_mode\":\"v-telegramTemplateParseMode\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"v-telegramTemplate\",\"disable_notification\":\"v-telegramSendSilently\",\"protect_content\":\"v-telegramProtectContent\",\"link_preview_options\":{\"is_disabled\":true},\"message_thread_id\":\"v-telegramMessageThreadID\",\"parse_mode\":\"v-telegramTemplateParseMode\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"v-telegramTemplate\",\"disable_notification\":\"v-telegramSendSilently\",\"protect_content\":\"v-telegramProtectContent\",\"link_preview_options\":{\"is_disabled\":true},\"message_thread_id\":\"v-telegramMessageThreadID\",\"parse_mode\":\"v-telegramTemplateParseMode\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "telegramServerUrl": "https://svc.example/telegramServerUrl",
+    "telegramChatID": "v-telegramChatID",
+    "telegramBotToken": "v-telegramBotToken",
+    "type": "telegram"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"disable_notification\":false,\"protect_content\":false,\"link_preview_options\":{\"is_disabled\":true}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"[Example Site] [✅ Up] 200 - OK\",\"disable_notification\":false,\"protect_content\":false,\"link_preview_options\":{\"is_disabled\":true}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"My Monitor Testing\",\"disable_notification\":false,\"protect_content\":false,\"link_preview_options\":{\"is_disabled\":true}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "plain": {
+   "config": {
+    "telegramServerUrl": "https://svc.example/telegramServerUrl",
+    "telegramChatID": "v-telegramChatID",
+    "telegramSendSilently": true,
+    "telegramProtectContent": "v-telegramProtectContent",
+    "telegramUseTemplate": false,
+    "telegramTemplateParseMode": "v-telegramTemplateParseMode",
+    "telegramTemplate": "v-telegramTemplate",
+    "telegramBotToken": "v-telegramBotToken",
+    "type": "telegram"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"disable_notification\":true,\"protect_content\":\"v-telegramProtectContent\",\"link_preview_options\":{\"is_disabled\":true}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"[Example Site] [✅ Up] 200 - OK\",\"disable_notification\":true,\"protect_content\":\"v-telegramProtectContent\",\"link_preview_options\":{\"is_disabled\":true}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"My Monitor Testing\",\"disable_notification\":true,\"protect_content\":\"v-telegramProtectContent\",\"link_preview_options\":{\"is_disabled\":true}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "md": {
+   "config": {
+    "telegramServerUrl": "https://svc.example/telegramServerUrl",
+    "telegramChatID": "v-telegramChatID",
+    "telegramSendSilently": "v-telegramSendSilently",
+    "telegramProtectContent": "v-telegramProtectContent",
+    "telegramMessageThreadID": "v-telegramMessageThreadID",
+    "telegramUseTemplate": true,
+    "telegramTemplateParseMode": "MarkdownV2",
+    "telegramTemplate": "{{ msg }} {{ monitorJSON.name }}",
+    "telegramBotToken": "v-telegramBotToken",
+    "type": "telegram"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"\\\\[Example Site\\\\] \\\\[🔴 Down\\\\] connect ECONNREFUSED Example Site\",\"disable_notification\":\"v-telegramSendSilently\",\"protect_content\":\"v-telegramProtectContent\",\"link_preview_options\":{\"is_disabled\":true},\"message_thread_id\":\"v-telegramMessageThreadID\",\"parse_mode\":\"MarkdownV2\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"\\\\[Example Site\\\\] \\\\[✅ Up\\\\] 200 \\\\- OK Example Site\",\"disable_notification\":\"v-telegramSendSilently\",\"protect_content\":\"v-telegramProtectContent\",\"link_preview_options\":{\"is_disabled\":true},\"message_thread_id\":\"v-telegramMessageThreadID\",\"parse_mode\":\"MarkdownV2\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"My Monitor Testing Monitor Name not available\",\"disable_notification\":\"v-telegramSendSilently\",\"protect_content\":\"v-telegramProtectContent\",\"link_preview_options\":{\"is_disabled\":true},\"message_thread_id\":\"v-telegramMessageThreadID\",\"parse_mode\":\"MarkdownV2\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "html": {
+   "config": {
+    "telegramServerUrl": "https://svc.example/telegramServerUrl",
+    "telegramChatID": "v-telegramChatID",
+    "telegramSendSilently": "v-telegramSendSilently",
+    "telegramProtectContent": "v-telegramProtectContent",
+    "telegramMessageThreadID": "v-telegramMessageThreadID",
+    "telegramUseTemplate": true,
+    "telegramTemplateParseMode": "HTML",
+    "telegramTemplate": "<b>{{ name }}</b> {{ status }}",
+    "telegramBotToken": "v-telegramBotToken",
+    "type": "telegram"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"<b>Example Site</b> 🔴 Down\",\"disable_notification\":\"v-telegramSendSilently\",\"protect_content\":\"v-telegramProtectContent\",\"link_preview_options\":{\"is_disabled\":true},\"message_thread_id\":\"v-telegramMessageThreadID\",\"parse_mode\":\"HTML\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"<b>Example Site</b> ✅ Up\",\"disable_notification\":\"v-telegramSendSilently\",\"protect_content\":\"v-telegramProtectContent\",\"link_preview_options\":{\"is_disabled\":true},\"message_thread_id\":\"v-telegramMessageThreadID\",\"parse_mode\":\"HTML\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/telegramServerUrl/botv-telegramBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-telegramChatID\",\"text\":\"<b>Monitor Name not available</b> ⚠️ Test\",\"disable_notification\":\"v-telegramSendSilently\",\"protect_content\":\"v-telegramProtectContent\",\"link_preview_options\":{\"is_disabled\":true},\"message_thread_id\":\"v-telegramMessageThreadID\",\"parse_mode\":\"HTML\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

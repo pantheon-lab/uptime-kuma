@@ -1,6 +1,6 @@
 /**
- * Client for server/realtime-server.ts: Server-Sent Events from the server, and POST
- * requests to the server. Its API is the part of socket.io-client that the app uses.
+ * Realtime client: Server-Sent Events from the server, and POST requests to the server.
+ * Its API is the part of socket.io-client that the app uses.
  *
  * The stream is read with fetch instead of EventSource, because EventSource can't send
  * headers, which non-browser clients need for cookies and API keys.

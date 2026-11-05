@@ -18,11 +18,13 @@ var (
 	ErrNotFound = errors.New("not found")
 	// ErrInvalidParent means that a monitor can't go in the requested group.
 	ErrInvalidParent = errors.New("invalid parent")
+	// ErrInvalidNotification means that a monitor can't use the requested notification.
+	ErrInvalidNotification = errors.New("invalid notification")
 )
 
 const monitorColumns = `id, name, type, active, interval_seconds, retry_interval_seconds, timeout_seconds,
 	max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
-	max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace`
+	max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval`
 
 // aggregateRefreshTimeout allows for rebuilding every bucket a deleted monitor touched.
 const (
@@ -37,7 +39,7 @@ func scanMonitor(row pgx.Row) (monitor.Monitor, error) {
 	var m monitor.Monitor
 	err := row.Scan(&m.ID, &m.Name, &m.Type, &m.Active, &m.Interval, &m.RetryInterval, &m.Timeout,
 		&m.MaxRetries, &m.UpsideDown, &m.URL, &m.Method, &m.Headers, &m.Body, &m.BodyEncoding, &m.AcceptedStatusCodes,
-		&m.MaxRedirects, &m.IgnoreTLS, &m.Keyword, &m.InvertKeyword, &m.Hostname, &m.Port, &m.ParentID, &m.PropagateTrace)
+		&m.MaxRedirects, &m.IgnoreTLS, &m.Keyword, &m.InvertKeyword, &m.Hostname, &m.Port, &m.ParentID, &m.PropagateTrace, &m.ResendInterval)
 	return m, err
 }
 
@@ -164,12 +166,12 @@ func (s *Store) CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 		created, err := scanMonitor(tx.QueryRow(ctx, `
 			INSERT INTO monitor (name, type, active, interval_seconds, retry_interval_seconds, timeout_seconds,
 				max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
-				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 			RETURNING `+monitorColumns,
 			m.Name, m.Type, m.Active, m.Interval, m.RetryInterval, m.Timeout,
 			m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers, m.Body, m.BodyEncoding, m.AcceptedStatusCodes,
-			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace))
+			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace, m.ResendInterval))
 		return created, monitorResult(err)
 	})
 }
@@ -186,12 +188,12 @@ func (s *Store) UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 				timeout_seconds = $7, max_retries = $8, upside_down = $9, url = $10, method = $11, headers = $12,
 				body = $13, body_encoding = $14, accepted_status_codes = $15, max_redirects = $16, ignore_tls = $17,
 				keyword = $18, invert_keyword = $19, hostname = $20, port = $21, parent_id = $22, propagate_trace = $23,
-				updated_at = now()
+				resend_interval = $24, updated_at = now()
 			WHERE id = $1
 			RETURNING `+monitorColumns,
 			m.ID, m.Name, m.Type, m.Active, m.Interval, m.RetryInterval, m.Timeout,
 			m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers, m.Body, m.BodyEncoding, m.AcceptedStatusCodes,
-			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace))
+			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace, m.ResendInterval))
 		if err := monitorResult(err); err != nil {
 			return m, err
 		}
@@ -297,10 +299,10 @@ func retryConcurrentRefresh(ctx context.Context, refresh func() error) error {
 // LatestStates returns each monitor's last beat state.
 func (s *Store) LatestStates(ctx context.Context) (map[int32]monitor.Previous, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT m.id, l.status, l.retries
+		SELECT m.id, l.status, l.retries, l.down_count
 		FROM monitor m
 		CROSS JOIN LATERAL (
-			SELECT status, retries FROM heartbeat h
+			SELECT status, retries, down_count FROM heartbeat h
 			WHERE h.monitor_id = m.id ORDER BY h.time DESC LIMIT 1
 		) l`)
 	if err != nil {
@@ -311,7 +313,7 @@ func (s *Store) LatestStates(ctx context.Context) (map[int32]monitor.Previous, e
 	for rows.Next() {
 		var id int32
 		var p monitor.Previous
-		if err := rows.Scan(&id, &p.Status, &p.Retries); err != nil {
+		if err := rows.Scan(&id, &p.Status, &p.Retries, &p.DownCount); err != nil {
 			return nil, fmt.Errorf("read latest state: %w", err)
 		}
 		states[id] = p

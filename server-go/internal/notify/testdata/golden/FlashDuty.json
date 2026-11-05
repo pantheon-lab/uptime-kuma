@@ -1,0 +1,107 @@
+{
+ "provider": "FlashDuty",
+ "variants": {
+  "default": {
+   "config": {
+    "flashdutySeverity": "v-flashdutySeverity",
+    "flashdutyIntegrationKey": "v-flashdutyIntegrationKey",
+    "type": "FlashDuty"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.flashcat.cloud/event/push/alert/standard?integration_key=v-flashdutyIntegrationKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"description\":\"[Uptime Kuma Monitor 🔴 Down] [Example Site] connect ECONNREFUSED\",\"title\":\"Uptime Kuma Monitor 🔴 Down\",\"event_status\":\"v-flashdutySeverity\",\"alert_key\":\"42\",\"labels\":{\"resource\":\"https://site.example/health\",\"check\":\"Example Site\"}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.flashcat.cloud/event/push/alert/standard?integration_key=v-flashdutyIntegrationKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"description\":\"[Uptime Kuma Monitor ✅ Up] [Example Site] 200 - OK\",\"title\":\"Uptime Kuma Monitor ✅ Up\",\"event_status\":\"Ok\",\"alert_key\":\"42\",\"labels\":{\"resource\":\"https://site.example/health\",\"check\":\"Example Site\"}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.flashcat.cloud/event/push/alert/standard?integration_key=v-flashdutyIntegrationKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"description\":\"[Uptime Kuma Alert] [https://flashcat.cloud] My Monitor Testing\",\"title\":\"Uptime Kuma Alert\",\"event_status\":\"Info\",\"alert_key\":\"\",\"labels\":{\"resource\":\"My Monitor Testing\",\"check\":\"https://flashcat.cloud\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "flashdutySeverity": "v-flashdutySeverity",
+    "flashdutyIntegrationKey": "v-flashdutyIntegrationKey",
+    "type": "FlashDuty"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.flashcat.cloud/event/push/alert/standard?integration_key=v-flashdutyIntegrationKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"description\":\"[Uptime Kuma Monitor 🔴 Down] [Example Site] connect ECONNREFUSED\",\"title\":\"Uptime Kuma Monitor 🔴 Down\",\"event_status\":\"v-flashdutySeverity\",\"alert_key\":\"42\",\"labels\":{\"resource\":\"https://site.example/health\",\"check\":\"Example Site\"}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.flashcat.cloud/event/push/alert/standard?integration_key=v-flashdutyIntegrationKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"description\":\"[Uptime Kuma Monitor ✅ Up] [Example Site] 200 - OK\",\"title\":\"Uptime Kuma Monitor ✅ Up\",\"event_status\":\"Ok\",\"alert_key\":\"42\",\"labels\":{\"resource\":\"https://site.example/health\",\"check\":\"Example Site\"}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.flashcat.cloud/event/push/alert/standard?integration_key=v-flashdutyIntegrationKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"description\":\"[Uptime Kuma Alert] [https://flashcat.cloud] My Monitor Testing\",\"title\":\"Uptime Kuma Alert\",\"event_status\":\"Info\",\"alert_key\":\"\",\"labels\":{\"resource\":\"My Monitor Testing\",\"check\":\"https://flashcat.cloud\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

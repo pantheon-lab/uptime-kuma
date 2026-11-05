@@ -1,0 +1,237 @@
+{
+ "provider": "plivo",
+ "variants": {
+  "default": {
+   "config": {
+    "plivoAuthID": "v-plivoAuthID",
+    "plivoAuthToken": "v-plivoAuthToken",
+    "plivoMessageType": "v-plivoMessageType",
+    "plivoAnswerUrl": "https://svc.example/plivoAnswerUrl",
+    "plivoFromNumber": "v-plivoFromNumber",
+    "plivoToNumber": "v-plivoToNumber",
+    "type": "plivo"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.plivo.com/v1/Account/v-plivoAuthID/Message/",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wbGl2b0F1dGhJRDp2LXBsaXZvQXV0aFRva2Vu"
+       },
+       "body": "{\"src\":\"v-plivoFromNumber\",\"dst\":\"v-plivoToNumber\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.plivo.com/v1/Account/v-plivoAuthID/Message/",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wbGl2b0F1dGhJRDp2LXBsaXZvQXV0aFRva2Vu"
+       },
+       "body": "{\"src\":\"v-plivoFromNumber\",\"dst\":\"v-plivoToNumber\",\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.plivo.com/v1/Account/v-plivoAuthID/Message/",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wbGl2b0F1dGhJRDp2LXBsaXZvQXV0aFRva2Vu"
+       },
+       "body": "{\"src\":\"v-plivoFromNumber\",\"dst\":\"v-plivoToNumber\",\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "plivoAuthID": "v-plivoAuthID",
+    "plivoAuthToken": "v-plivoAuthToken",
+    "plivoMessageType": "v-plivoMessageType",
+    "plivoAnswerUrl": "https://svc.example/plivoAnswerUrl",
+    "plivoFromNumber": "v-plivoFromNumber",
+    "plivoToNumber": "v-plivoToNumber",
+    "type": "plivo"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.plivo.com/v1/Account/v-plivoAuthID/Message/",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wbGl2b0F1dGhJRDp2LXBsaXZvQXV0aFRva2Vu"
+       },
+       "body": "{\"src\":\"v-plivoFromNumber\",\"dst\":\"v-plivoToNumber\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.plivo.com/v1/Account/v-plivoAuthID/Message/",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wbGl2b0F1dGhJRDp2LXBsaXZvQXV0aFRva2Vu"
+       },
+       "body": "{\"src\":\"v-plivoFromNumber\",\"dst\":\"v-plivoToNumber\",\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.plivo.com/v1/Account/v-plivoAuthID/Message/",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wbGl2b0F1dGhJRDp2LXBsaXZvQXV0aFRva2Vu"
+       },
+       "body": "{\"src\":\"v-plivoFromNumber\",\"dst\":\"v-plivoToNumber\",\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "call": {
+   "config": {
+    "plivoAuthID": "v-plivoAuthID",
+    "plivoAuthToken": "v-plivoAuthToken",
+    "plivoMessageType": "call",
+    "plivoAnswerUrl": "https://svc.example/answer?a=1",
+    "plivoFromNumber": "v-plivoFromNumber",
+    "plivoToNumber": "v-plivoToNumber",
+    "type": "plivo"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.plivo.com/v1/Account/v-plivoAuthID/Call/",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wbGl2b0F1dGhJRDp2LXBsaXZvQXV0aFRva2Vu"
+       },
+       "body": "{\"from\":\"v-plivoFromNumber\",\"to\":\"v-plivoToNumber\",\"answer_url\":\"https://svc.example/answer?a=1&message=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED\",\"answer_method\":\"GET\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.plivo.com/v1/Account/v-plivoAuthID/Call/",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wbGl2b0F1dGhJRDp2LXBsaXZvQXV0aFRva2Vu"
+       },
+       "body": "{\"from\":\"v-plivoFromNumber\",\"to\":\"v-plivoToNumber\",\"answer_url\":\"https://svc.example/answer?a=1&message=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK\",\"answer_method\":\"GET\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.plivo.com/v1/Account/v-plivoAuthID/Call/",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wbGl2b0F1dGhJRDp2LXBsaXZvQXV0aFRva2Vu"
+       },
+       "body": "{\"from\":\"v-plivoFromNumber\",\"to\":\"v-plivoToNumber\",\"answer_url\":\"https://svc.example/answer?a=1&message=My+Monitor+Testing\",\"answer_method\":\"GET\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "sms": {
+   "config": {
+    "plivoAuthID": "v-plivoAuthID",
+    "plivoAuthToken": "v-plivoAuthToken",
+    "plivoMessageType": "sms",
+    "plivoAnswerUrl": "https://svc.example/plivoAnswerUrl",
+    "plivoFromNumber": "v-plivoFromNumber",
+    "plivoToNumber": "v-plivoToNumber",
+    "type": "plivo"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.plivo.com/v1/Account/v-plivoAuthID/Message/",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wbGl2b0F1dGhJRDp2LXBsaXZvQXV0aFRva2Vu"
+       },
+       "body": "{\"src\":\"v-plivoFromNumber\",\"dst\":\"v-plivoToNumber\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.plivo.com/v1/Account/v-plivoAuthID/Message/",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wbGl2b0F1dGhJRDp2LXBsaXZvQXV0aFRva2Vu"
+       },
+       "body": "{\"src\":\"v-plivoFromNumber\",\"dst\":\"v-plivoToNumber\",\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.plivo.com/v1/Account/v-plivoAuthID/Message/",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1wbGl2b0F1dGhJRDp2LXBsaXZvQXV0aFRva2Vu"
+       },
+       "body": "{\"src\":\"v-plivoFromNumber\",\"dst\":\"v-plivoToNumber\",\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

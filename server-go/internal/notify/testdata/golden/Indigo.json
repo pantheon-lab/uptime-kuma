@@ -1,0 +1,170 @@
+{
+ "provider": "Indigo",
+ "variants": {
+  "default": {
+   "config": {
+    "indigoUrl": "https://svc.example/indigoUrl",
+    "indigoVariableId": "12",
+    "indigoActionGroupId": "34",
+    "indigoApiKey": "v-indigoApiKey",
+    "indigoIgnoreTlsError": "v-indigoIgnoreTlsError",
+    "type": "Indigo"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/indigoUrl/v2/api/command",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-indigoApiKey"
+       },
+       "body": "{\"id\":\"uptime-kuma\",\"message\":\"indigo.variable.updateValue\",\"objectId\":12,\"parameters\":{\"value\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}}"
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/indigoUrl/v2/api/command",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-indigoApiKey"
+       },
+       "body": "{\"id\":\"uptime-kuma\",\"message\":\"indigo.actionGroup.execute\",\"objectId\":34}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/indigoUrl/v2/api/command",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-indigoApiKey"
+       },
+       "body": "{\"id\":\"uptime-kuma\",\"message\":\"indigo.variable.updateValue\",\"objectId\":12,\"parameters\":{\"value\":\"[Example Site] [✅ Up] 200 - OK\"}}"
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/indigoUrl/v2/api/command",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-indigoApiKey"
+       },
+       "body": "{\"id\":\"uptime-kuma\",\"message\":\"indigo.actionGroup.execute\",\"objectId\":34}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/indigoUrl/v2/api/command",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-indigoApiKey"
+       },
+       "body": "{\"id\":\"uptime-kuma\",\"message\":\"indigo.variable.updateValue\",\"objectId\":12,\"parameters\":{\"value\":\"My Monitor Testing\"}}"
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/indigoUrl/v2/api/command",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-indigoApiKey"
+       },
+       "body": "{\"id\":\"uptime-kuma\",\"message\":\"indigo.actionGroup.execute\",\"objectId\":34}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "indigoUrl": "https://svc.example/indigoUrl",
+    "indigoVariableId": "v-indigoVariableId",
+    "indigoApiKey": "v-indigoApiKey",
+    "type": "Indigo"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [],
+     "error": "Set an Indigo variable ID, an action group ID, or both."
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [],
+     "error": "Set an Indigo variable ID, an action group ID, or both."
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [],
+     "error": "Set an Indigo variable ID, an action group ID, or both."
+    }
+   }
+  },
+  "variable": {
+   "config": {
+    "indigoUrl": "https://svc.example/indigoUrl",
+    "indigoVariableId": "12",
+    "indigoApiKey": "v-indigoApiKey",
+    "indigoIgnoreTlsError": "v-indigoIgnoreTlsError",
+    "type": "Indigo"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/indigoUrl/v2/api/command",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-indigoApiKey"
+       },
+       "body": "{\"id\":\"uptime-kuma\",\"message\":\"indigo.variable.updateValue\",\"objectId\":12,\"parameters\":{\"value\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/indigoUrl/v2/api/command",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-indigoApiKey"
+       },
+       "body": "{\"id\":\"uptime-kuma\",\"message\":\"indigo.variable.updateValue\",\"objectId\":12,\"parameters\":{\"value\":\"[Example Site] [✅ Up] 200 - OK\"}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/indigoUrl/v2/api/command",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-indigoApiKey"
+       },
+       "body": "{\"id\":\"uptime-kuma\",\"message\":\"indigo.variable.updateValue\",\"objectId\":12,\"parameters\":{\"value\":\"My Monitor Testing\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

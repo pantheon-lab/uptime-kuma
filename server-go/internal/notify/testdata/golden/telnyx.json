@@ -1,0 +1,116 @@
+{
+ "provider": "telnyx",
+ "variants": {
+  "default": {
+   "config": {
+    "telnyxPhoneNumber": "v-telnyxPhoneNumber",
+    "telnyxToNumber": "v-telnyxToNumber",
+    "telnyxMessagingProfileId": "v-telnyxMessagingProfileId",
+    "telnyxApiKey": "v-telnyxApiKey",
+    "type": "telnyx"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.telnyx.com/v2/messages",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-telnyxApiKey"
+       },
+       "body": "{\"from\":\"v-telnyxPhoneNumber\",\"to\":\"v-telnyxToNumber\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"messaging_profile_id\":\"v-telnyxMessagingProfileId\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.telnyx.com/v2/messages",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-telnyxApiKey"
+       },
+       "body": "{\"from\":\"v-telnyxPhoneNumber\",\"to\":\"v-telnyxToNumber\",\"text\":\"[Example Site] [✅ Up] 200 - OK\",\"messaging_profile_id\":\"v-telnyxMessagingProfileId\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.telnyx.com/v2/messages",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-telnyxApiKey"
+       },
+       "body": "{\"from\":\"v-telnyxPhoneNumber\",\"to\":\"v-telnyxToNumber\",\"text\":\"My Monitor Testing\",\"messaging_profile_id\":\"v-telnyxMessagingProfileId\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "telnyxPhoneNumber": "v-telnyxPhoneNumber",
+    "telnyxToNumber": "v-telnyxToNumber",
+    "telnyxApiKey": "v-telnyxApiKey",
+    "type": "telnyx"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.telnyx.com/v2/messages",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-telnyxApiKey"
+       },
+       "body": "{\"from\":\"v-telnyxPhoneNumber\",\"to\":\"v-telnyxToNumber\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.telnyx.com/v2/messages",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-telnyxApiKey"
+       },
+       "body": "{\"from\":\"v-telnyxPhoneNumber\",\"to\":\"v-telnyxToNumber\",\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.telnyx.com/v2/messages",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-telnyxApiKey"
+       },
+       "body": "{\"from\":\"v-telnyxPhoneNumber\",\"to\":\"v-telnyxToNumber\",\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

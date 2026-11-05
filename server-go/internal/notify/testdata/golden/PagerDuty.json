@@ -1,0 +1,206 @@
+{
+ "provider": "PagerDuty",
+ "variants": {
+  "default": {
+   "config": {
+    "pagerdutyAutoResolve": "resolve",
+    "pagerdutyIntegrationUrl": "https://svc.example/pagerdutyIntegrationUrl",
+    "pagerdutyPriority": "v-pagerdutyPriority",
+    "pagerdutyIntegrationKey": "v-pagerdutyIntegrationKey",
+    "type": "PagerDuty"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pagerdutyIntegrationUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"payload\":{\"summary\":\"[Uptime Kuma Monitor 🔴 Down] [Example Site] connect ECONNREFUSED\",\"severity\":\"v-pagerdutyPriority\",\"source\":\"https://site.example/health\"},\"routing_key\":\"v-pagerdutyIntegrationKey\",\"event_action\":\"trigger\",\"dedup_key\":\"Uptime Kuma/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pagerdutyIntegrationUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"payload\":{\"summary\":\"[Uptime Kuma Monitor ✅ Up] [Example Site] 200 - OK\",\"severity\":\"v-pagerdutyPriority\",\"source\":\"https://site.example/health\"},\"routing_key\":\"v-pagerdutyIntegrationKey\",\"event_action\":\"resolve\",\"dedup_key\":\"Uptime Kuma/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pagerdutyIntegrationUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"payload\":{\"summary\":\"[Uptime Kuma Alert] My Monitor Testing\",\"severity\":\"v-pagerdutyPriority\",\"source\":\"Uptime Kuma Test Button\"},\"routing_key\":\"v-pagerdutyIntegrationKey\",\"event_action\":\"trigger\",\"dedup_key\":\"Uptime Kuma/test\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "pagerdutyAutoResolve": "v-pagerdutyAutoResolve",
+    "pagerdutyIntegrationUrl": "https://svc.example/pagerdutyIntegrationUrl",
+    "pagerdutyIntegrationKey": "v-pagerdutyIntegrationKey",
+    "type": "PagerDuty"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pagerdutyIntegrationUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"payload\":{\"summary\":\"[Uptime Kuma Monitor 🔴 Down] [Example Site] connect ECONNREFUSED\",\"severity\":\"warning\",\"source\":\"https://site.example/health\"},\"routing_key\":\"v-pagerdutyIntegrationKey\",\"event_action\":\"trigger\",\"dedup_key\":\"Uptime Kuma/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pagerdutyIntegrationUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"payload\":{\"summary\":\"[Uptime Kuma Monitor ✅ Up] [Example Site] 200 - OK\",\"severity\":\"warning\",\"source\":\"https://site.example/health\"},\"routing_key\":\"v-pagerdutyIntegrationKey\",\"event_action\":\"v-pagerdutyAutoResolve\",\"dedup_key\":\"Uptime Kuma/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pagerdutyIntegrationUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"payload\":{\"summary\":\"[Uptime Kuma Alert] My Monitor Testing\",\"severity\":\"warning\",\"source\":\"Uptime Kuma Test Button\"},\"routing_key\":\"v-pagerdutyIntegrationKey\",\"event_action\":\"trigger\",\"dedup_key\":\"Uptime Kuma/test\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "noresolve": {
+   "config": {
+    "pagerdutyAutoResolve": "0",
+    "pagerdutyIntegrationUrl": "https://svc.example/pagerdutyIntegrationUrl",
+    "pagerdutyPriority": "v-pagerdutyPriority",
+    "pagerdutyIntegrationKey": "v-pagerdutyIntegrationKey",
+    "type": "PagerDuty"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pagerdutyIntegrationUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"payload\":{\"summary\":\"[Uptime Kuma Monitor 🔴 Down] [Example Site] connect ECONNREFUSED\",\"severity\":\"v-pagerdutyPriority\",\"source\":\"https://site.example/health\"},\"routing_key\":\"v-pagerdutyIntegrationKey\",\"event_action\":\"trigger\",\"dedup_key\":\"Uptime Kuma/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pagerdutyIntegrationUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"payload\":{\"summary\":\"[Uptime Kuma Alert] My Monitor Testing\",\"severity\":\"v-pagerdutyPriority\",\"source\":\"Uptime Kuma Test Button\"},\"routing_key\":\"v-pagerdutyIntegrationKey\",\"event_action\":\"trigger\",\"dedup_key\":\"Uptime Kuma/test\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "ack": {
+   "config": {
+    "pagerdutyAutoResolve": "acknowledge",
+    "pagerdutyIntegrationUrl": "https://svc.example/pagerdutyIntegrationUrl",
+    "pagerdutyIntegrationKey": "v-pagerdutyIntegrationKey",
+    "type": "PagerDuty"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pagerdutyIntegrationUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"payload\":{\"summary\":\"[Uptime Kuma Monitor 🔴 Down] [Example Site] connect ECONNREFUSED\",\"severity\":\"warning\",\"source\":\"https://site.example/health\"},\"routing_key\":\"v-pagerdutyIntegrationKey\",\"event_action\":\"trigger\",\"dedup_key\":\"Uptime Kuma/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pagerdutyIntegrationUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"payload\":{\"summary\":\"[Uptime Kuma Monitor ✅ Up] [Example Site] 200 - OK\",\"severity\":\"warning\",\"source\":\"https://site.example/health\"},\"routing_key\":\"v-pagerdutyIntegrationKey\",\"event_action\":\"acknowledge\",\"dedup_key\":\"Uptime Kuma/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pagerdutyIntegrationUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"payload\":{\"summary\":\"[Uptime Kuma Alert] My Monitor Testing\",\"severity\":\"warning\",\"source\":\"Uptime Kuma Test Button\"},\"routing_key\":\"v-pagerdutyIntegrationKey\",\"event_action\":\"trigger\",\"dedup_key\":\"Uptime Kuma/test\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

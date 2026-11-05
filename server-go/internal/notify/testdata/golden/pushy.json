@@ -1,0 +1,107 @@
+{
+ "provider": "pushy",
+ "variants": {
+  "default": {
+   "config": {
+    "pushyAPIKey": "v-pushyAPIKey",
+    "pushyToken": "v-pushyToken",
+    "type": "pushy"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushy.me/push?api_key=v-pushyAPIKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"to\":\"v-pushyToken\",\"data\":{\"message\":\"Uptime-Kuma\"},\"notification\":{\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"badge\":1,\"sound\":\"ping.aiff\"}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushy.me/push?api_key=v-pushyAPIKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"to\":\"v-pushyToken\",\"data\":{\"message\":\"Uptime-Kuma\"},\"notification\":{\"body\":\"[Example Site] [✅ Up] 200 - OK\",\"badge\":1,\"sound\":\"ping.aiff\"}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushy.me/push?api_key=v-pushyAPIKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"to\":\"v-pushyToken\",\"data\":{\"message\":\"Uptime-Kuma\"},\"notification\":{\"body\":\"My Monitor Testing\",\"badge\":1,\"sound\":\"ping.aiff\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "pushyAPIKey": "v-pushyAPIKey",
+    "pushyToken": "v-pushyToken",
+    "type": "pushy"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushy.me/push?api_key=v-pushyAPIKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"to\":\"v-pushyToken\",\"data\":{\"message\":\"Uptime-Kuma\"},\"notification\":{\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"badge\":1,\"sound\":\"ping.aiff\"}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushy.me/push?api_key=v-pushyAPIKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"to\":\"v-pushyToken\",\"data\":{\"message\":\"Uptime-Kuma\"},\"notification\":{\"body\":\"[Example Site] [✅ Up] 200 - OK\",\"badge\":1,\"sound\":\"ping.aiff\"}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushy.me/push?api_key=v-pushyAPIKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"to\":\"v-pushyToken\",\"data\":{\"message\":\"Uptime-Kuma\"},\"notification\":{\"body\":\"My Monitor Testing\",\"badge\":1,\"sound\":\"ping.aiff\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

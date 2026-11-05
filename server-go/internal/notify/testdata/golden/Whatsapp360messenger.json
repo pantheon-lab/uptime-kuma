@@ -1,0 +1,344 @@
+{
+ "provider": "Whatsapp360messenger",
+ "variants": {
+  "default": {
+   "config": {
+    "Whatsapp360messengerAuthToken": "v-Whatsapp360messengerAuthToken",
+    "Whatsapp360messengerUseTemplate": "v-Whatsapp360messengerUseTemplate",
+    "Whatsapp360messengerTemplate": "v-Whatsapp360messengerTemplate",
+    "Whatsapp360messengerRecipient": "v-Whatsapp360messengerRecipient",
+    "Whatsapp360messengerGroupIds": "v-Whatsapp360messengerGroupIds",
+    "Whatsapp360messengerGroupId": "v-Whatsapp360messengerGroupId",
+    "type": "Whatsapp360messenger"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"v-Whatsapp360messengerRecipient\",\"text\":\"v-Whatsapp360messengerTemplate\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendGroup",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"groupId\":\"v-Whatsapp360messengerGroupIds\",\"text\":\"v-Whatsapp360messengerTemplate\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"v-Whatsapp360messengerRecipient\",\"text\":\"v-Whatsapp360messengerTemplate\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendGroup",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"groupId\":\"v-Whatsapp360messengerGroupIds\",\"text\":\"v-Whatsapp360messengerTemplate\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"v-Whatsapp360messengerRecipient\",\"text\":\"v-Whatsapp360messengerTemplate\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendGroup",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"groupId\":\"v-Whatsapp360messengerGroupIds\",\"text\":\"v-Whatsapp360messengerTemplate\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "Whatsapp360messengerAuthToken": "v-Whatsapp360messengerAuthToken",
+    "Whatsapp360messengerRecipient": "v-Whatsapp360messengerRecipient",
+    "type": "Whatsapp360messenger"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"v-Whatsapp360messengerRecipient\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"v-Whatsapp360messengerRecipient\",\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"v-Whatsapp360messengerRecipient\",\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "both": {
+   "config": {
+    "Whatsapp360messengerAuthToken": "v-Whatsapp360messengerAuthToken",
+    "Whatsapp360messengerUseTemplate": true,
+    "Whatsapp360messengerTemplate": "{{ msg }} {{ monitorJSON['name'] }}{% if monitorJSON %}!{% endif %}",
+    "Whatsapp360messengerRecipient": "+1;+2",
+    "Whatsapp360messengerGroupIds": [
+     {
+      "id": "g1"
+     },
+     "g2"
+    ],
+    "Whatsapp360messengerGroupId": "v-Whatsapp360messengerGroupId",
+    "type": "Whatsapp360messenger"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"+1\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED Example Site!\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"+2\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED Example Site!\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendGroup",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"groupId\":\"g1\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED Example Site!\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendGroup",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"groupId\":\"g2\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED Example Site!\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"+1\",\"text\":\"[Example Site] [✅ Up] 200 - OK Example Site!\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"+2\",\"text\":\"[Example Site] [✅ Up] 200 - OK Example Site!\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendGroup",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"groupId\":\"g1\",\"text\":\"[Example Site] [✅ Up] 200 - OK Example Site!\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendGroup",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"groupId\":\"g2\",\"text\":\"[Example Site] [✅ Up] 200 - OK Example Site!\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"+1\",\"text\":\"My Monitor Testing {{ monitorJSON['name'] }}\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"+2\",\"text\":\"My Monitor Testing {{ monitorJSON['name'] }}\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendGroup",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"groupId\":\"g1\",\"text\":\"My Monitor Testing {{ monitorJSON['name'] }}\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendGroup",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"groupId\":\"g2\",\"text\":\"My Monitor Testing {{ monitorJSON['name'] }}\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "recipient": {
+   "config": {
+    "Whatsapp360messengerAuthToken": "v-Whatsapp360messengerAuthToken",
+    "Whatsapp360messengerUseTemplate": "v-Whatsapp360messengerUseTemplate",
+    "Whatsapp360messengerTemplate": "v-Whatsapp360messengerTemplate",
+    "Whatsapp360messengerRecipient": "+1",
+    "type": "Whatsapp360messenger"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"+1\",\"text\":\"v-Whatsapp360messengerTemplate\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"+1\",\"text\":\"v-Whatsapp360messengerTemplate\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.360messenger.com/v2/sendMessage",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-Whatsapp360messengerAuthToken"
+       },
+       "body": "{\"phonenumber\":\"+1\",\"text\":\"v-Whatsapp360messengerTemplate\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

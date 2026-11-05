@@ -1,0 +1,107 @@
+{
+ "provider": "PushDeer",
+ "variants": {
+  "default": {
+   "config": {
+    "pushdeerServer": "https://svc.example/pushdeerServer",
+    "pushdeerKey": "v-pushdeerKey",
+    "type": "PushDeer"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pushdeerServer/message/push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"pushkey\":\"v-pushdeerKey\",\"text\":\"## Uptime Kuma: Example Site down\",\"desp\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"type\":\"markdown\"}"
+      }
+     ],
+     "error": "0"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pushdeerServer/message/push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"pushkey\":\"v-pushdeerKey\",\"text\":\"## Uptime Kuma: Example Site up\",\"desp\":\"[Example Site] [✅ Up] 200 - OK\",\"type\":\"markdown\"}"
+      }
+     ],
+     "error": "0"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pushdeerServer/message/push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"pushkey\":\"v-pushdeerKey\",\"text\":\"## Uptime Kuma Message\",\"desp\":\"My Monitor Testing\",\"type\":\"markdown\"}"
+      }
+     ],
+     "error": "0"
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "pushdeerServer": "https://svc.example/pushdeerServer",
+    "pushdeerKey": "v-pushdeerKey",
+    "type": "PushDeer"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pushdeerServer/message/push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"pushkey\":\"v-pushdeerKey\",\"text\":\"## Uptime Kuma: Example Site down\",\"desp\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"type\":\"markdown\"}"
+      }
+     ],
+     "error": "0"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pushdeerServer/message/push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"pushkey\":\"v-pushdeerKey\",\"text\":\"## Uptime Kuma: Example Site up\",\"desp\":\"[Example Site] [✅ Up] 200 - OK\",\"type\":\"markdown\"}"
+      }
+     ],
+     "error": "0"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/pushdeerServer/message/push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"pushkey\":\"v-pushdeerKey\",\"text\":\"## Uptime Kuma Message\",\"desp\":\"My Monitor Testing\",\"type\":\"markdown\"}"
+      }
+     ],
+     "error": "0"
+    }
+   }
+  }
+ }
+}

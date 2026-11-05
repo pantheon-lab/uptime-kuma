@@ -1,0 +1,87 @@
+{
+ "provider": "AlertNow",
+ "variants": {
+  "default": {
+   "config": {
+    "alertNowWebhookURL": "https://svc.example/alertNowWebhookURL",
+    "type": "AlertNow"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/alertNowWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"summary\":\"[undefined] 🔴 Application went down - [Example Site] [🔴 Down] connect ECONNREFUSED >> https://kuma.example/dashboard/42\",\"status\":\"open\",\"event_type\":\"ERROR\",\"event_id\":\"20260102\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [],
+     "error": "Cannot read properties of undefined (reading 'replace')"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/alertNowWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"summary\":\" - My Monitor Testing\",\"status\":\"open\",\"event_type\":\"ERROR\",\"event_id\":\"20260102\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "alertNowWebhookURL": "https://svc.example/alertNowWebhookURL",
+    "type": "AlertNow"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/alertNowWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"summary\":\"[undefined] 🔴 Application went down - [Example Site] [🔴 Down] connect ECONNREFUSED >> https://kuma.example/dashboard/42\",\"status\":\"open\",\"event_type\":\"ERROR\",\"event_id\":\"20260102\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [],
+     "error": "Cannot read properties of undefined (reading 'replace')"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/alertNowWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"summary\":\" - My Monitor Testing\",\"status\":\"open\",\"event_type\":\"ERROR\",\"event_id\":\"20260102\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

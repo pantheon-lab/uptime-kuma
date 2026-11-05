@@ -1,0 +1,107 @@
+{
+ "provider": "smsc",
+ "variants": {
+  "default": {
+   "config": {
+    "smscTranslit": "v-smscTranslit",
+    "smscLogin": "v-smscLogin",
+    "smscPassword": "v-smscPassword",
+    "smscToNumber": "v-smscToNumber",
+    "smscSenderName": "v-smscSenderName",
+    "type": "smsc"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://smsc.kz/sys/send.php?fmt=3&translit=v-smscTranslit&login=v-smscLogin&psw=v-smscPassword&phones=v-smscToNumber&mes=%5BExample%20Site%5D%20%5B%20Down%5D%20connect%20ECONNREFUSED&sender=v-smscSenderName",
+       "headers": {
+        "Content-Type": "application/json"
+       }
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://smsc.kz/sys/send.php?fmt=3&translit=v-smscTranslit&login=v-smscLogin&psw=v-smscPassword&phones=v-smscToNumber&mes=%5BExample%20Site%5D%20%5B%20Up%5D%20200%20-%20OK&sender=v-smscSenderName",
+       "headers": {
+        "Content-Type": "application/json"
+       }
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://smsc.kz/sys/send.php?fmt=3&translit=v-smscTranslit&login=v-smscLogin&psw=v-smscPassword&phones=v-smscToNumber&mes=My%20Monitor%20Testing&sender=v-smscSenderName",
+       "headers": {
+        "Content-Type": "application/json"
+       }
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "smscTranslit": "v-smscTranslit",
+    "smscLogin": "v-smscLogin",
+    "smscPassword": "v-smscPassword",
+    "smscToNumber": "v-smscToNumber",
+    "smscSenderName": "v-smscSenderName",
+    "type": "smsc"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://smsc.kz/sys/send.php?fmt=3&translit=v-smscTranslit&login=v-smscLogin&psw=v-smscPassword&phones=v-smscToNumber&mes=%5BExample%20Site%5D%20%5B%20Down%5D%20connect%20ECONNREFUSED&sender=v-smscSenderName",
+       "headers": {
+        "Content-Type": "application/json"
+       }
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://smsc.kz/sys/send.php?fmt=3&translit=v-smscTranslit&login=v-smscLogin&psw=v-smscPassword&phones=v-smscToNumber&mes=%5BExample%20Site%5D%20%5B%20Up%5D%20200%20-%20OK&sender=v-smscSenderName",
+       "headers": {
+        "Content-Type": "application/json"
+       }
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://smsc.kz/sys/send.php?fmt=3&translit=v-smscTranslit&login=v-smscLogin&psw=v-smscPassword&phones=v-smscToNumber&mes=My%20Monitor%20Testing&sender=v-smscSenderName",
+       "headers": {
+        "Content-Type": "application/json"
+       }
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

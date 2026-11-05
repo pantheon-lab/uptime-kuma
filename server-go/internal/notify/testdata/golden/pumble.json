@@ -1,0 +1,105 @@
+{
+ "provider": "pumble",
+ "variants": {
+  "default": {
+   "config": {
+    "webhookURL": "https://svc.example/webhookURL",
+    "type": "pumble"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"attachments\":[{\"title\":\"Example Site is down\",\"text\":\"connect ECONNREFUSED\",\"color\":\"#DC3645\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"attachments\":[{\"title\":\"Example Site is up\",\"text\":\"200 - OK\",\"color\":\"#5BDD8B\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"attachments\":[{\"title\":\"Uptime Kuma Alert\",\"text\":\"My Monitor Testing\",\"color\":\"#5BDD8B\"}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "webhookURL": "https://svc.example/webhookURL",
+    "type": "pumble"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"attachments\":[{\"title\":\"Example Site is down\",\"text\":\"connect ECONNREFUSED\",\"color\":\"#DC3645\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"attachments\":[{\"title\":\"Example Site is up\",\"text\":\"200 - OK\",\"color\":\"#5BDD8B\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"attachments\":[{\"title\":\"Uptime Kuma Alert\",\"text\":\"My Monitor Testing\",\"color\":\"#5BDD8B\"}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,111 @@
+{
+ "provider": "signal",
+ "variants": {
+  "default": {
+   "config": {
+    "signalUseTemplate": "v-signalUseTemplate",
+    "signalTemplate": "v-signalTemplate",
+    "signalNumber": "v-signalNumber",
+    "signalRecipients": "v-signalRecipients",
+    "signalURL": "https://svc.example/signalURL",
+    "type": "signal"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/signalURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"v-signalTemplate\",\"number\":\"v-signalNumber\",\"recipients\":[\"v-signalRecipients\"]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/signalURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"v-signalTemplate\",\"number\":\"v-signalNumber\",\"recipients\":[\"v-signalRecipients\"]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/signalURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"v-signalTemplate\",\"number\":\"v-signalNumber\",\"recipients\":[\"v-signalRecipients\"]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "signalNumber": "v-signalNumber",
+    "signalRecipients": "v-signalRecipients",
+    "signalURL": "https://svc.example/signalURL",
+    "type": "signal"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/signalURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"number\":\"v-signalNumber\",\"recipients\":[\"v-signalRecipients\"]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/signalURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"[Example Site] [✅ Up] 200 - OK\",\"number\":\"v-signalNumber\",\"recipients\":[\"v-signalRecipients\"]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/signalURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"number\":\"v-signalNumber\",\"recipients\":[\"v-signalRecipients\"]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

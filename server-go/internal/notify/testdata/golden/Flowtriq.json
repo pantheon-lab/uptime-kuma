@@ -1,0 +1,113 @@
+{
+ "provider": "Flowtriq",
+ "variants": {
+  "default": {
+   "config": {
+    "flowtriqApiKey": "v-flowtriqApiKey",
+    "flowtriqWebhookUrl": "https://svc.example/flowtriqWebhookUrl",
+    "type": "Flowtriq"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/flowtriqWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-flowtriqApiKey"
+       },
+       "body": "{\"source\":\"uptime-kuma\",\"status\":\"down\",\"monitor\":\"Example Site\",\"msg\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"heartbeat\":{\"status\":0,\"time\":\"2026-01-02 03:04:05.678\",\"ping\":null,\"msg\":\"connect ECONNREFUSED\",\"timezone\":\"Asia/Hong_Kong\"},\"monitorInfo\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/flowtriqWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-flowtriqApiKey"
+       },
+       "body": "{\"source\":\"uptime-kuma\",\"status\":\"up\",\"monitor\":\"Example Site\",\"msg\":\"[Example Site] [✅ Up] 200 - OK\",\"heartbeat\":{\"status\":1,\"time\":\"2026-01-02 03:04:05.678\",\"ping\":123,\"msg\":\"200 - OK\",\"timezone\":\"Asia/Hong_Kong\"},\"monitorInfo\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/flowtriqWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-flowtriqApiKey"
+       },
+       "body": "{\"source\":\"uptime-kuma\",\"status\":\"info\",\"monitor\":\"Unknown\",\"msg\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "flowtriqApiKey": "v-flowtriqApiKey",
+    "flowtriqWebhookUrl": "https://svc.example/flowtriqWebhookUrl",
+    "type": "Flowtriq"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/flowtriqWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-flowtriqApiKey"
+       },
+       "body": "{\"source\":\"uptime-kuma\",\"status\":\"down\",\"monitor\":\"Example Site\",\"msg\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"heartbeat\":{\"status\":0,\"time\":\"2026-01-02 03:04:05.678\",\"ping\":null,\"msg\":\"connect ECONNREFUSED\",\"timezone\":\"Asia/Hong_Kong\"},\"monitorInfo\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/flowtriqWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-flowtriqApiKey"
+       },
+       "body": "{\"source\":\"uptime-kuma\",\"status\":\"up\",\"monitor\":\"Example Site\",\"msg\":\"[Example Site] [✅ Up] 200 - OK\",\"heartbeat\":{\"status\":1,\"time\":\"2026-01-02 03:04:05.678\",\"ping\":123,\"msg\":\"200 - OK\",\"timezone\":\"Asia/Hong_Kong\"},\"monitorInfo\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/flowtriqWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-flowtriqApiKey"
+       },
+       "body": "{\"source\":\"uptime-kuma\",\"status\":\"info\",\"monitor\":\"Unknown\",\"msg\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

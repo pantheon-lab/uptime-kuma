@@ -4,6 +4,13 @@
 
 # Uptime Kuma
 
+> [!WARNING]
+> **This is Pantheon Lab's fork, partway through a rewrite.** The Node.js server and MariaDB
+> support have been removed, and the backend is now the Go service in [`server-go/`](server-go/README.md).
+> It can run checks and has an API and Grafana dashboards, but it has no login or notifications
+> yet, and the web UI in `src/` can't connect to it. Don't use it to replace a working installation.
+> The rest of this file describes the original project.
+
 Uptime Kuma is an easy-to-use self-hosted monitoring tool.
 
 <a target="_blank" href="https://github.com/louislam/uptime-kuma"><img src="https://img.shields.io/github/stars/louislam/uptime-kuma?style=flat" /></a> <a target="_blank" href="https://hub.docker.com/r/louislam/uptime-kuma"><img src="https://img.shields.io/docker/pulls/louislam/uptime-kuma" /></a> <a target="_blank" href="https://hub.docker.com/r/louislam/uptime-kuma"><img src="https://img.shields.io/docker/v/louislam/uptime-kuma/2?label=docker%20image%20ver." /></a> <a target="_blank" href="https://github.com/louislam/uptime-kuma"><img src="https://img.shields.io/github/last-commit/louislam/uptime-kuma" /></a> <a target="_blank" href="https://opencollective.com/uptime-kuma"><img src="https://opencollective.com/uptime-kuma/total/badge.svg?label=Open%20Collective%20Backers&color=brightgreen" /></a>

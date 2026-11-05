@@ -1,0 +1,293 @@
+{
+ "provider": "amootsms",
+ "variants": {
+  "default": {
+   "config": {
+    "amootMobiles": "v-amootMobiles",
+    "amootApiToken": "v-amootApiToken",
+    "amootUsePattern": "v-amootUsePattern",
+    "amootPatternCodeId": "v-amootPatternCodeId",
+    "amootUseOwnLine": "v-amootUseOwnLine",
+    "amootLineNumber": "v-amootLineNumber",
+    "type": "amootsms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendWithPatternOWN",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-amootApiToken"
+       },
+       "body": "{\"Token\":\"v-amootApiToken\",\"LineNumber\":\"v-amootLineNumber\",\"Mobile\":\"v-amootMobiles\",\"PatternCodeID\":null,\"PatternValues\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendWithPatternOWN",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-amootApiToken"
+       },
+       "body": "{\"Token\":\"v-amootApiToken\",\"LineNumber\":\"v-amootLineNumber\",\"Mobile\":\"v-amootMobiles\",\"PatternCodeID\":null,\"PatternValues\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendWithPatternOWN",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-amootApiToken"
+       },
+       "body": "{\"Token\":\"v-amootApiToken\",\"LineNumber\":\"v-amootLineNumber\",\"Mobile\":\"v-amootMobiles\",\"PatternCodeID\":null,\"PatternValues\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "amootMobiles": "v-amootMobiles",
+    "amootApiToken": "v-amootApiToken",
+    "amootPatternCodeId": "v-amootPatternCodeId",
+    "amootLineNumber": "v-amootLineNumber",
+    "type": "amootsms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendSimple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "v-amootApiToken"
+       },
+       "body": "SendDateTime=2026-01-02+06%3A34%3A05&SMSMessageText=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&LineNumber=v-amootLineNumber&Mobiles=v-amootMobiles"
+      }
+     ],
+     "error": "Amoot SMS API returned an unexpected response."
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendSimple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "v-amootApiToken"
+       },
+       "body": "SendDateTime=2026-01-02+06%3A34%3A05&SMSMessageText=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&LineNumber=v-amootLineNumber&Mobiles=v-amootMobiles"
+      }
+     ],
+     "error": "Amoot SMS API returned an unexpected response."
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendSimple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "v-amootApiToken"
+       },
+       "body": "SendDateTime=2026-01-02+06%3A34%3A05&SMSMessageText=My+Monitor+Testing&LineNumber=v-amootLineNumber&Mobiles=v-amootMobiles"
+      }
+     ],
+     "error": "Amoot SMS API returned an unexpected response."
+    }
+   }
+  },
+  "simple": {
+   "config": {
+    "amootMobiles": "v-amootMobiles",
+    "amootApiToken": "v-amootApiToken",
+    "amootUsePattern": false,
+    "amootPatternCodeId": "v-amootPatternCodeId",
+    "amootUseOwnLine": "v-amootUseOwnLine",
+    "amootLineNumber": "v-amootLineNumber",
+    "type": "amootsms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendSimple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "v-amootApiToken"
+       },
+       "body": "SendDateTime=2026-01-02+06%3A34%3A05&SMSMessageText=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&LineNumber=v-amootLineNumber&Mobiles=v-amootMobiles"
+      }
+     ],
+     "error": "Amoot SMS API returned an unexpected response."
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendSimple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "v-amootApiToken"
+       },
+       "body": "SendDateTime=2026-01-02+06%3A34%3A05&SMSMessageText=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&LineNumber=v-amootLineNumber&Mobiles=v-amootMobiles"
+      }
+     ],
+     "error": "Amoot SMS API returned an unexpected response."
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendSimple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "v-amootApiToken"
+       },
+       "body": "SendDateTime=2026-01-02+06%3A34%3A05&SMSMessageText=My+Monitor+Testing&LineNumber=v-amootLineNumber&Mobiles=v-amootMobiles"
+      }
+     ],
+     "error": "Amoot SMS API returned an unexpected response."
+    }
+   }
+  },
+  "pattern": {
+   "config": {
+    "amootMobiles": "v-amootMobiles",
+    "amootApiToken": "v-amootApiToken",
+    "amootUsePattern": true,
+    "amootPatternCodeId": "7",
+    "amootUseOwnLine": false,
+    "amootLineNumber": "v-amootLineNumber",
+    "type": "amootsms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendWithPattern",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "v-amootApiToken"
+       },
+       "body": "Token=v-amootApiToken&Mobile=v-amootMobiles&PatternCodeID=7&PatternValues=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendWithPattern",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "v-amootApiToken"
+       },
+       "body": "Token=v-amootApiToken&Mobile=v-amootMobiles&PatternCodeID=7&PatternValues=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendWithPattern",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": "v-amootApiToken"
+       },
+       "body": "Token=v-amootApiToken&Mobile=v-amootMobiles&PatternCodeID=7&PatternValues=My+Monitor+Testing"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "own": {
+   "config": {
+    "amootMobiles": "v-amootMobiles",
+    "amootApiToken": "v-amootApiToken",
+    "amootUsePattern": true,
+    "amootPatternCodeId": "7",
+    "amootUseOwnLine": true,
+    "amootLineNumber": "v-amootLineNumber",
+    "type": "amootsms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendWithPatternOWN",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-amootApiToken"
+       },
+       "body": "{\"Token\":\"v-amootApiToken\",\"LineNumber\":\"v-amootLineNumber\",\"Mobile\":\"v-amootMobiles\",\"PatternCodeID\":7,\"PatternValues\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendWithPatternOWN",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-amootApiToken"
+       },
+       "body": "{\"Token\":\"v-amootApiToken\",\"LineNumber\":\"v-amootLineNumber\",\"Mobile\":\"v-amootMobiles\",\"PatternCodeID\":7,\"PatternValues\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://portal.amootsms.com/rest/SendWithPatternOWN",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-amootApiToken"
+       },
+       "body": "{\"Token\":\"v-amootApiToken\",\"LineNumber\":\"v-amootLineNumber\",\"Mobile\":\"v-amootMobiles\",\"PatternCodeID\":7,\"PatternValues\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

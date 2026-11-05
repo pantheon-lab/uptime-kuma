@@ -27,6 +27,11 @@ type Checker interface {
 	Run(ctx context.Context, m monitor.Monitor) monitor.Result
 }
 
+// Notifier sends alerts. It must not block.
+type Notifier interface {
+	Notify(m monitor.Monitor, beat store.Beat)
+}
+
 // Sink receives finished beats.
 type Sink interface {
 	Add(beat store.Beat)
@@ -45,6 +50,8 @@ type Scheduler struct {
 	sink    Sink
 	log     *slog.Logger
 	slots   chan struct{}
+	// notifier is optional, and set before Start.
+	notifier Notifier
 
 	mu      sync.Mutex
 	stopped bool
@@ -72,6 +79,9 @@ func New(checker Checker, sink Sink, concurrency int, log *slog.Logger) *Schedul
 		last:    make(map[int32]*monitor.Previous),
 	}
 }
+
+// SetNotifier sets where alerts go. Call it before Start.
+func (s *Scheduler) SetNotifier(n Notifier) { s.notifier = n }
 
 // Start begins checking monitors, spreading first checks over each interval so a
 // restart doesn't check everything in the same second. previous holds the last
@@ -229,7 +239,7 @@ func (s *Scheduler) run(ctx context.Context, m monitor.Monitor, delay time.Durat
 		}
 
 		out := m.Next(state, result)
-		state = &monitor.Previous{Status: out.Status, Retries: out.Retries}
+		state = &monitor.Previous{Status: out.Status, Retries: out.Retries, DownCount: out.DownCount}
 		beat := store.Beat{
 			MonitorID: m.ID,
 			Time:      startedAt,
@@ -238,6 +248,7 @@ func (s *Scheduler) run(ctx context.Context, m monitor.Monitor, delay time.Durat
 			Msg:       out.Msg,
 			Important: out.Important,
 			Retries:   out.Retries,
+			DownCount: out.DownCount,
 		}
 
 		// The status comes from the beat rather than the check, so that upside-down
@@ -257,6 +268,9 @@ func (s *Scheduler) run(ctx context.Context, m monitor.Monitor, delay time.Durat
 		metrics.SetMonitorUp(m.ID, m.Name, group, out.Status == monitor.StatusUp)
 		span.End()
 		s.sink.Add(beat)
+		if out.Notify && s.notifier != nil {
+			s.notifier.Notify(m, beat)
+		}
 
 		interval := m.Interval
 		if out.Status == monitor.StatusPending && m.RetryInterval > 0 {

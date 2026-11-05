@@ -2,6 +2,8 @@
 package main
 
 import (
+	_ "time/tzdata" // The container image has no timezone files, and KUMA_TIMEZONE needs them.
+
 	"context"
 	"errors"
 	"fmt"
@@ -10,11 +12,13 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/api"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/notify"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/scheduler"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/telemetry"
@@ -28,6 +32,19 @@ func main() {
 		log.Error("fatal", "error", err)
 		os.Exit(1)
 	}
+}
+
+// loadLocation returns the timezone that alerts show, from KUMA_TIMEZONE.
+func loadLocation() (*time.Location, error) {
+	name := os.Getenv("KUMA_TIMEZONE")
+	if name == "" {
+		return time.UTC, nil
+	}
+	location, err := time.LoadLocation(name)
+	if err != nil {
+		return nil, fmt.Errorf("KUMA_TIMEZONE: %w", err)
+	}
+	return location, nil
 }
 
 func run(log *slog.Logger) error {
@@ -107,9 +124,18 @@ func run(log *slog.Logger) error {
 	go writer.Run()
 	checker := check.New(db)
 	defer checker.Close()
+	location, err := loadLocation()
+	if err != nil {
+		return err
+	}
+	notifyEnv := notify.DefaultEnv(strings.TrimRight(os.Getenv("KUMA_BASE_URL"), "/"))
+	dispatcher := notify.NewDispatcher(db, notifyEnv, location, log)
+	defer dispatcher.Close()
 	sched := scheduler.New(checker, writer, concurrency, log)
+	sched.SetNotifier(dispatcher)
 	sched.Start(monitors, previous)
 	apiServer := api.New(db, sched, hub, token, log)
+	apiServer.SetNotifyEnv(notifyEnv)
 	if raw := os.Getenv("API_KEY_RATE_LIMIT"); raw != "" {
 		perSecond, err := strconv.ParseFloat(raw, 64)
 		if err != nil || perSecond <= 0 {

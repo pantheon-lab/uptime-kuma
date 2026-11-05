@@ -1,0 +1,116 @@
+{
+ "provider": "ClickUp",
+ "variants": {
+  "default": {
+   "config": {
+    "clickupToken": "v-clickupToken",
+    "clickupDisableUrl": "https://svc.example/clickupDisableUrl",
+    "clickupWorkspaceId": "v-clickupWorkspaceId",
+    "clickupChannelId": "v-clickupChannelId",
+    "type": "ClickUp"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.clickup.com/api/v3/workspaces/v-clickupWorkspaceId/chat/channels/v-clickupChannelId/messages",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-clickupToken"
+       },
+       "body": "{\"type\":\"message\",\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\\n\\n**Time (Asia/Hong_Kong):** 2026-01-02 11:04:05\",\"content_format\":\"text/md\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.clickup.com/api/v3/workspaces/v-clickupWorkspaceId/chat/channels/v-clickupChannelId/messages",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-clickupToken"
+       },
+       "body": "{\"type\":\"message\",\"content\":\"[Example Site] [✅ Up] 200 - OK\\n\\n**Time (Asia/Hong_Kong):** 2026-01-02 11:04:05\",\"content_format\":\"text/md\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.clickup.com/api/v3/workspaces/v-clickupWorkspaceId/chat/channels/v-clickupChannelId/messages",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-clickupToken"
+       },
+       "body": "{\"type\":\"message\",\"content\":\"My Monitor Testing\",\"content_format\":\"text/md\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "clickupToken": "v-clickupToken",
+    "clickupWorkspaceId": "v-clickupWorkspaceId",
+    "clickupChannelId": "v-clickupChannelId",
+    "type": "ClickUp"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.clickup.com/api/v3/workspaces/v-clickupWorkspaceId/chat/channels/v-clickupChannelId/messages",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-clickupToken"
+       },
+       "body": "{\"type\":\"message\",\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\\n\\n**Time (Asia/Hong_Kong):** 2026-01-02 11:04:05\\n**Address:** https://site.example/health\",\"content_format\":\"text/md\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.clickup.com/api/v3/workspaces/v-clickupWorkspaceId/chat/channels/v-clickupChannelId/messages",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-clickupToken"
+       },
+       "body": "{\"type\":\"message\",\"content\":\"[Example Site] [✅ Up] 200 - OK\\n\\n**Time (Asia/Hong_Kong):** 2026-01-02 11:04:05\\n**Address:** https://site.example/health\",\"content_format\":\"text/md\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.clickup.com/api/v3/workspaces/v-clickupWorkspaceId/chat/channels/v-clickupChannelId/messages",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-clickupToken"
+       },
+       "body": "{\"type\":\"message\",\"content\":\"My Monitor Testing\",\"content_format\":\"text/md\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

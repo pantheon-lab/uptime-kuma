@@ -1,0 +1,113 @@
+{
+ "provider": "Kook",
+ "variants": {
+  "default": {
+   "config": {
+    "kookGuildID": "v-kookGuildID",
+    "kookBotToken": "v-kookBotToken",
+    "type": "Kook"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.kookapp.cn/api/v3/message/create",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bot v-kookBotToken"
+       },
+       "body": "{\"target_id\":\"v-kookGuildID\",\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.kookapp.cn/api/v3/message/create",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bot v-kookBotToken"
+       },
+       "body": "{\"target_id\":\"v-kookGuildID\",\"content\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.kookapp.cn/api/v3/message/create",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bot v-kookBotToken"
+       },
+       "body": "{\"target_id\":\"v-kookGuildID\",\"content\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "kookGuildID": "v-kookGuildID",
+    "kookBotToken": "v-kookBotToken",
+    "type": "Kook"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.kookapp.cn/api/v3/message/create",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bot v-kookBotToken"
+       },
+       "body": "{\"target_id\":\"v-kookGuildID\",\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.kookapp.cn/api/v3/message/create",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bot v-kookBotToken"
+       },
+       "body": "{\"target_id\":\"v-kookGuildID\",\"content\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://www.kookapp.cn/api/v3/message/create",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bot v-kookBotToken"
+       },
+       "body": "{\"target_id\":\"v-kookGuildID\",\"content\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}
