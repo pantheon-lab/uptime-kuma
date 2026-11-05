@@ -8,7 +8,7 @@ on:
   pull_request_target: # zizmor: ignore[dangerous-triggers]
     types: [opened, closed]
     branches:
-      - master
+      - main
 
 permissions:
   pull-requests: write
