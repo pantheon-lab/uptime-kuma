@@ -34,6 +34,9 @@ docker compose up --build
 | `KUMA_TRACE_SUCCESS_RATIO`    | `0.01`           | Share of successful traces to export. Failures are always exported                              |
 | `GRAFANA_DB_PASSWORD`         | not set          | Creates or updates the read-only `kuma_grafana` database role                                   |
 
+To deploy on Kubernetes, use the Helm chart in [`charts/uptime-kuma`](charts/uptime-kuma/README.md), which
+runs the same stack.
+
 Run a single instance: there's no coordination between schedulers, so two instances
 would both run every check.
 

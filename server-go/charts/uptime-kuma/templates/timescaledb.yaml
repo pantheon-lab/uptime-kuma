@@ -1,0 +1,98 @@
+{{- if .Values.timescaledb.enabled }}
+{{- $name := include "uptime-kuma.component" (dict "root" . "name" "timescaledb") -}}
+{{- $v := .Values.timescaledb -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "timescaledb") | nindent 4 }}
+spec:
+  serviceName: {{ $name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "timescaledb") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "timescaledb") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        fsGroup: 70
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: timescaledb
+          image: {{ include "uptime-kuma.image" $v.image }}
+          imagePullPolicy: {{ $v.image.pullPolicy }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: {{ $v.database | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "uptime-kuma.secretName" . }}
+                  key: POSTGRES_PASSWORD
+            # A subdirectory, because a fresh volume may hold lost+found.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            # The image tunes memory from the host by default, which ignores the pod's limit.
+            {{- with $v.resources.limits }}
+            {{- if .memory }}
+            - name: TS_TUNE_MEMORY
+              value: {{ .memory | replace "Gi" "GB" | replace "Mi" "MB" | quote }}
+            {{- end }}
+            {{- end }}
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres", "-d", {{ $v.database | quote }}, "-h", "127.0.0.1"]
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres", "-d", {{ $v.database | quote }}, "-h", "127.0.0.1"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: shm
+              mountPath: /dev/shm
+          resources:
+            {{- toYaml $v.resources | nindent 12 }}
+      volumes:
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- include "uptime-kuma.storageClass" $v.persistence.storageClass | nindent 8 }}
+        resources:
+          requests:
+            storage: {{ $v.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "timescaledb") | nindent 4 }}
+spec:
+  selector:
+    {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "timescaledb") | nindent 4 }}
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+{{- end }}

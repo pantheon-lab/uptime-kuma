@@ -1,0 +1,118 @@
+{{- if .Values.tempo.enabled }}
+{{- $name := include "uptime-kuma.component" (dict "root" . "name" "tempo") -}}
+{{- $v := .Values.tempo -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "tempo") | nindent 4 }}
+data:
+  # Mirrors server-go/observability/tempo.yaml.
+  tempo.yaml: |
+    server:
+      http_listen_port: 3200
+
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /var/tempo/blocks
+        wal:
+          path: /var/tempo/wal
+
+    compactor:
+      compaction:
+        block_retention: {{ $v.retention }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "tempo") | nindent 4 }}
+spec:
+  serviceName: {{ $name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "tempo") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "tempo") | nindent 8 }}
+      annotations:
+        checksum/config: {{ $v.retention | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: tempo
+          image: {{ include "uptime-kuma.image" $v.image }}
+          args: ["-config.file=/etc/tempo/tempo.yaml"]
+          ports:
+            - name: http
+              containerPort: 3200
+            - name: otlp-grpc
+              containerPort: 4317
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 15
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tempo
+              readOnly: true
+            - name: data
+              mountPath: /var/tempo
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml $v.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $name }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- include "uptime-kuma.storageClass" $v.persistence.storageClass | nindent 8 }}
+        resources:
+          requests:
+            storage: {{ $v.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "tempo") | nindent 4 }}
+spec:
+  selector:
+    {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "tempo") | nindent 4 }}
+  ports:
+    - name: http
+      port: 3200
+      targetPort: http
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+      appProtocol: grpc
+{{- end }}

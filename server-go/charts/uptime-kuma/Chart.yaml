@@ -1,0 +1,9 @@
+apiVersion: v2
+name: uptime-kuma
+description: Pantheon Lab's Uptime Kuma Go backend (kuma-analytics), with TimescaleDB and optional Grafana, Prometheus, Tempo and an OpenTelemetry Collector
+type: application
+version: 0.1.0
+appVersion: "3.0.0-beta.0"
+home: https://github.com/pantheon-lab/uptime-kuma
+sources:
+  - https://github.com/pantheon-lab/uptime-kuma/tree/main/server-go

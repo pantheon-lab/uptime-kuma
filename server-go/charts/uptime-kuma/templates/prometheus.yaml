@@ -1,0 +1,76 @@
+{{- if .Values.prometheus.enabled }}
+{{- $name := include "uptime-kuma.component" (dict "root" . "name" "prometheus") -}}
+{{- $v := .Values.prometheus -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "prometheus") | nindent 4 }}
+spec:
+  serviceName: {{ $name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "prometheus") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "prometheus") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+        - name: prometheus
+          image: {{ include "uptime-kuma.image" $v.image }}
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time={{ $v.retention }}
+            - --web.enable-remote-write-receiver
+            - --enable-feature=exemplar-storage
+          ports:
+            - name: http
+              containerPort: 9090
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+          volumeMounts:
+            - name: data
+              mountPath: /prometheus
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml $v.resources | nindent 12 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- include "uptime-kuma.storageClass" $v.persistence.storageClass | nindent 8 }}
+        resources:
+          requests:
+            storage: {{ $v.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "prometheus") | nindent 4 }}
+spec:
+  selector:
+    {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "prometheus") | nindent 4 }}
+  ports:
+    - name: http
+      port: 9090
+      targetPort: http
+{{- end }}

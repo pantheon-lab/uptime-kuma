@@ -1,0 +1,189 @@
+{{- $name := include "uptime-kuma.component" (dict "root" . "name" "analytics") -}}
+{{- $secret := include "uptime-kuma.secretName" . -}}
+{{- if and .Values.analytics.apiToken (lt (len .Values.analytics.apiToken) 32) }}
+{{- fail "analytics.apiToken must be at least 32 characters" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "analytics") | nindent 4 }}
+spec:
+  # Never more than one: schedulers don't coordinate, so two pods would run every check twice.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "analytics") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "analytics") | nindent 8 }}
+      annotations:
+        {{- if not .Values.existingSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.analytics.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: analytics
+          image: {{ printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3002
+          env:
+            - name: LISTEN_ADDR
+              value: "0.0.0.0:3002"
+            - name: ANALYTICS_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: ANALYTICS_API_TOKEN
+            {{- if .Values.timescaledb.enabled }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: {{ printf "postgres://postgres:$(POSTGRES_PASSWORD)@%s:5432/%s?sslmode=disable" (include "uptime-kuma.component" (dict "root" . "name" "timescaledb")) .Values.timescaledb.database | quote }}
+            {{- else }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: DATABASE_URL
+            {{- end }}
+            {{- if .Values.grafana.enabled }}
+            - name: GRAFANA_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: GRAFANA_DB_PASSWORD
+            {{- end }}
+            - name: RETENTION_DAYS
+              value: {{ .Values.analytics.retentionDays | quote }}
+            - name: CHECK_CONCURRENCY
+              value: {{ .Values.analytics.checkConcurrency | quote }}
+            - name: API_KEY_RATE_LIMIT
+              value: {{ .Values.analytics.apiKeyRateLimit | quote }}
+            - name: KUMA_BASE_URL
+              value: {{ .Values.analytics.baseUrl | quote }}
+            - name: KUMA_TIMEZONE
+              value: {{ .Values.analytics.timezone | quote }}
+            - name: KUMA_TRACE_SUCCESS_RATIO
+              value: {{ .Values.analytics.traceSuccessRatio | quote }}
+            {{- if .Values.otelCollector.enabled }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ printf "http://%s:4317" (include "uptime-kuma.component" (dict "root" . "name" "otel-collector")) | quote }}
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: "true"
+            {{- end }}
+            {{- with .Values.analytics.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.analytics.resources | nindent 12 }}
+      {{- with .Values.analytics.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.analytics.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.analytics.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "analytics") | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "analytics") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "analytics") | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tlsSecretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $name }}
+                port:
+                  name: http
+{{- end }}

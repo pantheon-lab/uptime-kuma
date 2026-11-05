@@ -1,0 +1,69 @@
+{{- if .Values.import.enabled }}
+{{- if not .Values.import.dsnSecret }}
+{{- fail "import.dsnSecret is required when import.enabled is true" }}
+{{- end }}
+{{- $secret := include "uptime-kuma.secretName" . -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Named by its args and image, so a change runs a new job instead of patching an immutable one.
+  name: {{ printf "%s-import-%s" (include "uptime-kuma.fullname" .) (printf "%s%s%s" (toJson .Values.import.args) .Values.image.repository (toString .Values.image.tag) | sha256sum | trunc 8) }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "import") | nindent 4 }}
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "import") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: import
+          image: {{ printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/kuma-import"]
+          {{- with .Values.import.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: SOURCE_MARIADB_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.import.dsnSecret }}
+                  key: {{ .Values.import.dsnSecretKey }}
+            {{- if .Values.timescaledb.enabled }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: {{ printf "postgres://postgres:$(POSTGRES_PASSWORD)@%s:5432/%s?sslmode=disable" (include "uptime-kuma.component" (dict "root" . "name" "timescaledb")) .Values.timescaledb.database | quote }}
+            {{- else }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: DATABASE_URL
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+{{- end }}

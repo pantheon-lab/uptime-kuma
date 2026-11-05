@@ -6,3 +6,7 @@ src/lang/*.json
 server-go/internal/api/openapi.json
 server-go/observability/grafana/dashboards/*.json
 server-go/internal/notify/testdata/
+
+# Helm templates aren't YAML until rendered, and dashboards/ links to the dashboards above
+server-go/charts/*/templates/
+server-go/charts/*/dashboards/

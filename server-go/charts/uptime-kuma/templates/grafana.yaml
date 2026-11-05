@@ -1,0 +1,232 @@
+{{- if .Values.grafana.enabled }}
+{{- $name := include "uptime-kuma.component" (dict "root" . "name" "grafana") -}}
+{{- $v := .Values.grafana -}}
+{{- $secret := include "uptime-kuma.secretName" . -}}
+{{- $dbHost := default (printf "%s:5432" (include "uptime-kuma.component" (dict "root" . "name" "timescaledb"))) $v.databaseHost -}}
+{{- $dbName := default .Values.timescaledb.database $v.databaseName -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-provisioning
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "grafana") | nindent 4 }}
+data:
+  # Mirrors server-go/observability/grafana/provisioning, with this release's service names.
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: TimescaleDB
+        uid: timescaledb
+        type: postgres
+        access: proxy
+        url: {{ $dbHost }}
+        user: kuma_grafana
+        isDefault: true
+        jsonData:
+          database: {{ $dbName }}
+          sslmode: {{ $v.databaseSslMode }}
+          postgresVersion: 1700
+          timescaledb: true
+        secureJsonData:
+          password: $GRAFANA_DB_PASSWORD
+      {{- if .Values.prometheus.enabled }}
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://{{ include "uptime-kuma.component" (dict "root" . "name" "prometheus") }}:9090
+        jsonData:
+          exemplarTraceIdDestinations:
+            - name: trace_id
+              datasourceUid: tempo
+      {{- end }}
+      {{- if .Values.tempo.enabled }}
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://{{ include "uptime-kuma.component" (dict "root" . "name" "tempo") }}:3200
+      {{- end }}
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: Uptime Kuma
+        folder: Uptime Kuma
+        type: file
+        disableDeletion: true
+        allowUiUpdates: false
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-dashboards
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "grafana") | nindent 4 }}
+data:
+  {{- /* dashboards/ links to server-go/observability/grafana/dashboards. */}}
+  {{- range $path, $_ := .Files.Glob "dashboards/*.json" }}
+  {{ base $path }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+---
+{{- if $v.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "grafana") | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- include "uptime-kuma.storageClass" $v.persistence.storageClass | nindent 2 }}
+  resources:
+    requests:
+      storage: {{ $v.persistence.size }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "grafana") | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "grafana") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "grafana") | nindent 8 }}
+      annotations:
+        checksum/provisioning: {{ printf "%s%s%s" $dbHost .Values.prometheus.enabled .Values.tempo.enabled | sha256sum }}
+        checksum/dashboards: {{ (.Files.Glob "dashboards/*.json").AsConfig | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        runAsGroup: 472
+        fsGroup: 472
+      containers:
+        - name: grafana
+          image: {{ include "uptime-kuma.image" $v.image }}
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: GRAFANA_ADMIN_PASSWORD
+            - name: GRAFANA_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: GRAFANA_DB_PASSWORD
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+            - name: GF_ANALYTICS_REPORTING_ENABLED
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+              value: "false"
+            - name: GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH
+              value: /var/lib/grafana/dashboards/uptime-by-group.json
+            {{- if $v.ingress.enabled }}
+            - name: GF_SERVER_ROOT_URL
+              value: {{ printf "%s://%s/" (ternary "https" "http" (not (empty $v.ingress.tlsSecretName))) $v.ingress.host | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/grafana
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+              subPath: datasources.yaml
+              readOnly: true
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
+              subPath: dashboards.yaml
+              readOnly: true
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml $v.resources | nindent 12 }}
+      volumes:
+        - name: data
+          {{- if $v.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ $name }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: provisioning
+          configMap:
+            name: {{ $name }}-provisioning
+        - name: dashboards
+          configMap:
+            name: {{ $name }}-dashboards
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "grafana") | nindent 4 }}
+spec:
+  selector:
+    {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "grafana") | nindent 4 }}
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+{{- if $v.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "grafana") | nindent 4 }}
+  {{- with $v.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $v.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if $v.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ $v.ingress.host | quote }}
+      secretName: {{ $v.ingress.tlsSecretName }}
+  {{- end }}
+  rules:
+    - host: {{ $v.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $name }}
+                port:
+                  name: http
+{{- end }}
+{{- end }}
