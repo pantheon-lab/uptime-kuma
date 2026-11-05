@@ -413,7 +413,7 @@ func TestGroupUptimeIsShareOfSuccessfulChecks(t *testing.T) {
 		var value float64
 		err := s.pool.QueryRow(ctx, `
 			SELECT sum(h.up)::float8 / NULLIF(sum(h.up + h.down), 0)
-			FROM stat_hourly h JOIN monitor_group_member g USING (monitor_id)
+			FROM uptime_hourly h JOIN monitor_group_member g USING (monitor_id)
 			WHERE g.group_name = $1 AND h.bucket >= now() - INTERVAL '2 hours'`, name).Scan(&value)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
@@ -457,6 +457,8 @@ func TestReadOnlyRoleCantSeeSecrets(t *testing.T) {
 		`SELECT count(*) FROM heartbeat`,
 		`SELECT count(*) FROM stat_hourly`,
 		`SELECT count(*) FROM stat_daily`,
+		`SELECT count(*) FROM uptime_hourly`,
+		`SELECT count(*) FROM uptime_daily`,
 		`SELECT count(*) FROM monitor_group_member`,
 		`SELECT id, name, type, active, parent_id FROM monitor`,
 	} {
@@ -561,5 +563,38 @@ func TestOverlappingDeletesSucceed(t *testing.T) {
 	}
 	if len(stats) != 0 {
 		t.Errorf("stats still report deleted monitors: %+v", stats)
+	}
+}
+
+func TestBeatsAfterARefreshStillCount(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	m, err := s.CreateMonitor(ctx, member("site", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	beat := func(at time.Time) {
+		t.Helper()
+		if _, err := s.InsertBeats(ctx, []Beat{{MonitorID: m.ID, Time: at, Status: monitor.StatusUp}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	beat(now.Add(-2 * time.Hour))
+	beat(now.Add(-2 * time.Second))
+	if err := s.RefreshAggregates(ctx); err != nil {
+		t.Fatal(err)
+	}
+	beat(now.Add(-time.Second))
+
+	for _, view := range []string{"uptime_hourly", "uptime_daily", "stat_hourly", "stat_daily"} {
+		var up int64
+		err := s.pool.QueryRow(ctx, `SELECT COALESCE(sum(up), 0)::bigint FROM `+view+` WHERE monitor_id = $1`, m.ID).Scan(&up)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if up != 3 {
+			t.Errorf("%s has %d beats, want 3: a beat after a refresh went missing", view, up)
+		}
 	}
 }

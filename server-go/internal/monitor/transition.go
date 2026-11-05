@@ -37,7 +37,7 @@ func (m *Monitor) Next(prev *Previous, result Result) Outcome {
 		retries = prev.Retries
 	}
 
-	out := Outcome{Ping: result.Ping, Msg: sanitizeMsg(result.Msg)}
+	out := Outcome{Ping: result.Ping, Msg: SanitizeMsg(result.Msg)}
 	if result.Pending {
 		out.Status = StatusPending
 		out.Important = prev == nil || IsImportant(prev.Status, out.Status)
@@ -97,9 +97,9 @@ func IsImportant(previous, current int16) bool {
 	return false
 }
 
-// sanitizeMsg makes remote text safe to store. PostgreSQL rejects NUL and invalid
+// SanitizeMsg makes remote text safe to store. PostgreSQL rejects NUL and invalid
 // UTF-8, and one bad message must not fail a whole batch of beats.
-func sanitizeMsg(msg string) string {
+func SanitizeMsg(msg string) string {
 	if len(msg) > maxMsgBytes {
 		msg = msg[:maxMsgBytes]
 	}

@@ -147,6 +147,48 @@ Beats are unique per monitor and time, so a retry can't double count them.
 Uptime is `up / (up + down)`, where pending counts as down and maintenance is excluded,
 matching the Node.js backend.
 
+## Importing from MariaDB
+
+`kuma-import` copies monitors, groups and history from an Uptime Kuma MariaDB database. It only
+reads the source, inside a read-only transaction. Give it a user that can only read, too:
+
+```sql
+CREATE USER 'kuma_import'@'%' IDENTIFIED BY '...';
+GRANT SELECT ON kuma.* TO 'kuma_import'@'%';
+```
+
+It's a dry run unless you pass `-apply`. The report goes to stdout as JSON, and holds no credentials.
+
+```bash
+export SOURCE_MARIADB_DSN='kuma_import:password@tcp(host:3306)/kuma'
+
+# See what would happen
+docker compose run --rm --no-deps -e SOURCE_MARIADB_DSN --entrypoint /kuma-import analytics
+
+# Import. Monitors arrive paused, so nothing checks twice
+docker compose run --rm --no-deps -e SOURCE_MARIADB_DSN --entrypoint /kuma-import analytics -apply
+
+# When ready to run both side by side: resume what was active in the source, then restart
+docker compose run --rm --no-deps -e SOURCE_MARIADB_DSN --entrypoint /kuma-import analytics -apply -activate
+docker compose restart analytics
+```
+
+Check these parts of the report:
+
+- `skipped` lists monitors that weren't imported, and why. Unsupported types and settings are skipped
+  because checking without them would show false results. Monitors with basic or bearer authentication are
+  imported with an `Authorization` header.
+- `droppedSettings` counts settings that are lost but don't change whether a check passes.
+- `importedWithNotifications` counts monitors whose alerts don't exist here yet.
+
+You can run it as often as you like. It duplicates nothing and picks up changes, except for monitors that have
+been resumed here, which are left alone because they produce their own data. Notifications, tags, status pages,
+maintenance windows and users aren't imported.
+
+Uptime before the last whole hour comes from the source's aggregates, and everything after comes from beats, so
+nothing counts twice. The same applies per day for daily figures. Dashboards and the API read the `uptime_hourly`
+and `uptime_daily` views, which join the two.
+
 ## Observability
 
 Grafana is at http://localhost:3003. Log in as `admin` with `GRAFANA_ADMIN_PASSWORD`. Set

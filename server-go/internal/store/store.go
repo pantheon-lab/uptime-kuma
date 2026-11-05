@@ -162,9 +162,9 @@ func (s *Store) Chart(ctx context.Context, monitorID int32, hours int) ([]ChartP
 	case hours <= 24:
 		query = fmt.Sprintf(fromRaw, "5 minutes")
 	case hours <= 24*30:
-		query = fmt.Sprintf(aggregated, "stat_hourly")
+		query = fmt.Sprintf(aggregated, "uptime_hourly")
 	default:
-		query = fmt.Sprintf(aggregated, "stat_daily")
+		query = fmt.Sprintf(aggregated, "uptime_daily")
 	}
 
 	rows, err := s.pool.Query(ctx, query, monitorID, hours)
@@ -208,14 +208,14 @@ func (s *Store) Stats(ctx context.Context) ([]MonitorStats, error) {
 		WITH hourly AS (
 			SELECT monitor_id, sum(up)::bigint AS up, sum(down)::bigint AS down,
 			       sum(ping_sum) AS ping_sum, sum(ping_count)::bigint AS ping_count
-			FROM stat_hourly WHERE bucket >= now() - INTERVAL '24 hours'
+			FROM uptime_hourly WHERE bucket >= now() - INTERVAL '24 hours'
 			GROUP BY monitor_id
 		), daily AS (
 			SELECT monitor_id,
 			       (sum(up) FILTER (WHERE bucket >= now() - INTERVAL '30 days'))::bigint AS up30,
 			       (sum(down) FILTER (WHERE bucket >= now() - INTERVAL '30 days'))::bigint AS down30,
 			       sum(up)::bigint AS up1y, sum(down)::bigint AS down1y
-			FROM stat_daily WHERE bucket >= now() - INTERVAL '365 days'
+			FROM uptime_daily WHERE bucket >= now() - INTERVAL '365 days'
 			GROUP BY monitor_id
 		)
 		SELECT COALESCE(h.monitor_id, d.monitor_id),
