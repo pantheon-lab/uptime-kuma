@@ -5,6 +5,7 @@ import (
 	_ "time/tzdata" // The container image has no timezone files, and KUMA_TIMEZONE needs them.
 
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -133,6 +134,16 @@ func run(log *slog.Logger) error {
 	go writer.Run()
 	checker := check.New(db)
 	checker.SetDNSResults(db)
+	// The key is saved under Settings > General in the web UI.
+	checker.SetSteamKey(func(ctx context.Context) (string, error) {
+		settings, err := db.Settings(ctx)
+		if err != nil {
+			return "", err
+		}
+		var key string
+		_ = json.Unmarshal(settings["steamAPIKey"], &key)
+		return key, nil
+	})
 	defer checker.Close()
 	if err := check.PingAllowed(); err != nil {
 		log.Warn("ping monitors will fail", "detail", err)

@@ -461,6 +461,35 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 			}
 		}
 		return checked(m)
+	case monitor.TypeNTP, monitor.TypeSNMP, monitor.TypeSMTP, monitor.TypeSIP, monitor.TypeRADIUS, monitor.TypeSteam:
+		m.Hostname = strings.TrimSpace(row["hostname"].String)
+		m.Port = int32(intOf(row["port"]))
+		m.IgnoreTLS = boolOf(row["ignore_tls"])
+		switch m.Type {
+		case monitor.TypeNTP:
+			m.NTPStratumThreshold = int32(intOf(row["ntp_stratum_threshold"]))
+			m.NTPTimeOffsetThreshold = floatOf(row["ntp_time_offset_threshold"])
+			m.NTPRootDispersionThreshold = floatOf(row["ntp_root_dispersion_threshold"])
+		case monitor.TypeSNMP:
+			m.SNMPOID = strings.TrimSpace(row["snmp_oid"].String)
+			m.SNMPVersion = row["snmp_version"].String
+			m.SNMPV3Username = row["snmp_v3_username"].String
+			m.SNMPCommunity = row["radius_password"].String
+			m.JSONPath = row["json_path"].String
+			if op := row["json_path_operator"].String; op != "" {
+				m.JSONPathOperator = op
+			}
+			m.ExpectedValue = row["expected_value"].String
+		case monitor.TypeSMTP:
+			m.SMTPSecurity = row["smtp_security"].String
+		case monitor.TypeRADIUS:
+			m.RadiusUsername = row["radius_username"].String
+			m.RadiusPassword = row["radius_password"].String
+			m.RadiusSecret = row["radius_secret"].String
+			m.RadiusCalledStationID = row["radius_called_station_id"].String
+			m.RadiusCallingStationID = row["radius_calling_station_id"].String
+		}
+		return checked(m)
 	case monitor.TypeHTTP, monitor.TypeKeyword, monitor.TypeJSONQuery, monitor.TypeWebSocket:
 	default:
 		return m, "unsupported monitor type: " + m.Type

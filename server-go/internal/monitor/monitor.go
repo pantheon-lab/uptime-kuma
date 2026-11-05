@@ -45,12 +45,27 @@ const (
 	TypeMQTT      = "mqtt"
 	TypeRabbitMQ  = "rabbitmq"
 	TypeKafka     = "kafka-producer"
+
+	TypeNTP    = "ntp"
+	TypeSNMP   = "snmp"
+	TypeSMTP   = "smtp"
+	TypeSIP    = "sip-options"
+	TypeRADIUS = "radius"
+	TypeSteam  = "steam"
 )
 
 // Types are every supported type, in the order error messages list them.
 var Types = []string{TypeHTTP, TypeKeyword, TypeJSONQuery, TypePort, TypePing, TypeDNS, TypePush, TypeGroup,
 	TypeManual, TypeWebSocket, TypePostgres, TypeMySQL, TypeRedis, TypeSQLServer, TypeOracle, TypeMongoDB, TypeMQTT,
-	TypeRabbitMQ, TypeKafka}
+	TypeRabbitMQ, TypeKafka, TypeNTP, TypeSNMP, TypeSMTP, TypeSIP, TypeRADIUS, TypeSteam}
+
+// SNMPVersions and SMTPSecurities are the choices of the SNMP and SMTP types.
+var (
+	SNMPVersions   = []string{"1", "2c", "3"}
+	SMTPSecurities = []string{"", "secure", "nostarttls", "starttls"}
+	defaultPortOf  = map[string]int32{TypeNTP: 123, TypeSNMP: 161, TypeSMTP: 25, TypeSIP: 5060, TypeRADIUS: 1812}
+	hostnameTypes  = []string{TypeNTP, TypeSNMP, TypeSMTP, TypeSIP, TypeRADIUS, TypeSteam}
+)
 
 // KafkaSASLMechanisms are the SASL mechanisms Kafka producer monitors can log in with.
 var KafkaSASLMechanisms = []string{"None", "plain", "scram-sha-256", "scram-sha-512"}
@@ -211,6 +226,27 @@ type Settings struct {
 	KafkaSSL                    bool       `json:"kafkaProducerSsl,omitempty"`
 	KafkaAllowAutoTopicCreation bool       `json:"kafkaProducerAllowAutoTopicCreation,omitempty"`
 	KafkaSASL                   *KafkaSASL `json:"kafkaProducerSaslOptions,omitempty"`
+
+	// The thresholds an NTP server must stay under: its stratum, and its offset and root
+	// dispersion in milliseconds. Zero means the Node.js backend's defaults, 5, 1000 and 500.
+	NTPStratumThreshold        int32   `json:"ntpStratumThreshold,omitempty"`
+	NTPTimeOffsetThreshold     float64 `json:"ntpTimeOffsetThreshold,omitempty"`
+	NTPRootDispersionThreshold float64 `json:"ntpRootDispersionThreshold,omitempty"`
+
+	SNMPOID        string `json:"snmpOid,omitempty"`
+	SNMPVersion    string `json:"snmpVersion,omitempty"`
+	SNMPCommunity  string `json:"snmpCommunity,omitempty"`
+	SNMPV3Username string `json:"snmpV3Username,omitempty"`
+
+	// SMTPSecurity is secure (SMTPS), starttls (required), nostarttls, or empty for STARTTLS when
+	// the server offers it.
+	SMTPSecurity string `json:"smtpSecurity,omitempty"`
+
+	RadiusUsername         string `json:"radiusUsername,omitempty"`
+	RadiusPassword         string `json:"radiusPassword,omitempty"`
+	RadiusSecret           string `json:"radiusSecret,omitempty"`
+	RadiusCalledStationID  string `json:"radiusCalledStationId,omitempty"`
+	RadiusCallingStationID string `json:"radiusCallingStationId,omitempty"`
 }
 
 // KafkaSASL is how a Kafka producer monitor logs in.
@@ -248,6 +284,12 @@ func (m *Monitor) Normalize() {
 	if m.Type == TypeDNS && m.Port == 0 {
 		m.Port = defaultDNSPort
 	}
+	if port, found := defaultPortOf[m.Type]; found && m.Port == 0 {
+		m.Port = port
+	}
+	if m.Type == TypeSNMP && m.SNMPVersion == "" {
+		m.SNMPVersion = "2c"
+	}
 	if m.Headers == nil {
 		m.Headers = map[string]string{}
 	}
@@ -277,7 +319,7 @@ func (m Monitor) Redacted() Monitor {
 			m.DatabaseConnectionString = redactedValue
 		}
 	}
-	for _, secret := range []*string{&m.MQTTPassword, &m.RabbitMQPassword} {
+	for _, secret := range []*string{&m.MQTTPassword, &m.RabbitMQPassword, &m.SNMPCommunity, &m.RadiusPassword, &m.RadiusSecret} {
 		if *secret != "" {
 			*secret = redactedValue
 		}
@@ -385,6 +427,8 @@ func (m *Monitor) Validate() error {
 		return m.validateRabbitMQ()
 	case TypeKafka:
 		return m.validateKafka()
+	case TypeNTP, TypeSNMP, TypeSMTP, TypeSIP, TypeRADIUS, TypeSteam:
+		return m.validateNetwork()
 	case TypeKeyword:
 		if m.Keyword == "" {
 			return errors.New("keyword is required")
@@ -420,6 +464,7 @@ var (
 		TypeRedis:    {"redis", "rediss"},
 		TypeMongoDB:  {"mongodb", "mongodb+srv"},
 	}
+	snmpOID  = regexp.MustCompile(`^\.?[0-9]+(\.[0-9]+)+$`)
 	mqttHost = regexp.MustCompile(`^((mqtt|mqtts|ws|wss|tcp|ssl|tls)://)?[A-Za-z0-9.\-_\[\]:]+$`)
 )
 
@@ -510,6 +555,44 @@ func (m *Monitor) validateMQTT() error {
 		return errors.New("mqttCheckType must be keyword or json-query")
 	}
 	return validJSONPath(m.JSONPath)
+}
+
+func (m *Monitor) validateNetwork() error {
+	if h := strings.TrimSpace(m.Hostname); h == "" || strings.ContainsAny(h, " /\\@") {
+		return errors.New("hostname must be a host name or an IP address")
+	}
+	if m.Port < 1 || m.Port > 65535 {
+		return errors.New("port must be from 1 to 65535")
+	}
+	switch m.Type {
+	case TypeNTP:
+		if m.NTPStratumThreshold < 0 || m.NTPStratumThreshold > 16 || m.NTPTimeOffsetThreshold < 0 || m.NTPRootDispersionThreshold < 0 {
+			return errors.New("ntpStratumThreshold must be from 0 to 16, and the other thresholds positive")
+		}
+	case TypeSNMP:
+		if !slices.Contains(SNMPVersions, m.SNMPVersion) {
+			return fmt.Errorf("snmpVersion must be one of %s", strings.Join(SNMPVersions, ", "))
+		}
+		if !snmpOID.MatchString(m.SNMPOID) {
+			return errors.New("snmpOid must be a numeric OID, such as 1.3.6.1.2.1.1.3.0")
+		}
+		if m.SNMPVersion == "3" && strings.TrimSpace(m.SNMPV3Username) == "" {
+			return errors.New("SNMPv3 username is required")
+		}
+		if !slices.Contains(JSONQueryOperators, m.JSONPathOperator) {
+			return fmt.Errorf("jsonPathOperator must be one of %s", strings.Join(JSONQueryOperators, ", "))
+		}
+		return validJSONPath(m.JSONPath)
+	case TypeSMTP:
+		if !slices.Contains(SMTPSecurities, m.SMTPSecurity) {
+			return errors.New("smtpSecurity must be secure, starttls or nostarttls")
+		}
+	case TypeRADIUS:
+		if m.RadiusSecret == "" {
+			return errors.New("radiusSecret is required")
+		}
+	}
+	return nil
 }
 
 func (m *Monitor) validateRabbitMQ() error {

@@ -134,10 +134,10 @@ func TestConvertMonitorPushPingDNS(t *testing.T) {
 
 	t.Run("unknown type is skipped", func(t *testing.T) {
 		_, reason := convertMonitor(row(map[string]string{
-			"name": "steam",
-			"type": "steam",
+			"name": "game",
+			"type": "gamedig",
 		}))
-		if reason != "unsupported monitor type: steam" {
+		if reason != "unsupported monitor type: gamedig" {
 			t.Fatalf("reason = %q", reason)
 		}
 	})

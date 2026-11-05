@@ -2,7 +2,7 @@
 
 The Uptime Kuma backend, rewritten in Go and still in progress. It runs HTTP, keyword, JSON query,
 TCP port, ping, DNS, push, group, manual, WebSocket, PostgreSQL, MySQL/MariaDB, SQL Server, Oracle, MongoDB, Redis,
-MQTT, RabbitMQ and Kafka producer monitors, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
+MQTT, RabbitMQ, Kafka producer, NTP, SNMP, SMTP, SIP, RADIUS and Steam monitors, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
 percentiles and dashboard stats over REST, plus new beats over Server-Sent Events. It serves public
 status pages and badges, exports traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
@@ -121,6 +121,19 @@ pick one with a retained message, or one that's published to more often than the
 **RabbitMQ** monitors ask each node's management API, such as `https://node1:15672`, for alarms, and pass when one node
 answers without any. **Kafka producer** monitors send the message to the topic, and pass when the brokers accept it.
 SASL logins are plain, SCRAM-SHA-256 and SCRAM-SHA-512; AWS IAM isn't supported yet.
+
+**NTP** monitors ask the server for the time, and are DOWN if it's unsynchronized, or its stratum, offset or root
+dispersion reaches the thresholds, by default 5, 1000 ms and 500 ms. **SNMP** monitors get one OID with SNMP v1 or v2c
+and a community, or v3 with a user and no authentication, as Node.js did, then compare the value as a JSON query does.
+**SMTP** monitors connect and greet the server, with SMTPS, required STARTTLS, no STARTTLS, or by default STARTTLS when
+it's offered, and send no mail.
+
+**SIP options** monitors send a SIP `OPTIONS` request over UDP, and are UP on `200 OK`. Node.js ran `sipsak` for this;
+the request is now made directly, so nothing needs installing. **RADIUS** monitors send an Access-Request with the user,
+password and station ids, and are UP on Access-Accept. Requests carry a Message-Authenticator, which servers patched for
+BlastRADIUS (CVE-2024-3596), such as FreeRADIUS 3.2.5 and later, require.
+
+**Steam** monitors ask the Steam Web API whether it lists the game server, and need a key under **Settings > General**.
 
 ## Status pages
 
@@ -487,7 +500,8 @@ Database tests are skipped when `TEST_DATABASE_URL` is not set. The importer and
 `TEST_MARIADB_DSN`, such as `root:test@tcp(127.0.0.1:53306)/`, and the Redis monitor with `TEST_REDIS_URL`, such as
 `redis://:testpass@127.0.0.1:56379/0`. The other monitor types test with these, which the comment in
 `internal/check/types4b_test.go` describes: `TEST_MSSQL_DSN`, `TEST_ORACLE` with `TEST_ORACLE_USER` and
-`TEST_ORACLE_PASSWORD`, `TEST_MONGODB_URL`, `TEST_MQTT_HOST` and `TEST_KAFKA_BROKER`.
+`TEST_ORACLE_PASSWORD`, `TEST_MONGODB_URL`, `TEST_MQTT_HOST` and `TEST_KAFKA_BROKER`, and `TEST_SNMP_HOST` and
+`TEST_RADIUS`, which `internal/check/network_test.go` describes.
 
 `internal/e2e/browser/` has scripts that drive the web UI in a browser against the built image. Each says what it needs.
 

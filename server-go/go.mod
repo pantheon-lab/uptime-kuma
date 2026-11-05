@@ -12,6 +12,7 @@ require (
 	github.com/emersion/go-smtp v0.25.0
 	github.com/exaring/otelpgx v0.13.0
 	github.com/go-sql-driver/mysql v1.10.1
+	github.com/gosnmp/gosnmp v1.47.0
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/microsoft/go-mssqldb v1.11.2
 	github.com/miekg/dns v1.1.73
@@ -34,6 +35,7 @@ require (
 	golang.org/x/net v0.62.0
 	golang.org/x/text v0.43.0
 	golang.org/x/time v0.16.0
+	layeh.com/radius v0.0.0-20231213012653-1006025d24f8
 )
 
 require (

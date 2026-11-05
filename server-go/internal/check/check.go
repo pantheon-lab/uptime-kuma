@@ -49,6 +49,8 @@ type Checker struct {
 	groups   GroupReader
 	// dnsResults is optional, and set before checks start.
 	dnsResults DNSResultWriter
+	// steamKey is optional, and set before checks start.
+	steamKey SteamKey
 }
 
 // Child is what a group needs to know about one of its direct children.
@@ -116,6 +118,18 @@ func (c *Checker) Run(ctx context.Context, m monitor.Monitor) monitor.Result {
 		return c.runRabbitMQ(ctx, m)
 	case monitor.TypeKafka:
 		return runKafka(ctx, m)
+	case monitor.TypeNTP:
+		return runNTP(ctx, m)
+	case monitor.TypeSNMP:
+		return runSNMP(ctx, m)
+	case monitor.TypeSMTP:
+		return runSMTP(ctx, m)
+	case monitor.TypeSIP:
+		return runSIP(ctx, m)
+	case monitor.TypeRADIUS:
+		return runRADIUS(ctx, m)
+	case monitor.TypeSteam:
+		return c.runSteam(ctx, m)
 	case monitor.TypePort:
 		return c.runPort(ctx, m)
 	case monitor.TypeGroup:
