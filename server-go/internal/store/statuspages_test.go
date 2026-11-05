@@ -287,3 +287,25 @@ func TestRecentBeatsAndUptimeOver(t *testing.T) {
 		t.Errorf("no beats: %+v %v", got, err)
 	}
 }
+
+func TestMonitorSettingsRoundTrip(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	m := monitor.New()
+	m.Name, m.Type = "k", monitor.TypeKafka
+	m.KafkaBrokers, m.KafkaTopic, m.KafkaSASL = []string{"k:9092"}, "t", &monitor.KafkaSASL{Mechanism: "plain", Username: "u", Password: "p"}
+	created, err := s.CreateMonitor(ctx, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetMonitor(ctx, created.ID)
+	if err != nil || got.KafkaTopic != "t" || len(got.KafkaBrokers) != 1 || got.KafkaSASL == nil || got.KafkaSASL.Password != "p" {
+		t.Fatalf("read back: %+v %v", got.Settings, err)
+	}
+	got.Type, got.KafkaBrokers, got.KafkaSASL = monitor.TypeMQTT, nil, nil
+	got.Hostname, got.Port, got.MQTTTopic = "b", 1883, "x/#"
+	updated, err := s.UpdateMonitor(ctx, got)
+	if err != nil || updated.MQTTTopic != "x/#" || updated.KafkaSASL != nil {
+		t.Fatalf("update: %+v %v", updated.Settings, err)
+	}
+}

@@ -14,8 +14,8 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | 2     | Push, Ping and DNS monitors                                         | Done    |
 | 3     | Status pages and badges                                             | Done    |
 | 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done    |
-| 4b    | Other databases and messaging                                       | Next    |
-| 4c    | Network and game monitors                                           | Planned |
+| 4b    | Other databases and messaging                                       | Done    |
+| 4c    | Network and game monitors                                           | Next    |
 | 4d    | Docker, system and remote browser monitors                          | Planned |
 | 4e    | HTTP options, proxies and domain expiry                             | Planned |
 | 5     | Accounts and administration                                         | Planned |
@@ -143,9 +143,30 @@ Known limits and differences from Node.js:
 - OAuth and mTLS on WebSocket monitors are refused, as they are on HTTP monitors.
 - A CAA record without an `issue` tag is left out of DNS conditions, where Node.js's check failed with an error.
 
-### Phase 4b: Other databases and messaging (next)
+### Phase 4b: Other databases and messaging (done)
 
-SQL Server, Oracle and MongoDB, which SQL Server and Oracle's conditions need, and MQTT, RabbitMQ and Kafka producer.
+- **SQL Server**, **Oracle** and **MongoDB**, with conditions on SQL Server and Oracle, as in Node.js.
+- **MQTT**, with the keyword, JSON query and conditions checks, over TCP, TLS and WebSockets.
+- **RabbitMQ**, through each node's management API, and **Kafka producer**, with plain and SCRAM SASL logins.
+- All of them in the REST API, the UI's form, and `kuma-import`.
+- The settings of these types, and of the types still to come, are stored together in one JSON column, `settings`, so
+  that a new type needs no new column.
+
+Tested with the race detector against real SQL Server 2022, Oracle Database Free, MongoDB 7, Mosquitto, Kafka 3.9 and
+RabbitMQ 3, and against a fake RabbitMQ API for the cases with alarms. In headless Chromium against the built image, a
+monitor of each type was made through the form, checked against those servers, and opened again:
+`internal/e2e/browser/monitor-types-4b.mjs`.
+
+Not tested: TLS to SQL Server, Oracle, MongoDB, MQTT and Kafka, MQTT over WebSockets, SASL logins, and Oracle's
+descriptor strings against a server.
+
+Known limits and differences from Node.js:
+
+- Kafka's AWS IAM login is refused, and so skipped by the importer.
+- A value compared by conditions is the driver's text, so dates and decimals may read differently from Node.js.
+- An Oracle statement that isn't a query is told apart by its first word, to report the rows it changed.
+- MQTT waits for a message until the check's timeout, where Node.js waited 80% of the interval. With no timeout set,
+  that's the same.
 
 ### Phase 4c: Network and game monitors (planned)
 

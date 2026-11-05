@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"net"
@@ -144,23 +145,47 @@ func runMySQL(ctx context.Context, m monitor.Monitor) monitor.Result {
 	if err != nil {
 		return monitor.Result{Msg: "Database connection/query failed: " + err.Error()}
 	}
+	return runSQL(ctx, m, connector, "No Error, but the result is not an array. Type: object", false)
+}
+
+// runSQL runs a SQL monitor's query on a new connection, as MySQL, SQL Server and Oracle do in
+// the Node.js backend: without conditions, the message counts the rows; with them, the result
+// must be a single value that meets them. noRows is the message for a statement without rows.
+// exec runs a statement that isn't a query with Exec, to count the rows it changed.
+func runSQL(ctx context.Context, m monitor.Monitor, connector driver.Connector, noRows string, exec bool) monitor.Result {
 	db := sql.OpenDB(connector)
 	defer func() { _ = db.Close() }()
 	db.SetMaxOpenConns(1)
+	fail := func(err error) monitor.Result {
+		return monitor.Result{Msg: "Database connection/query failed: " + databaseError(ctx, err, m)}
+	}
 
 	nodes, err := conditions.Parse(m.Conditions)
 	if err != nil {
 		return monitor.Result{Msg: err.Error()}
 	}
+	query := databaseQuery(m)
 	start := time.Now()
-	rows, err := db.QueryContext(ctx, databaseQuery(m))
+	if exec && len(nodes) == 0 && !returnsRows(query) {
+		result, err := db.ExecContext(ctx, query)
+		if err != nil {
+			return fail(err)
+		}
+		ping := elapsedMs(start)
+		msg := "Query executed successfully"
+		if affected, err := result.RowsAffected(); err == nil {
+			msg = fmt.Sprintf("Rows affected: %d", affected)
+		}
+		return monitor.Result{OK: true, Ping: &ping, Msg: msg}
+	}
+	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
-		return monitor.Result{Msg: "Database connection/query failed: " + databaseError(ctx, err, m)}
+		return fail(err)
 	}
 	defer func() { _ = rows.Close() }()
 	columns, err := rows.Columns()
 	if err != nil {
-		return monitor.Result{Msg: "Database connection/query failed: " + databaseError(ctx, err, m)}
+		return fail(err)
 	}
 
 	if len(nodes) == 0 {
@@ -169,19 +194,19 @@ func runMySQL(ctx context.Context, m monitor.Monitor) monitor.Result {
 			count++
 		}
 		if err := rows.Err(); err != nil {
-			return monitor.Result{Msg: "Database connection/query failed: " + databaseError(ctx, err, m)}
+			return fail(err)
 		}
 		ping := elapsedMs(start)
 		msg := fmt.Sprintf("Rows: %d", count)
 		if len(columns) == 0 {
-			msg = "No Error, but the result is not an array. Type: object"
+			msg = noRows
 		}
 		return monitor.Result{OK: true, Ping: &ping, Msg: msg}
 	}
 
 	value, err := singleValue(rows, columns)
 	if err != nil {
-		return monitor.Result{Msg: "Database connection/query failed: " + databaseError(ctx, err, m)}
+		return fail(err)
 	}
 	ping := elapsedMs(start)
 	passed, err := conditions.Evaluate(nodes, map[string]string{"result": value})
@@ -192,6 +217,16 @@ func runMySQL(ctx context.Context, m monitor.Monitor) monitor.Result {
 		return monitor.Result{Msg: fmt.Sprintf("Query result did not meet the specified conditions (%s)", value)}
 	}
 	return monitor.Result{OK: true, Ping: &ping, Msg: "Query did meet specified conditions"}
+}
+
+// returnsRows guesses whether a statement is a query, by its first word.
+func returnsRows(query string) bool {
+	word := strings.ToUpper(strings.TrimLeft(strings.Fields(query + " x")[0], "("))
+	switch word {
+	case "SELECT", "WITH", "SHOW", "DESCRIBE", "DESC", "EXPLAIN", "VALUES":
+		return true
+	}
+	return false
 }
 
 // singleValue reads a result that must be one row with one column, as text, as the Node.js

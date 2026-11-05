@@ -2298,7 +2298,13 @@
               "websocket-upgrade",
               "postgres",
               "mysql",
-              "redis"
+              "redis",
+              "sqlserver",
+              "oracledb",
+              "mongodb",
+              "mqtt",
+              "rabbitmq",
+              "kafka-producer"
             ]
           },
           "active": {
@@ -2485,7 +2491,7 @@
           "conditions": {
             "type": "array",
             "default": [],
-            "description": "dns and mysql: conditions on each record or the query's single value, as the web UI builds them",
+            "description": "dns, mysql, sqlserver, oracledb and mqtt: conditions as the web UI builds them",
             "items": {
               "type": "object"
             }
@@ -2513,15 +2519,107 @@
           },
           "databaseConnectionString": {
             "type": "string",
-            "description": "postgres, mysql and redis: a URL such as postgres://user:password@host:5432/db. Redacted for keys without monitors:write."
+            "description": "postgres, mysql, redis and mongodb: a URL such as postgres://user:password@host:5432/db. sqlserver: an ADO string or sqlserver:// URL. oracledb: host[:port]/service or a (DESCRIPTION=...). Redacted for keys without monitors:write."
           },
           "databaseQuery": {
             "type": "string",
-            "description": "postgres and mysql: the query, SELECT 1 when empty"
+            "description": "postgres, mysql, sqlserver and oracledb: the query, SELECT 1 (FROM DUAL) when empty. mongodb: a command as JSON, {\"ping\": 1} when empty."
           },
           "databasePassword": {
             "type": "string",
-            "description": "mysql: replaces the password in the connection string. Redacted for keys without monitors:write."
+            "description": "mysql: replaces the password in the connection string. oracledb: the password. Redacted for keys without monitors:write."
+          },
+          "databaseUsername": {
+            "type": "string",
+            "description": "oracledb: the user"
+          },
+          "mqttTopic": {
+            "type": "string",
+            "description": "mqtt: the topic to subscribe to"
+          },
+          "mqttUsername": {
+            "type": "string"
+          },
+          "mqttPassword": {
+            "type": "string",
+            "description": "Redacted for keys without monitors:write."
+          },
+          "mqttWebsocketPath": {
+            "type": "string",
+            "description": "mqtt over ws:// or wss://: the path"
+          },
+          "mqttSuccessMessage": {
+            "type": "string",
+            "description": "mqtt keyword check: text the message must contain"
+          },
+          "rabbitmqUsername": {
+            "type": "string"
+          },
+          "rabbitmqPassword": {
+            "type": "string",
+            "description": "Redacted for keys without monitors:write."
+          },
+          "kafkaProducerTopic": {
+            "type": "string"
+          },
+          "kafkaProducerMessage": {
+            "type": "string"
+          },
+          "mqttCheckType": {
+            "type": "string",
+            "enum": [
+              "keyword",
+              "json-query"
+            ],
+            "default": "keyword"
+          },
+          "rabbitmqNodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "rabbitmq: base URLs of the nodes' management API"
+          },
+          "kafkaProducerBrokers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "kafka-producer: host:port of each broker"
+          },
+          "kafkaProducerSsl": {
+            "type": "boolean",
+            "default": false
+          },
+          "kafkaProducerAllowAutoTopicCreation": {
+            "type": "boolean",
+            "default": false
+          },
+          "kafkaProducerSaslOptions": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "mechanism": {
+                "type": "string",
+                "enum": [
+                  "None",
+                  "plain",
+                  "scram-sha-256",
+                  "scram-sha-512"
+                ]
+              },
+              "username": {
+                "type": "string"
+              },
+              "password": {
+                "type": "string"
+              },
+              "authorizationIdentity": {
+                "type": "string"
+              }
+            }
           }
         }
       },

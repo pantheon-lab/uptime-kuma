@@ -74,15 +74,15 @@ func (s *Store) ImportMonitor(ctx context.Context, sourceID int32, m monitor.Mon
 				max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
 				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, resend_interval, expiry_notification,
 				push_token, ping_count, ping_per_request_timeout, packet_size, dns_resolve_type, dns_resolve_server,
-				json_path, json_path_operator, expected_value, conditions, manual_status, ws_subprotocol, ws_ignore_accept_header, database_connection_string, database_query, database_password)
+				json_path, json_path_operator, expected_value, conditions, manual_status, ws_subprotocol, ws_ignore_accept_header, database_connection_string, database_query, database_password, settings)
 			VALUES ($1, $2, false, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21,
-				$22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37)
+				$22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38)
 			RETURNING id`,
 			m.Name, m.Type, m.Interval, m.RetryInterval, m.Timeout, m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers,
 			m.Body, m.BodyEncoding, m.AcceptedStatusCodes, m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword,
 			m.Hostname, m.Port, m.ResendInterval, m.ExpiryNotification,
 			cmp.Or(m.PushToken, generatedPushToken(m)), m.PingCount, m.PingPerRequestTimeout, m.PacketSize, m.DNSResolveType, m.DNSResolveServer,
-			m.JSONPath, m.JSONPathOperator, m.ExpectedValue, m.Conditions, m.ManualStatus, m.WSSubprotocol, m.WSIgnoreAcceptHeader, m.DatabaseConnectionString, m.DatabaseQuery, m.DatabasePassword).Scan(&id)
+			m.JSONPath, m.JSONPathOperator, m.ExpectedValue, m.Conditions, m.ManualStatus, m.WSSubprotocol, m.WSIgnoreAcceptHeader, m.DatabaseConnectionString, m.DatabaseQuery, m.DatabasePassword, m.Settings).Scan(&id)
 		if err != nil {
 			return 0, fmt.Errorf("create monitor: %w", err)
 		}
@@ -98,14 +98,14 @@ func (s *Store) ImportMonitor(ctx context.Context, sourceID int32, m monitor.Mon
 				ping_per_request_timeout = $26, packet_size = $27, dns_resolve_type = $28, dns_resolve_server = $29,
 				json_path = $30, json_path_operator = $31, expected_value = $32, conditions = $33, manual_status = $34,
 				ws_subprotocol = $35, ws_ignore_accept_header = $36, database_connection_string = $37, database_query = $38,
-				database_password = $39,
+				database_password = $39, settings = $40,
 				updated_at = now()
 			WHERE id = $1`,
 			id, m.Name, m.Type, m.Interval, m.RetryInterval, m.Timeout, m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers,
 			m.Body, m.BodyEncoding, m.AcceptedStatusCodes, m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword,
 			m.Hostname, m.Port, m.ResendInterval, m.ExpiryNotification,
 			m.PushToken, generatedPushToken(m), m.PingCount, m.PingPerRequestTimeout, m.PacketSize, m.DNSResolveType, m.DNSResolveServer,
-			m.JSONPath, m.JSONPathOperator, m.ExpectedValue, m.Conditions, m.ManualStatus, m.WSSubprotocol, m.WSIgnoreAcceptHeader, m.DatabaseConnectionString, m.DatabaseQuery, m.DatabasePassword)
+			m.JSONPath, m.JSONPathOperator, m.ExpectedValue, m.Conditions, m.ManualStatus, m.WSSubprotocol, m.WSIgnoreAcceptHeader, m.DatabaseConnectionString, m.DatabaseQuery, m.DatabasePassword, m.Settings)
 		if err != nil {
 			return 0, fmt.Errorf("update monitor: %w", err)
 		}

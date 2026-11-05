@@ -7,6 +7,7 @@
 package importer
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -404,6 +405,62 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 		}
 		m.IgnoreTLS = boolOf(row["ignore_tls"])
 		return checked(m)
+	case monitor.TypeSQLServer, monitor.TypeOracle, monitor.TypeMongoDB:
+		m.DatabaseConnectionString = strings.TrimSpace(row["database_connection_string"].String)
+		m.DatabaseQuery = row["database_query"].String
+		switch m.Type {
+		case monitor.TypeOracle:
+			m.DatabaseUsername = strings.TrimSpace(row["basic_auth_user"].String)
+			m.DatabasePassword = row["basic_auth_pass"].String
+			m.Conditions = sourceConditions(row)
+		case monitor.TypeSQLServer:
+			m.Conditions = sourceConditions(row)
+		case monitor.TypeMongoDB:
+			m.JSONPath = row["json_path"].String
+			m.ExpectedValue = row["expected_value"].String
+		}
+		return checked(m)
+	case monitor.TypeMQTT:
+		m.Hostname = strings.TrimSpace(row["hostname"].String)
+		m.Port = int32(intOf(row["port"]))
+		m.MQTTTopic = row["mqtt_topic"].String
+		m.MQTTUsername = row["mqtt_username"].String
+		m.MQTTPassword = row["mqtt_password"].String
+		m.MQTTWebsocketPath = row["mqtt_websocket_path"].String
+		m.MQTTCheckType = cmp.Or(row["mqtt_check_type"].String, "keyword")
+		m.MQTTSuccessMessage = row["mqtt_success_message"].String
+		m.JSONPath = row["json_path"].String
+		m.ExpectedValue = row["expected_value"].String
+		m.Conditions = sourceConditions(row)
+		return checked(m)
+	case monitor.TypeRabbitMQ:
+		if err := jsonList(row["rabbitmq_nodes"].String, &m.RabbitMQNodes); err != nil {
+			return m, "invalid setting: RabbitMQ nodes aren't a JSON list"
+		}
+		m.RabbitMQUsername = row["rabbitmq_username"].String
+		m.RabbitMQPassword = row["rabbitmq_password"].String
+		return checked(m)
+	case monitor.TypeKafka:
+		if err := jsonList(row["kafka_producer_brokers"].String, &m.KafkaBrokers); err != nil {
+			return m, "invalid setting: Kafka brokers aren't a JSON list"
+		}
+		m.KafkaTopic = row["kafka_producer_topic"].String
+		m.KafkaMessage = row["kafka_producer_message"].String
+		m.KafkaSSL = boolOf(row["kafka_producer_ssl"])
+		m.KafkaAllowAutoTopicCreation = boolOf(row["kafka_producer_allow_auto_topic_creation"])
+		if raw := strings.TrimSpace(row["kafka_producer_sasl_options"].String); raw != "" {
+			var options monitor.KafkaSASL
+			if err := json.Unmarshal([]byte(raw), &options); err != nil {
+				return m, "invalid setting: Kafka SASL options aren't JSON"
+			}
+			if options.Mechanism == "aws" {
+				return m, "unsupported setting: Kafka SASL mechanism aws"
+			}
+			if options.Mechanism != "" && options.Mechanism != "None" {
+				m.KafkaSASL = &options
+			}
+		}
+		return checked(m)
 	case monitor.TypeHTTP, monitor.TypeKeyword, monitor.TypeJSONQuery, monitor.TypeWebSocket:
 	default:
 		return m, "unsupported monitor type: " + m.Type
@@ -461,6 +518,14 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 		return m, "unsupported setting: authentication method " + authMethod
 	}
 	return checked(m)
+}
+
+// jsonList reads a list the Node.js backend kept as JSON text. Empty is none.
+func jsonList(raw string, into *[]string) error {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	return json.Unmarshal([]byte(raw), into)
 }
 
 // sourceConditions are a monitor's conditions, which the Node.js backend kept as JSON text.
