@@ -22,6 +22,7 @@ import (
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/scheduler"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/telemetry"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/webui"
 )
 
 const minTokenLength = 32
@@ -145,7 +146,7 @@ func run(log *slog.Logger) error {
 	}
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           apiServer.Handler(),
+		Handler:           webui.Mount(apiServer.Handler()),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      60 * time.Second,
@@ -155,7 +156,7 @@ func run(log *slog.Logger) error {
 
 	serveErr := make(chan error, 1)
 	go func() {
-		log.Info("listening", "addr", addr, "retentionDays", retentionDays)
+		log.Info("listening", "addr", addr, "retentionDays", retentionDays, "webUI", webui.Built())
 		serveErr <- server.ListenAndServe()
 	}()
 

@@ -1,7 +1,7 @@
 name: docker-release
 
-# Builds the Go backend image from server-go/ and publishes it to GHCR, and to Docker Hub when
-# configured. Pushes to main publish :main and :sha-<short>; a v1.2.3 tag publishes :1.2.3, :1.2
+# Builds the root Dockerfile, the Go backend with the web UI embedded, and publishes it to GHCR,
+# and to Docker Hub when configured. Pushes to main publish :main and :sha-<short>; a v1.2.3 tag publishes :1.2.3, :1.2
 # and :latest. Pull requests only build.
 #
 # Docker Hub is optional. To enable it, set the repository variable DOCKERHUB_IMAGE (such as
@@ -12,15 +12,21 @@ on:
       - main
     tags:
       - "v*"
-    paths:
+    paths: &image-paths
       - "server-go/**"
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "vite.config.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "Dockerfile"
+      - ".dockerignore"
       - ".github/workflows/docker-release.yml"
   pull_request:
     branches:
       - main
-    paths:
-      - "server-go/**"
-      - ".github/workflows/docker-release.yml"
+    paths: *image-paths
   workflow_dispatch:
 permissions: {}
 
@@ -75,12 +81,12 @@ jobs:
             latest=auto
           labels: |
             org.opencontainers.image.title=uptime-kuma
-            org.opencontainers.image.description=Pantheon Lab's Uptime Kuma backend (kuma-analytics and kuma-import)
+            org.opencontainers.image.description=Pantheon Lab's Uptime Kuma: Go backend with embedded web UI, and kuma-import
 
       - name: Build and push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: server-go
+          context: .
           platforms: linux/amd64,linux/arm64
           push: ${{ env.PUSH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}

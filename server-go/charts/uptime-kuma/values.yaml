@@ -42,6 +42,7 @@ analytics:
   tolerations: []
   affinity: {}
 
+# Serves the API and the web UI from src/, which is embedded in the image.
 service:
   type: ClusterIP
   port: 3002
@@ -93,8 +94,9 @@ otelCollector:
     limits:
       memory: 512Mi
 
+# Off by default. Without it, the collector logs metrics through its debug exporter.
 prometheus:
-  enabled: true
+  enabled: false
   image:
     repository: prom/prometheus
     tag: v3.1.0
@@ -125,8 +127,9 @@ tempo:
     limits:
       memory: 1Gi
 
+# Off by default. Turn it on, with prometheus, for the dashboards from server-go/observability.
 grafana:
-  enabled: true
+  enabled: false
   image:
     repository: grafana/grafana
     tag: 11.4.0

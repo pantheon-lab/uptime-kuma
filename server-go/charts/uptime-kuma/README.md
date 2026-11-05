@@ -4,12 +4,12 @@ Deploys the Go backend, `kuma-analytics`, with the same stack as `server-go/comp
 
 | Component      | Kind        | Default | Notes                                                         |
 | -------------- | ----------- | ------- | ------------------------------------------------------------- |
-| analytics      | Deployment  | on      | Always 1 replica, `Recreate`. Port 3002                       |
+| analytics      | Deployment  | on      | API and web UI on port 3002. Always 1 replica, `Recreate`     |
 | timescaledb    | StatefulSet | on      | Off: set `externalDatabase.url` or `DATABASE_URL` in a secret |
-| otel-collector | Deployment  | on      | Sends traces to Tempo and metrics to Prometheus               |
-| prometheus     | StatefulSet | on      |                                                               |
+| otel-collector | Deployment  | on      | Sends traces to Tempo and metrics to Prometheus, or logs them |
+| prometheus     | StatefulSet | off     |                                                               |
 | tempo          | StatefulSet | on      |                                                               |
-| grafana        | Deployment  | on      | Dashboards come from `server-go/observability`                |
+| grafana        | Deployment  | off     | Dashboards from `server-go/observability`, needs prometheus   |
 
 `dashboards/` is a symlink to `../../observability/grafana/dashboards`, so the chart and Compose
 share one copy. Helm follows it; package with `helm package` if a tool can't.
