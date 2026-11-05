@@ -2289,7 +2289,10 @@
               "http",
               "keyword",
               "port",
-              "group"
+              "group",
+              "push",
+              "ping",
+              "dns"
             ]
           },
           "active": {
@@ -2397,6 +2400,58 @@
             "type": "boolean",
             "default": false,
             "description": "Send a W3C traceparent header to the target"
+          },
+          "pushToken": {
+            "type": "string",
+            "description": "Push monitors: the secret in /api/push/{pushToken}. 8 to 64 letters, digits, dashes or underscores. Empty makes one on create, and keeps the current one on update. Redacted for keys without monitors:write."
+          },
+          "pingCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 1,
+            "description": "Ping monitors: replies to wait for"
+          },
+          "pingPerRequestTimeout": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60,
+            "default": 2,
+            "description": "Ping monitors: seconds to wait for each reply"
+          },
+          "packetSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65500,
+            "default": 56,
+            "description": "Ping monitors: data bytes per request"
+          },
+          "dnsResolveType": {
+            "type": "string",
+            "enum": [
+              "A",
+              "AAAA",
+              "CAA",
+              "CNAME",
+              "MX",
+              "NS",
+              "PTR",
+              "SOA",
+              "SRV",
+              "TXT"
+            ],
+            "default": "A",
+            "description": "DNS monitors: the record type. PTR needs an IP address as hostname."
+          },
+          "dnsResolveServer": {
+            "type": "string",
+            "default": "1.1.1.1",
+            "description": "DNS monitors: comma-separated IP addresses or hostnames of resolvers. port is their port, 53 by default."
+          },
+          "dnsLastResult": {
+            "type": "string",
+            "readOnly": true,
+            "description": "DNS monitors: the last answer. Ignored in input."
           }
         }
       },

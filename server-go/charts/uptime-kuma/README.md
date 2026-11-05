@@ -35,6 +35,13 @@ and the secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` are set.
 helm upgrade --install uptime-kuma server-go/charts/uptime-kuma -n uptime-kuma --create-namespace
 ```
 
+## Ping monitors
+
+Ping monitors use unprivileged ICMP sockets, which need the `net.ipv4.ping_group_range` sysctl to include the pod's
+group. `analytics.sysctls` sets it for the pod only, and Kubernetes counts it as safe, so no kubelet allow-list is
+needed, and the Pod Security `baseline` and `restricted` profiles allow it. If a custom admission policy refuses pod
+sysctls, set `analytics.sysctls=null`; ping monitors then fail with a message that says why.
+
 ## Secrets
 
 With `existingSecret` empty, the chart creates `<release>-uptime-kuma-secrets` (or `<release>-secrets` when the release

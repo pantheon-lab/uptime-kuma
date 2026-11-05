@@ -278,3 +278,168 @@ func TestMaintenanceOutcome(t *testing.T) {
 		t.Errorf("maintenance to up: %+v", out)
 	}
 }
+
+func pushMonitor() Monitor {
+	m := New()
+	m.Name, m.Type = "sender", TypePush
+	return m
+}
+
+func pingMonitor() Monitor {
+	m := New()
+	m.Name, m.Type, m.Hostname = "router", TypePing, "10.0.0.1"
+	return m
+}
+
+func dnsMonitor() Monitor {
+	m := New()
+	m.Name, m.Type, m.Hostname = "records", TypeDNS, "example.com"
+	m.Normalize()
+	return m
+}
+
+func TestValidatePush(t *testing.T) {
+	m := pushMonitor()
+	if err := m.Validate(); err != nil {
+		t.Errorf("push without a token: %v", err)
+	}
+	m.PushToken = "a-token_0123456789"
+	if err := m.Validate(); err != nil {
+		t.Errorf("push with a token: %v", err)
+	}
+	for name, mutate := range map[string]func(*Monitor){
+		"too short":   func(m *Monitor) { m.PushToken = "short" },
+		"space":       func(m *Monitor) { m.PushToken = "has space" },
+		"punctuation": func(m *Monitor) { m.PushToken = "token!" },
+	} {
+		bad := pushMonitor()
+		mutate(&bad)
+		if err := bad.Validate(); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+}
+
+func TestValidatePing(t *testing.T) {
+	m := pingMonitor()
+	if err := m.Validate(); err != nil {
+		t.Errorf("valid ping: %v", err)
+	}
+	// The whole window must fit in the check's deadline.
+	m.Timeout = 1
+	if err := m.Validate(); err == nil {
+		t.Error("a timeout shorter than the per-request timeout should fail")
+	}
+	m.Timeout = 0
+	for name, mutate := range map[string]func(*Monitor){
+		"hostname":     func(m *Monitor) { m.Hostname = "  " },
+		"count":        func(m *Monitor) { m.PingCount = maxPingCount + 1 },
+		"count zero":   func(m *Monitor) { m.PingCount = 0 },
+		"per request":  func(m *Monitor) { m.PingPerRequestTimeout = maxPingPerRequest + 1 },
+		"packet size":  func(m *Monitor) { m.PacketSize = maxPacketSize + 1 },
+		"timeout":      func(m *Monitor) { m.Timeout = maxPingTimeout + 1 },
+		"timeout zero": func(m *Monitor) { m.Timeout = 0.4 },
+	} {
+		bad := pingMonitor()
+		mutate(&bad)
+		if err := bad.Validate(); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+}
+
+func TestValidateDNS(t *testing.T) {
+	m := dnsMonitor()
+	if err := m.Validate(); err != nil {
+		t.Errorf("valid DNS: %v", err)
+	}
+	if m.Port != defaultDNSPort {
+		t.Errorf("Normalize gave port %d, want %d", m.Port, defaultDNSPort)
+	}
+	ptr := dnsMonitor()
+	ptr.Hostname, ptr.DNSResolveType = "10.0.0.1", "PTR"
+	if err := ptr.Validate(); err != nil {
+		t.Errorf("PTR of an address: %v", err)
+	}
+	for name, mutate := range map[string]func(*Monitor){
+		"hostname":    func(m *Monitor) { m.Hostname = " " },
+		"port":        func(m *Monitor) { m.Port = 65536 },
+		"record type": func(m *Monitor) { m.DNSResolveType = "TXT2" },
+		"PTR of name": func(m *Monitor) { m.Hostname, m.DNSResolveType = "example.com", "PTR" },
+		"servers":     func(m *Monitor) { m.DNSResolveServer = " , " },
+	} {
+		bad := dnsMonitor()
+		mutate(&bad)
+		if err := bad.Validate(); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+}
+
+func TestNewPushToken(t *testing.T) {
+	seen := map[string]bool{}
+	for range 32 {
+		token := NewPushToken()
+		if len(token) != 32 {
+			t.Fatalf("length %d: %q", len(token), token)
+		}
+		if !pushTokenFormat.MatchString(token) {
+			t.Fatalf("not accepted by the validator: %q", token)
+		}
+		if seen[token] {
+			t.Fatalf("repeated token: %q", token)
+		}
+		seen[token] = true
+	}
+}
+
+func TestRedactedRemovesPushToken(t *testing.T) {
+	m := pushMonitor()
+	m.PushToken = "supersecrettoken"
+	if got := m.Redacted().PushToken; got != redactedValue {
+		t.Errorf("redacted token: %q", got)
+	}
+	if m.PushToken != "supersecrettoken" {
+		t.Error("Redacted changed the original")
+	}
+}
+
+func TestNextPush(t *testing.T) {
+	m := pushMonitor()
+	m.MaxRetries = 1
+	// The sender's own words become the message, and the first beat is important.
+	out := m.NextPush(nil, Push{Up: true, Msg: "all good"})
+	if out.Status != StatusUp || !out.Important || out.Msg != "all good" || out.Ping != nil {
+		t.Errorf("first push: %+v", out)
+	}
+	// A failure retries like any other check...
+	out = m.NextPush(&Previous{Status: StatusUp}, Push{Up: false, Msg: "late"})
+	if out.Status != StatusPending || out.Retries != 1 {
+		t.Errorf("retried failure: %+v", out)
+	}
+	// ...unless the sender reported the down itself, which is final.
+	out = m.NextPush(&Previous{Status: StatusUp}, Push{ExplicitDown: true, Msg: "stopped"})
+	if out.Status != StatusDown || out.Retries != 0 || !out.Important {
+		t.Errorf("explicit down: %+v", out)
+	}
+	// The message is shown to users, so it's cleaned first.
+	out = m.NextPush(&Previous{Status: StatusUp}, Push{Up: true, Msg: "a\x00b"})
+	if out.Msg != "ab" {
+		t.Errorf("message: %q", out.Msg)
+	}
+	// A pushed ping reaches the beat.
+	ping := 12.5
+	out = m.NextPush(nil, Push{Up: true, Ping: &ping})
+	if out.Ping == nil || *out.Ping != ping {
+		t.Errorf("ping: %+v", out.Ping)
+	}
+	// Upside down senders: an idle monitor is up, a push is down.
+	upside := pushMonitor()
+	upside.UpsideDown = true
+	if out := upside.NextPush(&Previous{Status: StatusDown}, Push{Up: true}); out.Status != StatusDown {
+		t.Errorf("upside down push: %+v", out)
+	}
+	if out := upside.Next(&Previous{Status: StatusUp}, Result{Msg: NoHeartbeatMsg}); out.Status != StatusUp {
+		t.Errorf("upside down window: %+v", out)
+	}
+}

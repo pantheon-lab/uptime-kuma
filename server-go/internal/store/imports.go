@@ -1,6 +1,7 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -54,7 +55,8 @@ func (s *Store) ImportedMonitors(ctx context.Context) (map[int32]ImportedMonitor
 }
 
 // ImportMonitor creates or refreshes a monitor from a source monitor, always paused. Its
-// parent is set later, once all monitors exist. Returns its id here.
+// parent is set later, once all monitors exist. Returns its id here. A push monitor without a
+// token gets one, and keeps it when imported again.
 func (s *Store) ImportMonitor(ctx context.Context, sourceID int32, m monitor.Monitor, sourceActive bool, cutover time.Time) (int32, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -69,12 +71,15 @@ func (s *Store) ImportMonitor(ctx context.Context, sourceID int32, m monitor.Mon
 		err = tx.QueryRow(ctx, `
 			INSERT INTO monitor (name, type, active, interval_seconds, retry_interval_seconds, timeout_seconds,
 				max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
-				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, resend_interval, expiry_notification)
-			VALUES ($1, $2, false, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, resend_interval, expiry_notification,
+				push_token, ping_count, ping_per_request_timeout, packet_size, dns_resolve_type, dns_resolve_server)
+			VALUES ($1, $2, false, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21,
+				$22, $23, $24, $25, $26, $27)
 			RETURNING id`,
 			m.Name, m.Type, m.Interval, m.RetryInterval, m.Timeout, m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers,
 			m.Body, m.BodyEncoding, m.AcceptedStatusCodes, m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword,
-			m.Hostname, m.Port, m.ResendInterval, m.ExpiryNotification).Scan(&id)
+			m.Hostname, m.Port, m.ResendInterval, m.ExpiryNotification,
+			cmp.Or(m.PushToken, generatedPushToken(m)), m.PingCount, m.PingPerRequestTimeout, m.PacketSize, m.DNSResolveType, m.DNSResolveServer).Scan(&id)
 		if err != nil {
 			return 0, fmt.Errorf("create monitor: %w", err)
 		}
@@ -85,11 +90,15 @@ func (s *Store) ImportMonitor(ctx context.Context, sourceID int32, m monitor.Mon
 			UPDATE monitor SET name = $2, type = $3, interval_seconds = $4, retry_interval_seconds = $5, timeout_seconds = $6,
 				max_retries = $7, upside_down = $8, url = $9, method = $10, headers = $11, body = $12, body_encoding = $13,
 				accepted_status_codes = $14, max_redirects = $15, ignore_tls = $16, keyword = $17, invert_keyword = $18,
-				hostname = $19, port = $20, resend_interval = $21, expiry_notification = $22, updated_at = now()
+				hostname = $19, port = $20, resend_interval = $21, expiry_notification = $22,
+				push_token = COALESCE(NULLIF($23::text, ''), NULLIF(push_token, ''), $24::text), ping_count = $25,
+				ping_per_request_timeout = $26, packet_size = $27, dns_resolve_type = $28, dns_resolve_server = $29,
+				updated_at = now()
 			WHERE id = $1`,
 			id, m.Name, m.Type, m.Interval, m.RetryInterval, m.Timeout, m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers,
 			m.Body, m.BodyEncoding, m.AcceptedStatusCodes, m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword,
-			m.Hostname, m.Port, m.ResendInterval, m.ExpiryNotification)
+			m.Hostname, m.Port, m.ResendInterval, m.ExpiryNotification,
+			m.PushToken, generatedPushToken(m), m.PingCount, m.PingPerRequestTimeout, m.PacketSize, m.DNSResolveType, m.DNSResolveServer)
 		if err != nil {
 			return 0, fmt.Errorf("update monitor: %w", err)
 		}

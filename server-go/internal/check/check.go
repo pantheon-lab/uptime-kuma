@@ -47,6 +47,8 @@ type Checker struct {
 	insecure *http.Transport
 	dialer   net.Dialer
 	groups   GroupReader
+	// dnsResults is optional, and set before checks start.
+	dnsResults DNSResultWriter
 }
 
 // Child is what a group needs to know about one of its direct children.
@@ -96,6 +98,10 @@ func (c *Checker) Run(ctx context.Context, m monitor.Monitor) monitor.Result {
 		return c.runPort(ctx, m)
 	case monitor.TypeGroup:
 		return c.runGroup(ctx, m)
+	case monitor.TypePing:
+		return c.runPing(ctx, m)
+	case monitor.TypeDNS:
+		return c.runDNS(ctx, m)
 	default:
 		return monitor.Result{Msg: "Unknown Monitor Type"}
 	}

@@ -83,6 +83,16 @@ func newInstruments() *Instruments {
 	return i
 }
 
+// RecordOutcome counts a beat that took no time to check, such as a received push. Only checks
+// that ran go in the duration histogram.
+func (i *Instruments) RecordOutcome(ctx context.Context, monitorType, group, outcome string) {
+	i.checks.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("monitor.type", monitorType),
+		attribute.String("monitor.group", group),
+		attribute.String("outcome", outcome),
+	))
+}
+
 // RecordCheck records one finished check. Pass a context with the check's span only for
 // traces that are certain to be kept, because the histogram stores it as an exemplar.
 func (i *Instruments) RecordCheck(ctx context.Context, monitorType, group, outcome string, seconds float64) {

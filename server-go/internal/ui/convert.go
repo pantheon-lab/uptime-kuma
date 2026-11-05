@@ -47,6 +47,7 @@ func beatsJSON(beats []store.Beat) []map[string]any {
 // Supported monitor types, by the UI's names, which match this service's.
 var supportedTypes = map[string]bool{
 	monitor.TypeHTTP: true, monitor.TypeKeyword: true, monitor.TypePort: true, monitor.TypeGroup: true,
+	monitor.TypePush: true, monitor.TypePing: true, monitor.TypeDNS: true,
 }
 
 // uiDefaults are fields of the UI's monitor form that this service doesn't have. They're sent
@@ -206,6 +207,14 @@ func (t *monitorTree) monitorJSON(m monitor.Monitor) map[string]any {
 		"notificationIDList":   notificationIDs,
 		"propagateTrace":       m.PropagateTrace,
 		"maintenance":          t.underMaintenance[m.ID],
+
+		"pushToken":                m.PushToken,
+		"ping_count":               m.PingCount,
+		"ping_per_request_timeout": m.PingPerRequestTimeout,
+		"packetSize":               m.PacketSize,
+		"dns_resolve_type":         m.DNSResolveType,
+		"dns_resolve_server":       m.DNSResolveServer,
+		"dns_last_result":          m.DNSLastResult,
 	})
 	return out
 }
@@ -303,6 +312,13 @@ type monitorInput struct {
 	BearerToken         string          `json:"bearer_token"`
 	Conditions          []any           `json:"conditions"`
 	NotificationIDList  map[string]bool `json:"notificationIDList"`
+
+	PushToken             string  `json:"pushToken"`
+	PingCount             flexInt `json:"ping_count"`
+	PingPerRequestTimeout flexInt `json:"ping_per_request_timeout"`
+	PacketSize            flexInt `json:"packetSize"`
+	DNSResolveType        string  `json:"dns_resolve_type"`
+	DNSResolveServer      string  `json:"dns_resolve_server"`
 }
 
 // parseMonitor converts the UI's form to a monitor, and returns the notifications to link.
@@ -314,7 +330,7 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 		return m, nil, "", fmt.Errorf("invalid monitor: %w", err)
 	}
 	if !supportedTypes[in.Type] {
-		return m, nil, "", fmt.Errorf("monitor type %q isn't supported yet. Supported types: HTTP(s), HTTP(s) - Keyword, TCP Port and Group", in.Type)
+		return m, nil, "", fmt.Errorf("monitor type %q isn't supported yet. Supported types: HTTP(s), HTTP(s) - Keyword, TCP Port, Ping, DNS, Push and Group", in.Type)
 	}
 	if in.ProxyID.set {
 		return m, nil, "", errors.New("proxies aren't supported yet")
@@ -354,6 +370,32 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 			m.Hostname = strings.TrimSpace(*in.Hostname)
 		}
 		m.Port = int32(in.Port.value)
+	case monitor.TypePush:
+		m.PushToken = strings.TrimSpace(in.PushToken)
+	case monitor.TypePing:
+		if in.Hostname != nil {
+			m.Hostname = strings.TrimSpace(*in.Hostname)
+		}
+		if in.PingCount.set {
+			m.PingCount = int32(in.PingCount.value)
+		}
+		if in.PingPerRequestTimeout.set {
+			m.PingPerRequestTimeout = int32(in.PingPerRequestTimeout.value)
+		}
+		if in.PacketSize.set {
+			m.PacketSize = int32(in.PacketSize.value)
+		}
+	case monitor.TypeDNS:
+		if in.Hostname != nil {
+			m.Hostname = strings.TrimSpace(*in.Hostname)
+		}
+		m.Port = int32(in.Port.value)
+		if in.DNSResolveType != "" {
+			m.DNSResolveType = strings.TrimSpace(in.DNSResolveType)
+		}
+		if in.DNSResolveServer != "" {
+			m.DNSResolveServer = strings.TrimSpace(in.DNSResolveServer)
+		}
 	case monitor.TypeHTTP, monitor.TypeKeyword:
 		m.URL = strings.TrimSpace(in.URL)
 		if method := strings.ToUpper(strings.TrimSpace(in.Method)); method != "" {

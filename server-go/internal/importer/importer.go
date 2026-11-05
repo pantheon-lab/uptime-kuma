@@ -304,6 +304,7 @@ func readMonitors(ctx context.Context, conn *sql.Conn, report *Report) ([]*sourc
 
 	report.SourceMonitors = len(rows)
 	var result []*sourceMonitor
+	pushTokens := map[string]bool{}
 	for _, row := range rows {
 		id := int32(intOf(row["id"]))
 		name := row["name"].String
@@ -315,6 +316,15 @@ func readMonitors(ctx context.Context, conn *sql.Conn, report *Report) ([]*sourc
 		}
 		for _, setting := range droppedSettings(row) {
 			report.DroppedSettings[setting]++
+		}
+		if m.PushToken != "" {
+			if pushTokens[m.PushToken] {
+				reason := "invalid setting: another monitor has the same push token"
+				report.Skipped = append(report.Skipped, Skipped{SourceID: id, Name: name, Reason: reason})
+				report.SkippedByReason[skipCategory(reason)]++
+				continue
+			}
+			pushTokens[m.PushToken] = true
 		}
 		source := &sourceMonitor{id: id, active: boolOf(row["active"]), monitor: m}
 		if row["parent"].Valid {
@@ -350,6 +360,35 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 	case monitor.TypePort:
 		m.Hostname = row["hostname"].String
 		m.Port = int32(intOf(row["port"]))
+		return checked(m)
+	case monitor.TypePush:
+		m.PushToken = row["push_token"].String
+		return checked(m)
+	case monitor.TypePing:
+		m.Hostname = row["hostname"].String
+		if row["ping_count"].Valid {
+			m.PingCount = int32(intOf(row["ping_count"]))
+		}
+		if row["ping_per_request_timeout"].Valid {
+			m.PingPerRequestTimeout = int32(intOf(row["ping_per_request_timeout"]))
+		}
+		if row["packet_size"].Valid {
+			m.PacketSize = int32(intOf(row["packet_size"]))
+		}
+		return checked(m)
+	case monitor.TypeDNS:
+		// The Node.js backend passes or fails DNS monitors on their conditions.
+		if conditions := strings.TrimSpace(row["conditions"].String); conditions != "" && conditions != "[]" {
+			return m, "unsupported setting: conditions"
+		}
+		m.Hostname = row["hostname"].String
+		m.Port = int32(intOf(row["port"]))
+		if row["dns_resolve_type"].String != "" {
+			m.DNSResolveType = row["dns_resolve_type"].String
+		}
+		if row["dns_resolve_server"].String != "" {
+			m.DNSResolveServer = row["dns_resolve_server"].String
+		}
 		return checked(m)
 	case monitor.TypeHTTP, monitor.TypeKeyword:
 	default:

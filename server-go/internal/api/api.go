@@ -68,6 +68,7 @@ type Store interface {
 type Scheduler interface {
 	Upsert(m monitor.Monitor)
 	Remove(ctx context.Context, id int32) error
+	Push(ctx context.Context, token string, push monitor.Push) error
 }
 
 // Server holds the HTTP handlers.
@@ -120,6 +121,11 @@ func (s *Server) Handler() http.Handler {
 	s.routes = append(s.routes, "GET /api/v1/openapi.json")
 	s.routes = append(s.routes, "GET /api/v1/events")
 	mux.Handle("GET /api/v1/events", s.require(ScopeBeatsRead, s.stream))
+
+	// The token in the path is the only login. Not traced, so that it stays out of span
+	// attributes, and open to every method, as in the Node.js backend, which also leaves
+	// it out of the OpenAPI spec, so it isn't added to s.routes either.
+	mux.HandleFunc("/api/push/{token}", s.push)
 
 	handle("GET /api/v1/monitors", ScopeMonitorsRead, s.listMonitors)
 	handle("POST /api/v1/monitors", ScopeMonitorsWrite, s.createMonitor)

@@ -146,8 +146,9 @@ func (f *fakeStore) DeleteMonitor(context.Context, int32) error { return store.E
 
 type nopScheduler struct{}
 
-func (nopScheduler) Upsert(monitor.Monitor)              {}
-func (nopScheduler) Remove(context.Context, int32) error { return nil }
+func (nopScheduler) Upsert(monitor.Monitor)                           {}
+func (nopScheduler) Remove(context.Context, int32) error              { return nil }
+func (nopScheduler) Push(context.Context, string, monitor.Push) error { return nil }
 
 func newTestServer(t *testing.T, s Store) (*httptest.Server, *Hub) {
 	t.Helper()

@@ -1,7 +1,7 @@
 # kuma-analytics
 
-The Uptime Kuma backend, rewritten in Go and still in progress. It runs HTTP, keyword, TCP and
-group monitors, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
+The Uptime Kuma backend, rewritten in Go and still in progress. It runs HTTP, keyword, TCP port,
+ping, DNS, push and group monitors, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
 percentiles and dashboard stats over REST, plus new beats over Server-Sent Events. It exports
 traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
@@ -15,15 +15,15 @@ proxies, two-factor login, more than one account, and all other monitor types.
 
 The Docker image, built from the repository root's `Dockerfile`, embeds the web UI from `src/` and serves it
 on the same port as the API. `/api/v1/` and `/healthz` are the REST API, `/api/auth/`, `/api/setup` and
-`/api/realtime/` are the UI's own API, and every other path is the UI. A plain `go build` leaves the UI out.
+`/api/realtime/` are the UI's own API, `/api/push/` receives push monitors' beats, and every other path is the UI. A plain `go build` leaves the UI out.
 
 On first start, open the UI and create the account. Setup is only offered for **10 minutes after the
 service starts**, so that a stranger can't claim a server someone forgot to set up; restart the service if
 the window has passed. There's one account, and it can do everything.
 
 What works in the UI: logging in and out, changing the password, the dashboard with live beats, uptime and
-response times, the event list, adding, editing, pausing and deleting HTTP, keyword, TCP port and
-group monitors, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public
+response times, the event list, adding, editing, pausing and deleting HTTP, keyword, TCP port, ping,
+DNS, push and group monitors, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public
 holidays, tags, certificate details and expiry alerts, and saving settings.
 
 Everything else answers "This isn't supported by this server yet", or shows an empty list where a page asks
@@ -54,6 +54,30 @@ does nothing with **Ignore TLS/SSL errors** on. Alerts are checked hourly and wh
 failed send is tried again at the next check.
 
 Unlike the Node.js backend, there's also an alert with 0 days left, and the order of the days setting doesn't matter.
+
+## Push, ping and DNS monitors
+
+**Push** monitors wait for their sender, at `/api/push/<token>?status=up&msg=OK&ping=`, by any HTTP method. `status`
+is `up` by default; `down` makes the monitor DOWN straight away, without retries. A monitor that hears nothing for
+its interval, plus a second, goes DOWN with "No heartbeat in the time window". The token is the only login, so treat
+the URL as a secret: it's hidden from API keys without `monitors:write`. Leave the token empty to have one made, and
+editing a monitor keeps it. Each monitor accepts 10 pushes a second, with bursts of 20, and answers 429 beyond that,
+so that a looping sender or a leaked URL can't fill the database. The Node.js backend had no limit. After a restart,
+an edit or maintenance, the wait starts again, so a healthy sender never shows as late because of the server.
+
+**Ping** monitors send ICMP echo requests, one a second, until `pingCount` replies arrive or the timeout is reached.
+Any reply makes them UP, and the beat's ping is the first reply's round trip. They use unprivileged ICMP sockets, so the
+image stays non-root without the `NET_RAW` capability, but the host must allow it: the process's group must be in the
+`net.ipv4.ping_group_range` sysctl. `compose.yaml` and the Helm chart set it for the container only, to
+`0 2147483647`. Kubernetes counts it as a safe sysctl. Elsewhere, run with
+`--sysctl net.ipv4.ping_group_range="0 2147483647"`. Without it, the service logs a warning at start and every ping
+check fails with a message that says so. Unlike the `ping` command the Node.js backend ran, the packet size is the
+data size, and there's no numeric output setting, because there's no output to read.
+
+**DNS** monitors look a record up (A, AAAA, CAA, CNAME, MX, NS, PTR, SOA, SRV or TXT) on a comma-separated list of
+resolvers, IP addresses or hostnames, tried in turn until one answers. They're UP if there's at least one record, and
+the message and the monitor page's last result are formatted as in the Node.js backend. A name that doesn't exist, or
+has no record of the type, is DOWN. Conditions on the record aren't supported yet, so a monitor with them is refused.
 
 ## Maintenance windows
 
@@ -196,6 +220,7 @@ curl -X DELETE http://localhost:3002/api/v1/monitors/1 -H "Authorization: Bearer
 | `GET /api/v1/monitors/{id}/percentiles?hours=168&p=50,95,99` | `beats:read`                      | Ping percentiles of up beats, from raw data                                                        |
 | `GET /api/v1/stats`                                          | `beats:read`                      | 24h, 30d and 1y uptime and 24h average ping for all monitors                                       |
 | `GET /api/v1/events?monitorId=1`                             | `beats:read`                      | SSE stream of new beats, without replay                                                            |
+| `ANY /api/push/{token}?status=&msg=&ping=`                   | the token                         | A push monitor's beat. Answers `{"ok":true}`, or 404 or 429 with `{"ok":false,"msg":...}`          |
 | `POST /api/v1/beats`                                         | `beats:write`                     | Store up to 5,000 beats; safe to replay. For importing, because the scheduler writes its own beats |
 
 A beat looks like this. Status is 0 down, 1 up, 2 pending or 3 maintenance:

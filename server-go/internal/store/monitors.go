@@ -1,6 +1,7 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -20,11 +21,14 @@ var (
 	ErrInvalidParent = errors.New("invalid parent")
 	// ErrInvalidNotification means that a monitor can't use the requested notification.
 	ErrInvalidNotification = errors.New("invalid notification")
+	// ErrPushTokenTaken means that another monitor has the requested push token.
+	ErrPushTokenTaken = errors.New("another monitor already uses this push token")
 )
 
 const monitorColumns = `id, name, type, active, interval_seconds, retry_interval_seconds, timeout_seconds,
 	max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
-	max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval, expiry_notification`
+	max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval, expiry_notification,
+	push_token, ping_count, ping_per_request_timeout, packet_size, dns_resolve_type, dns_resolve_server, dns_last_result`
 
 // aggregateRefreshTimeout allows for rebuilding every bucket a deleted monitor touched.
 const (
@@ -33,13 +37,15 @@ const (
 	refreshRetryMax         = 2 * time.Second
 	// pgLockNotAvailable is what TimescaleDB returns for a concurrent refresh.
 	pgLockNotAvailable = "55P03"
+	pgUniqueViolation  = "23505"
 )
 
 func scanMonitor(row pgx.Row) (monitor.Monitor, error) {
 	var m monitor.Monitor
 	err := row.Scan(&m.ID, &m.Name, &m.Type, &m.Active, &m.Interval, &m.RetryInterval, &m.Timeout,
 		&m.MaxRetries, &m.UpsideDown, &m.URL, &m.Method, &m.Headers, &m.Body, &m.BodyEncoding, &m.AcceptedStatusCodes,
-		&m.MaxRedirects, &m.IgnoreTLS, &m.Keyword, &m.InvertKeyword, &m.Hostname, &m.Port, &m.ParentID, &m.PropagateTrace, &m.ResendInterval, &m.ExpiryNotification)
+		&m.MaxRedirects, &m.IgnoreTLS, &m.Keyword, &m.InvertKeyword, &m.Hostname, &m.Port, &m.ParentID, &m.PropagateTrace, &m.ResendInterval, &m.ExpiryNotification,
+		&m.PushToken, &m.PingCount, &m.PingPerRequestTimeout, &m.PacketSize, &m.DNSResolveType, &m.DNSResolveServer, &m.DNSLastResult)
 	return m, err
 }
 
@@ -96,6 +102,9 @@ func (s *Store) GetMonitor(ctx context.Context, id int32) (monitor.Monitor, erro
 	m, err := scanMonitor(s.pool.QueryRow(ctx, `SELECT `+monitorColumns+` FROM monitor WHERE id = $1`, id))
 	return m, monitorResult(err)
 }
+
+// pushTokenIndex keeps push tokens unique, because a token decides which monitor a push is for.
+const pushTokenIndex = "monitor_push_token_idx"
 
 // groupTreeLock serializes changes to the group tree, so that two concurrent moves can't
 // create a cycle that each alone wouldn't.
@@ -159,6 +168,7 @@ func (s *Store) inTreeTransaction(ctx context.Context, fn func(pgx.Tx) (monitor.
 // CreateMonitor stores a new monitor and returns it with its id.
 func (s *Store) CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error) {
 	m.ID = 0
+	m.PushToken = cmp.Or(m.PushToken, generatedPushToken(m))
 	return s.inTreeTransaction(ctx, func(tx pgx.Tx) (monitor.Monitor, error) {
 		if err := validateParent(ctx, tx, m); err != nil {
 			return m, err
@@ -166,18 +176,22 @@ func (s *Store) CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 		created, err := scanMonitor(tx.QueryRow(ctx, `
 			INSERT INTO monitor (name, type, active, interval_seconds, retry_interval_seconds, timeout_seconds,
 				max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
-				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval, expiry_notification)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval, expiry_notification,
+				push_token, ping_count, ping_per_request_timeout, packet_size, dns_resolve_type, dns_resolve_server)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
+				$25, $26, $27, $28, $29, $30)
 			RETURNING `+monitorColumns,
 			m.Name, m.Type, m.Active, m.Interval, m.RetryInterval, m.Timeout,
 			m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers, m.Body, m.BodyEncoding, m.AcceptedStatusCodes,
-			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace, m.ResendInterval, m.ExpiryNotification))
+			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace, m.ResendInterval, m.ExpiryNotification,
+			m.PushToken, m.PingCount, m.PingPerRequestTimeout, m.PacketSize, m.DNSResolveType, m.DNSResolveServer))
 		return created, monitorResult(err)
 	})
 }
 
 // UpdateMonitor replaces a monitor's configuration or returns ErrNotFound. A group that
-// becomes another type releases its children, the same as the Node.js backend.
+// becomes another type releases its children, the same as the Node.js backend. An empty push
+// token keeps the current one, because senders that have it would break otherwise.
 func (s *Store) UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error) {
 	return s.inTreeTransaction(ctx, func(tx pgx.Tx) (monitor.Monitor, error) {
 		if err := validateParent(ctx, tx, m); err != nil {
@@ -188,12 +202,16 @@ func (s *Store) UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 				timeout_seconds = $7, max_retries = $8, upside_down = $9, url = $10, method = $11, headers = $12,
 				body = $13, body_encoding = $14, accepted_status_codes = $15, max_redirects = $16, ignore_tls = $17,
 				keyword = $18, invert_keyword = $19, hostname = $20, port = $21, parent_id = $22, propagate_trace = $23,
-				resend_interval = $24, expiry_notification = $25, updated_at = now()
+				resend_interval = $24, expiry_notification = $25,
+				push_token = COALESCE(NULLIF($26::text, ''), NULLIF(push_token, ''), $27::text), ping_count = $28,
+				ping_per_request_timeout = $29, packet_size = $30, dns_resolve_type = $31, dns_resolve_server = $32,
+				updated_at = now()
 			WHERE id = $1
 			RETURNING `+monitorColumns,
 			m.ID, m.Name, m.Type, m.Active, m.Interval, m.RetryInterval, m.Timeout,
 			m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers, m.Body, m.BodyEncoding, m.AcceptedStatusCodes,
-			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace, m.ResendInterval, m.ExpiryNotification))
+			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace, m.ResendInterval, m.ExpiryNotification,
+			m.PushToken, generatedPushToken(m), m.PingCount, m.PingPerRequestTimeout, m.PacketSize, m.DNSResolveType, m.DNSResolveServer))
 		if err := monitorResult(err); err != nil {
 			return m, err
 		}
@@ -204,6 +222,23 @@ func (s *Store) UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 		}
 		return updated, nil
 	})
+}
+
+// generatedPushToken is a new token for a push monitor, and empty for other types.
+func generatedPushToken(m monitor.Monitor) string {
+	if m.Type != monitor.TypePush {
+		return ""
+	}
+	return monitor.NewPushToken()
+}
+
+// SetDNSLastResult implements check.DNSResultWriter. An unchanged result writes nothing.
+func (s *Store) SetDNSLastResult(ctx context.Context, id int32, result string) error {
+	_, err := s.pool.Exec(ctx, `UPDATE monitor SET dns_last_result = $2 WHERE id = $1 AND dns_last_result <> $2`, id, result)
+	if err != nil {
+		return fmt.Errorf("set DNS result: %w", err)
+	}
+	return nil
 }
 
 // GroupChildren implements check.GroupReader.
@@ -327,6 +362,10 @@ func (s *Store) LatestStates(ctx context.Context) (map[int32]monitor.Previous, e
 func monitorResult(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == pushTokenIndex {
+		return ErrPushTokenTaken
 	}
 	if err != nil {
 		return fmt.Errorf("monitor query: %w", err)

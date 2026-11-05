@@ -214,7 +214,7 @@ func (s *Server) monitorError(w http.ResponseWriter, operation string, err error
 		writeError(w, http.StatusNotFound, "monitor not found")
 		return
 	}
-	if errors.Is(err, store.ErrInvalidParent) {
+	if errors.Is(err, store.ErrInvalidParent) || errors.Is(err, store.ErrPushTokenTaken) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
