@@ -8,10 +8,10 @@ name: Merge Conflict Labeler
 on: # zizmor: ignore[dangerous-triggers]
   push:
     branches:
-      - master
+      - main
   pull_request_target:
     branches:
-      - master
+      - main
     types: [synchronize]
 
 permissions: {}
