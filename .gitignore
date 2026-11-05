@@ -26,6 +26,5 @@ extra/exe-builder/obj
 .vscode
 .devcontainer
 
-# The frontend build, copied in by the Dockerfile and embedded in kuma-analytics
-/server-go/internal/webui/dist/*
-!/server-go/internal/webui/dist/.gitkeep
+# server-go/internal/webui/dist/ is ignored by "dist" above. Its .gitkeep is tracked, because
+# go:embed needs a file there; the Dockerfile copies the frontend build in.
