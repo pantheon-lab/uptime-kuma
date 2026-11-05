@@ -137,10 +137,10 @@ func TestIsImportantMatchesNodeTable(t *testing.T) {
 }
 
 func TestSanitizeMsg(t *testing.T) {
-	if got := sanitizeMsg("a\x00b\xffc"); got != "ab�c" {
+	if got := SanitizeMsg("a\x00b\xffc"); got != "ab�c" {
 		t.Errorf("got %q", got)
 	}
-	long := sanitizeMsg(strings.Repeat("é", maxMsgBytes))
+	long := SanitizeMsg(strings.Repeat("é", maxMsgBytes))
 	if len(long) > maxMsgBytes+3 || !utf8.ValidString(long) {
 		t.Errorf("truncation produced %d bytes, valid=%v", len(long), utf8.ValidString(long))
 	}

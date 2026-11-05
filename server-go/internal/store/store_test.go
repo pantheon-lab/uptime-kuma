@@ -413,7 +413,7 @@ func TestGroupUptimeIsShareOfSuccessfulChecks(t *testing.T) {
 		var value float64
 		err := s.pool.QueryRow(ctx, `
 			SELECT sum(h.up)::float8 / NULLIF(sum(h.up + h.down), 0)
-			FROM stat_hourly h JOIN monitor_group_member g USING (monitor_id)
+			FROM uptime_hourly h JOIN monitor_group_member g USING (monitor_id)
 			WHERE g.group_name = $1 AND h.bucket >= now() - INTERVAL '2 hours'`, name).Scan(&value)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
@@ -457,6 +457,8 @@ func TestReadOnlyRoleCantSeeSecrets(t *testing.T) {
 		`SELECT count(*) FROM heartbeat`,
 		`SELECT count(*) FROM stat_hourly`,
 		`SELECT count(*) FROM stat_daily`,
+		`SELECT count(*) FROM uptime_hourly`,
+		`SELECT count(*) FROM uptime_daily`,
 		`SELECT count(*) FROM monitor_group_member`,
 		`SELECT id, name, type, active, parent_id FROM monitor`,
 	} {
@@ -585,7 +587,7 @@ func TestBeatsAfterARefreshStillCount(t *testing.T) {
 	}
 	beat(now.Add(-time.Second))
 
-	for _, view := range []string{"stat_hourly", "stat_daily"} {
+	for _, view := range []string{"uptime_hourly", "uptime_daily", "stat_hourly", "stat_daily"} {
 		var up int64
 		err := s.pool.QueryRow(ctx, `SELECT COALESCE(sum(up), 0)::bigint FROM `+view+` WHERE monitor_id = $1`, m.ID).Scan(&up)
 		if err != nil {
