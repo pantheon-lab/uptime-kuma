@@ -59,6 +59,9 @@ ingress:
   className: ""
   annotations: {}
   host: uptime-kuma.example.com
+  # Custom domains of status pages, set on each page under Domain Names. They're added to this
+  # ingress and its TLS certificate.
+  statusPageHosts: []
   # secretName for TLS. Leave empty to serve plain HTTP from the ingress.
   tlsSecretName: ""
 

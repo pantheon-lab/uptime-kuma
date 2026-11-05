@@ -62,8 +62,19 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 
+// entryPage tells the UI's / route where to go: a custom domain's status page, or the entry page.
 func (s *Server) entryPage(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"type": "entryPage", "entryPage": "dashboard"})
+	route, err := s.routing(r.Context())
+	if err != nil {
+		s.log.Error("read routing", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "msg": "internal error"})
+		return
+	}
+	if slug, found := route.domains[requestHost(r, route.trustProxy)]; found {
+		writeJSON(w, http.StatusOK, map[string]string{"type": "statusPageMatchedDomain", "statusPageSlug": slug})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"type": "entryPage", "entryPage": route.entryPage})
 }
 
 // needSetup reports whether the first account may still be created: there's no account,

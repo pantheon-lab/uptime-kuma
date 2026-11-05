@@ -2,12 +2,12 @@
 
 The Uptime Kuma backend, rewritten in Go and still in progress. It runs HTTP, keyword, TCP port,
 ping, DNS, push and group monitors, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
-percentiles and dashboard stats over REST, plus new beats over Server-Sent Events. It exports
-traces and metrics with OpenTelemetry, and ships Grafana dashboards.
+percentiles and dashboard stats over REST, plus new beats over Server-Sent Events. It serves public
+status pages and badges, exports traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
 **Status:** this is now the only backend, because the Node.js server and MariaDB support have
-been removed. It isn't feature complete. Not built yet: status pages, domain expiry tracking,
-proxies, two-factor login, more than one account, and all other monitor types.
+been removed. It isn't feature complete. Not built yet: domain expiry tracking, proxies,
+two-factor login, more than one account, and all other monitor types.
 
 [PORTING.md](PORTING.md) records what has moved from the Node.js server, phase by phase, and what's left.
 
@@ -15,7 +15,8 @@ proxies, two-factor login, more than one account, and all other monitor types.
 
 The Docker image, built from the repository root's `Dockerfile`, embeds the web UI from `src/` and serves it
 on the same port as the API. `/api/v1/` and `/healthz` are the REST API, `/api/auth/`, `/api/setup` and
-`/api/realtime/` are the UI's own API, `/api/push/` receives push monitors' beats, and every other path is the UI. A plain `go build` leaves the UI out.
+`/api/realtime/` are the UI's own API, `/api/push/` receives push monitors' beats, `/status/`,
+`/api/status-page/` and `/api/badge/` are public, and every other path is the UI. A plain `go build` leaves the UI out.
 
 On first start, open the UI and create the account. Setup is only offered for **10 minutes after the
 service starts**, so that a stranger can't claim a server someone forgot to set up; restart the service if
@@ -24,7 +25,7 @@ the window has passed. There's one account, and it can do everything.
 What works in the UI: logging in and out, changing the password, the dashboard with live beats, uptime and
 response times, the event list, adding, editing, pausing and deleting HTTP, keyword, TCP port, ping,
 DNS, push and group monitors, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public
-holidays, tags, certificate details and expiry alerts, and saving settings.
+holidays, tags, certificate details and expiry alerts, status pages with incidents, badges, and saving settings.
 
 Everything else answers "This isn't supported by this server yet", or shows an empty list where a page asks
 on its own (API keys). In particular:
@@ -79,6 +80,47 @@ resolvers, IP addresses or hostnames, tried in turn until one answers. They're U
 the message and the monitor page's last result are formatted as in the Node.js backend. A name that doesn't exist, or
 has no record of the type, is DOWN. Conditions on the record aren't supported yet, so a monitor with them is refused.
 
+## Status pages
+
+Status pages are made and edited in the web UI, under **Status Pages**, and anyone can see them at
+`/status/<slug>`. A page has groups of monitors, incidents, a logo, a theme, custom CSS, a footer, analytics
+(Google, Umami, Plausible, Matomo or Rybbit) and an RSS feed at `/status/<slug>/rss`. The page's HTML comes with
+its title, description and data in it, so search engines and link previews see it without running JavaScript.
+
+Visitors see each monitor's name, its last 100 beats without their messages, and its 24 hour uptime. A monitor's
+address is shown only if **Show Clickable Link** is on, and without any user name and password in it.
+
+- **Custom domains:** a page shows at the root of each domain under **Domain Names**. The domain must reach this
+  service: in the Helm chart, list it in `ingress.statusPageHosts`. Behind a proxy that changes the `Host`
+  header, turn on **Settings > Reverse Proxy > Trust Proxy**, so that `X-Forwarded-Host` is used.
+- **Entry page:** with a status page chosen under **Settings > General**, `/` leads there instead of the
+  dashboard.
+- **Logos** are stored in the database, so the container needs no volume. They must be PNG, up to 2 MB, and
+  are served at `/upload/logo<id>.png`, the same address as the Node.js backend's.
+- **Caching:** public answers are kept for up to a minute, and beats for 30 seconds. Changes made in the UI
+  clear them at once.
+
+### Badges
+
+Badges are SVG images in the shields.io style, for READMEs and dashboards. Only monitors on a status page have
+them: any other monitor shows N/A, so that a badge says nothing about monitors that aren't public. While editing a
+status page, a monitor's settings have a badge generator that builds the address.
+
+| Route                                  | Shows                                                          |
+| -------------------------------------- | -------------------------------------------------------------- |
+| `/api/badge/<id>/status`               | Up, Down, Pending or Maintenance                               |
+| `/api/badge/<id>/uptime/<duration>`    | Uptime, by default over 24 hours                               |
+| `/api/badge/<id>/ping/<duration>`      | Average response time, by default over 24 hours                |
+| `/api/badge/<id>/avg-response/<hours>` | Average response time, up to 720 hours                         |
+| `/api/badge/<id>/response`             | The last response time                                         |
+| `/api/badge/<id>/cert-exp`             | Days until the certificate expires, or its date with `?date=1` |
+| `/api/status-page/<slug>/badge`        | Up, Degraded, Down or Maintenance for the whole page           |
+
+A duration is a number with `m`, `h`, `d`, `w`, `M` (30 days) or `y`, up to 1440 minutes, 720 hours or 365 days. A
+number alone is hours. The query options of the Node.js backend work the same: `style` (`flat`, `flat-square`,
+`plastic`, `for-the-badge`, `social`), `label`, `labelPrefix`, `labelSuffix`, `prefix`, `suffix`, `color`,
+`labelColor`, and the colours and labels of each state. Badges are the same, byte for byte, as badge-maker's.
+
 ## Maintenance windows
 
 A monitor under maintenance isn't checked. It makes MAINTENANCE beats, which don't count towards uptime, and
@@ -87,8 +129,8 @@ a group covers every monitor below it. They're managed in the web UI; the REST A
 
 Strategies are manual, single, cron, and recurring by interval, day of the week or day of the month. A window's
 state is worked out from its rules and the time, so a restart during a window changes nothing. It can apply up
-to 10 seconds late, and a monitor shows it at its next scheduled check. The form's status page options do nothing
-yet, because there are no status pages.
+to 10 seconds late, and a monitor shows it at its next scheduled check. A running window shows on the status pages
+chosen in its form.
 
 ### Public holidays
 
@@ -358,7 +400,7 @@ Check these parts of the report:
 
 You can run it as often as you like. It duplicates nothing and picks up changes, except for monitors that have
 been resumed here, which are left alone because they produce their own data. The same goes for notifications
-that have been switched on here. Status pages, maintenance windows and users aren't imported. Nor is
+that have been switched on here. Status pages, maintenance windows and users aren't imported yet. Nor is
 `primaryBaseURL`, so set `KUMA_BASE_URL` yourself.
 
 Imported notifications stay off until `-activate`, even for monitors you resume by hand, so that a parallel run

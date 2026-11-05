@@ -1076,6 +1076,15 @@ export default {
                     this.$root.heartbeatList = heartbeatList;
                     this.$root.uptimeList = uptimeList;
 
+                    // The overall status and the status pills read each monitor's newest beat,
+                    // which only the logged-in realtime stream sets otherwise.
+                    for (const [monitorID, beats] of Object.entries(heartbeatList)) {
+                        const lastBeat = beats.at(-1);
+                        if (lastBeat) {
+                            this.$root.updateLastBeat(Number(monitorID), lastBeat);
+                        }
+                    }
+
                     const heartbeatIds = Object.keys(heartbeatList);
                     const downMonitors = heartbeatIds.reduce((downMonitorsAmount, currentId) => {
                         const monitorHeartbeats = heartbeatList[currentId];

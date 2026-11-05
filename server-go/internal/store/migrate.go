@@ -293,6 +293,76 @@ var migrations = [][]string{
 		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS dns_last_result text NOT NULL DEFAULT ''`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS ` + pushTokenIndex + ` ON monitor (push_token) WHERE push_token <> ''`,
 	},
+	{
+		// Status pages. Analytics settings are null when unset, as the UI sends them.
+		`CREATE TABLE IF NOT EXISTS status_page (
+			id serial PRIMARY KEY,
+			slug text NOT NULL UNIQUE,
+			title text NOT NULL,
+			description text NOT NULL DEFAULT '',
+			icon text NOT NULL DEFAULT '',
+			theme text NOT NULL DEFAULT 'auto',
+			auto_refresh_interval integer NOT NULL DEFAULT 300,
+			show_tags boolean NOT NULL DEFAULT false,
+			footer_text text NOT NULL DEFAULT '',
+			custom_css text NOT NULL DEFAULT '',
+			show_powered_by boolean NOT NULL DEFAULT true,
+			show_certificate_expiry boolean NOT NULL DEFAULT false,
+			show_only_last_heartbeat boolean NOT NULL DEFAULT false,
+			rss_title text NOT NULL DEFAULT '',
+			analytics_type text,
+			analytics_id text,
+			analytics_script_url text,
+			created_at timestamptz NOT NULL DEFAULT now(),
+			updated_at timestamptz NOT NULL DEFAULT now()
+		)`,
+		// A custom domain shows one status page.
+		`CREATE TABLE IF NOT EXISTS status_page_domain (
+			domain text PRIMARY KEY,
+			status_page_id integer NOT NULL REFERENCES status_page (id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS status_page_domain_page_idx ON status_page_domain (status_page_id)`,
+		// The logo uploaded for a page. A logo given as a URL stays in status_page.icon.
+		`CREATE TABLE IF NOT EXISTS status_page_logo (
+			status_page_id integer PRIMARY KEY REFERENCES status_page (id) ON DELETE CASCADE,
+			image bytea NOT NULL,
+			updated_at timestamptz NOT NULL DEFAULT now()
+		)`,
+		`CREATE TABLE IF NOT EXISTS status_page_group (
+			id serial PRIMARY KEY,
+			status_page_id integer NOT NULL REFERENCES status_page (id) ON DELETE CASCADE,
+			name text NOT NULL,
+			weight integer NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS status_page_group_page_idx ON status_page_group (status_page_id, weight)`,
+		`CREATE TABLE IF NOT EXISTS status_page_monitor (
+			group_id integer NOT NULL REFERENCES status_page_group (id) ON DELETE CASCADE,
+			monitor_id integer NOT NULL REFERENCES monitor (id) ON DELETE CASCADE,
+			weight integer NOT NULL,
+			send_url boolean NOT NULL DEFAULT false,
+			custom_url text,
+			PRIMARY KEY (group_id, monitor_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS status_page_monitor_monitor_idx ON status_page_monitor (monitor_id)`,
+		`CREATE TABLE IF NOT EXISTS incident (
+			id serial PRIMARY KEY,
+			status_page_id integer NOT NULL REFERENCES status_page (id) ON DELETE CASCADE,
+			title text NOT NULL,
+			content text NOT NULL,
+			style text NOT NULL,
+			pin boolean NOT NULL DEFAULT true,
+			active boolean NOT NULL DEFAULT true,
+			created_at timestamptz NOT NULL DEFAULT now(),
+			updated_at timestamptz
+		)`,
+		`CREATE INDEX IF NOT EXISTS incident_page_idx ON incident (status_page_id, created_at DESC, id DESC)`,
+		`CREATE TABLE IF NOT EXISTS maintenance_status_page (
+			maintenance_id integer NOT NULL REFERENCES maintenance (id) ON DELETE CASCADE,
+			status_page_id integer NOT NULL REFERENCES status_page (id) ON DELETE CASCADE,
+			PRIMARY KEY (maintenance_id, status_page_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS maintenance_status_page_page_idx ON maintenance_status_page (status_page_id)`,
+	},
 }
 
 // Migrate brings the schema up to date.
