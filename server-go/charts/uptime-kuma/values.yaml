@@ -1,8 +1,10 @@
 # kuma-analytics, the Go backend. Always runs as a single replica, because schedulers don't
 # coordinate and two instances would both run every check.
 image:
-  repository: kuma-analytics
-  # Defaults to the chart's appVersion.
+  # Published by .github/workflows/docker-release.yml. Also on Docker Hub when that's configured.
+  repository: ghcr.io/pantheon-lab/uptime-kuma
+  # Defaults to the chart's appVersion, published from the git tag v<appVersion>. Use "main"
+  # (with pullPolicy Always) or "sha-<commit>" for builds of the main branch.
   tag: ""
   pullPolicy: IfNotPresent
 imagePullSecrets: []

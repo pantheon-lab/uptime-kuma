@@ -16,19 +16,23 @@ share one copy. Helm follows it; package with `helm package` if a tool can't.
 
 ## Image
 
-The chart doesn't build anything. Build and push the image from `server-go/`, then set
-`image.repository` and `image.tag`:
+`.github/workflows/docker-release.yml` publishes `ghcr.io/pantheon-lab/uptime-kuma` for amd64 and arm64:
 
-```bash
-docker build -t <registry>/uptime-kuma:<tag> server-go
-docker push <registry>/uptime-kuma:<tag>
-```
+| Event            | Tags                         |
+| ---------------- | ---------------------------- |
+| Push to `main`   | `main`, `sha-<short commit>` |
+| Git tag `v1.2.3` | `1.2.3`, `1.2`, `latest`     |
+
+The chart's default tag is its `appVersion`, so a release needs the matching `v<appVersion>` git tag. Pre-release
+versions such as `3.0.0-beta.0` get only their exact tag, not `latest`.
+
+It also pushes to Docker Hub when the repository variable `DOCKERHUB_IMAGE` (such as `pantheonlab/uptime-kuma`)
+and the secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` are set.
 
 ## Install
 
 ```bash
-helm upgrade --install uptime-kuma server-go/charts/uptime-kuma -n uptime-kuma --create-namespace \
-  --set image.repository=<registry>/uptime-kuma --set image.tag=<tag>
+helm upgrade --install uptime-kuma server-go/charts/uptime-kuma -n uptime-kuma --create-namespace
 ```
 
 ## Secrets
