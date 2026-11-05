@@ -1,0 +1,107 @@
+{
+ "provider": "bale",
+ "variants": {
+  "default": {
+   "config": {
+    "baleBotToken": "v-baleBotToken",
+    "baleChatID": "v-baleChatID",
+    "type": "bale"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://tapi.bale.ai/botv-baleBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-baleChatID\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://tapi.bale.ai/botv-baleBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-baleChatID\",\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://tapi.bale.ai/botv-baleBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-baleChatID\",\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "baleBotToken": "v-baleBotToken",
+    "baleChatID": "v-baleChatID",
+    "type": "bale"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://tapi.bale.ai/botv-baleBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-baleChatID\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://tapi.bale.ai/botv-baleBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-baleChatID\",\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://tapi.bale.ai/botv-baleBotToken/sendMessage",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"chat_id\":\"v-baleChatID\",\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

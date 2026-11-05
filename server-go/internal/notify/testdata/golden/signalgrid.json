@@ -1,0 +1,107 @@
+{
+ "provider": "signalgrid",
+ "variants": {
+  "default": {
+   "config": {
+    "signalgridClientKey": "v-signalgridClientKey",
+    "signalgridChannel": "v-signalgridChannel",
+    "type": "signalgrid"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.signalgrid.co/v1/push",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "client_key=v-signalgridClientKey&channel=v-signalgridChannel&title=Example+Site+Down&body=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&type=CRIT&critical=false"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.signalgrid.co/v1/push",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "client_key=v-signalgridClientKey&channel=v-signalgridChannel&title=Example+Site+Up&body=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&type=SUCCESS&critical=false"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.signalgrid.co/v1/push",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "client_key=v-signalgridClientKey&channel=v-signalgridChannel&title=Uptime+Kuma&body=My+Monitor+Testing&type=INFO&critical=false"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "signalgridClientKey": "v-signalgridClientKey",
+    "signalgridChannel": "v-signalgridChannel",
+    "type": "signalgrid"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.signalgrid.co/v1/push",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "client_key=v-signalgridClientKey&channel=v-signalgridChannel&title=Example+Site+Down&body=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&type=CRIT&critical=false"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.signalgrid.co/v1/push",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "client_key=v-signalgridClientKey&channel=v-signalgridChannel&title=Example+Site+Up&body=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&type=SUCCESS&critical=false"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.signalgrid.co/v1/push",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "client_key=v-signalgridClientKey&channel=v-signalgridChannel&title=Uptime+Kuma&body=My+Monitor+Testing&type=INFO&critical=false"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

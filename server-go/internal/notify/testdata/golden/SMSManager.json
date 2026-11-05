@@ -1,0 +1,91 @@
+{
+ "provider": "SMSManager",
+ "variants": {
+  "default": {
+   "config": {
+    "smsmanagerApiKey": "v-smsmanagerApiKey",
+    "numbers": "v-numbers",
+    "messageType": "v-messageType",
+    "type": "SMSManager"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://http-api.smsmanager.cz/Send?apikey=v-smsmanagerApiKey&message=[Example Site] [ Down] connect ECONNREFUSED&number=v-numbers&gateway=undefined",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://http-api.smsmanager.cz/Send?apikey=v-smsmanagerApiKey&message=[Example Site] [ Up] 200 - OK&number=v-numbers&gateway=undefined",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://http-api.smsmanager.cz/Send?apikey=v-smsmanagerApiKey&message=My Monitor Testing&number=v-numbers&gateway=undefined",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "smsmanagerApiKey": "v-smsmanagerApiKey",
+    "numbers": "v-numbers",
+    "messageType": "v-messageType",
+    "type": "SMSManager"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://http-api.smsmanager.cz/Send?apikey=v-smsmanagerApiKey&message=[Example Site] [ Down] connect ECONNREFUSED&number=v-numbers&gateway=undefined",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://http-api.smsmanager.cz/Send?apikey=v-smsmanagerApiKey&message=[Example Site] [ Up] 200 - OK&number=v-numbers&gateway=undefined",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://http-api.smsmanager.cz/Send?apikey=v-smsmanagerApiKey&message=My Monitor Testing&number=v-numbers&gateway=undefined",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

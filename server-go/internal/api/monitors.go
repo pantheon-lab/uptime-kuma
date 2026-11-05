@@ -91,6 +91,9 @@ func (s *Server) createMonitor(w http.ResponseWriter, r *http.Request) {
 		s.monitorError(w, "create monitor", err)
 		return
 	}
+	if err := s.store.LinkDefaultNotifications(r.Context(), created.ID); err != nil {
+		s.log.Error("link default notifications", "monitor", created.ID, "error", err)
+	}
 	s.scheduler.Upsert(created)
 	s.audit(r, "monitor created", created.ID)
 	w.Header().Set("Location", "/api/v1/monitors/"+strconv.Itoa(int(created.ID)))

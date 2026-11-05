@@ -1,0 +1,105 @@
+{
+ "provider": "GoogleSheets",
+ "variants": {
+  "default": {
+   "config": {
+    "googleSheetsWebhookUrl": "https://svc.example/googleSheetsWebhookUrl",
+    "type": "GoogleSheets"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleSheetsWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"timestamp\":\"2026-01-02T03:04:05.678Z\",\"status\":\"DOWN\",\"monitorName\":\"Example Site\",\"monitorUrl\":\"https://site.example/health\",\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"responseTime\":\"N/A\",\"statusCode\":\"N/A\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleSheetsWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"timestamp\":\"2026-01-02T03:04:05.678Z\",\"status\":\"UP\",\"monitorName\":\"Example Site\",\"monitorUrl\":\"https://site.example/health\",\"message\":\"[Example Site] [✅ Up] 200 - OK\",\"responseTime\":123,\"statusCode\":\"N/A\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleSheetsWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"timestamp\":\"2026-01-02T03:04:05.678Z\",\"status\":\"N/A\",\"monitorName\":\"N/A\",\"monitorUrl\":\"N/A\",\"message\":\"My Monitor Testing\",\"responseTime\":\"N/A\",\"statusCode\":\"N/A\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "googleSheetsWebhookUrl": "https://svc.example/googleSheetsWebhookUrl",
+    "type": "GoogleSheets"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleSheetsWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"timestamp\":\"2026-01-02T03:04:05.678Z\",\"status\":\"DOWN\",\"monitorName\":\"Example Site\",\"monitorUrl\":\"https://site.example/health\",\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"responseTime\":\"N/A\",\"statusCode\":\"N/A\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleSheetsWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"timestamp\":\"2026-01-02T03:04:05.678Z\",\"status\":\"UP\",\"monitorName\":\"Example Site\",\"monitorUrl\":\"https://site.example/health\",\"message\":\"[Example Site] [✅ Up] 200 - OK\",\"responseTime\":123,\"statusCode\":\"N/A\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/googleSheetsWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"timestamp\":\"2026-01-02T03:04:05.678Z\",\"status\":\"N/A\",\"monitorName\":\"N/A\",\"monitorUrl\":\"N/A\",\"message\":\"My Monitor Testing\",\"responseTime\":\"N/A\",\"statusCode\":\"N/A\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

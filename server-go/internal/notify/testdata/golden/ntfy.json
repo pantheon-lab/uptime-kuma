@@ -1,0 +1,324 @@
+{
+ "provider": "ntfy",
+ "variants": {
+  "default": {
+   "config": {
+    "ntfyAuthenticationMethod": "v-ntfyAuthenticationMethod",
+    "ntfyusername": "v-ntfyusername",
+    "ntfypassword": "v-ntfypassword",
+    "ntfyaccesstoken": "v-ntfyaccesstoken",
+    "ntfyCall": "v-ntfyCall",
+    "ntfytopic": "v-ntfytopic",
+    "ntfyUseTemplate": "v-ntfyUseTemplate",
+    "ntfyCustomTitle": "v-ntfyCustomTitle",
+    "ntfyCustomMessage": "v-ntfyCustomMessage",
+    "ntfyPriority": "v-ntfyPriority",
+    "ntfyserverurl": "https://svc.example/ntfyserverurl",
+    "ntfyPriorityDown": "v-ntfyPriorityDown",
+    "ntfyIcon": "v-ntfyIcon",
+    "type": "ntfy"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Call": "v-ntfyCall"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"message\":\"v-ntfyCustomMessage\",\"priority\":\"v-ntfyPriorityDown\",\"title\":\"v-ntfyCustomTitle\",\"tags\":[\"red_circle\"],\"actions\":[{\"action\":\"view\",\"label\":\"Open Example Site\",\"url\":\"https://site.example/health\"}],\"icon\":\"v-ntfyIcon\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Call": "v-ntfyCall"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"message\":\"v-ntfyCustomMessage\",\"priority\":\"v-ntfyPriority\",\"title\":\"v-ntfyCustomTitle\",\"tags\":[\"green_circle\"],\"actions\":[{\"action\":\"view\",\"label\":\"Open Example Site\",\"url\":\"https://site.example/health\"}],\"icon\":\"v-ntfyIcon\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Call": "v-ntfyCall"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"title\":\"v-ntfyCustomTitle\",\"message\":\"v-ntfyCustomMessage\",\"priority\":\"v-ntfyPriority\",\"tags\":[\"test_tube\"]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "ntfyAuthenticationMethod": "v-ntfyAuthenticationMethod",
+    "ntfyusername": "v-ntfyusername",
+    "ntfypassword": "v-ntfypassword",
+    "ntfyaccesstoken": "v-ntfyaccesstoken",
+    "ntfytopic": "v-ntfytopic",
+    "ntfyserverurl": "https://svc.example/ntfyserverurl",
+    "type": "ntfy"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"message\":\"connect ECONNREFUSED\",\"priority\":5,\"title\":\"Example Site Down [Uptime-Kuma]\",\"tags\":[\"red_circle\"],\"actions\":[{\"action\":\"view\",\"label\":\"Open Example Site\",\"url\":\"https://site.example/health\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"message\":\"200 - OK\",\"priority\":4,\"title\":\"Example Site Up [Uptime-Kuma]\",\"tags\":[\"green_circle\"],\"actions\":[{\"action\":\"view\",\"label\":\"Open Example Site\",\"url\":\"https://site.example/health\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"title\":\"v-ntfytopic [Uptime-Kuma]\",\"message\":\"My Monitor Testing\",\"tags\":[\"test_tube\"]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "token": {
+   "config": {
+    "ntfyAuthenticationMethod": "accessToken",
+    "ntfyusername": "v-ntfyusername",
+    "ntfypassword": "v-ntfypassword",
+    "ntfyaccesstoken": "v-ntfyaccesstoken",
+    "ntfyCall": "v-ntfyCall",
+    "ntfytopic": "v-ntfytopic",
+    "ntfyUseTemplate": false,
+    "ntfyCustomTitle": "v-ntfyCustomTitle",
+    "ntfyCustomMessage": "v-ntfyCustomMessage",
+    "ntfyPriority": 3,
+    "ntfyserverurl": "https://svc.example/ntfyserverurl",
+    "ntfyIcon": "v-ntfyIcon",
+    "type": "ntfy"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-ntfyaccesstoken",
+        "X-Call": "v-ntfyCall"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"message\":\"connect ECONNREFUSED\",\"priority\":4,\"title\":\"Example Site Down [Uptime-Kuma]\",\"tags\":[\"red_circle\"],\"actions\":[{\"action\":\"view\",\"label\":\"Open Example Site\",\"url\":\"https://site.example/health\"}],\"icon\":\"v-ntfyIcon\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-ntfyaccesstoken",
+        "X-Call": "v-ntfyCall"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"message\":\"200 - OK\",\"priority\":3,\"title\":\"Example Site Up [Uptime-Kuma]\",\"tags\":[\"green_circle\"],\"actions\":[{\"action\":\"view\",\"label\":\"Open Example Site\",\"url\":\"https://site.example/health\"}],\"icon\":\"v-ntfyIcon\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-ntfyaccesstoken",
+        "X-Call": "v-ntfyCall"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"title\":\"v-ntfytopic [Uptime-Kuma]\",\"message\":\"My Monitor Testing\",\"priority\":3,\"tags\":[\"test_tube\"]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "basic": {
+   "config": {
+    "ntfyAuthenticationMethod": "usernamePassword",
+    "ntfyusername": "v-ntfyusername",
+    "ntfypassword": "v-ntfypassword",
+    "ntfyaccesstoken": "v-ntfyaccesstoken",
+    "ntfyCall": "v-ntfyCall",
+    "ntfytopic": "v-ntfytopic",
+    "ntfyUseTemplate": false,
+    "ntfyCustomTitle": "v-ntfyCustomTitle",
+    "ntfyCustomMessage": "v-ntfyCustomMessage",
+    "ntfyPriority": 5,
+    "ntfyserverurl": "https://svc.example/ntfyserverurl",
+    "ntfyIcon": "v-ntfyIcon",
+    "type": "ntfy"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1udGZ5dXNlcm5hbWU6di1udGZ5cGFzc3dvcmQ=",
+        "X-Call": "v-ntfyCall"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"message\":\"connect ECONNREFUSED\",\"priority\":5,\"title\":\"Example Site Down [Uptime-Kuma]\",\"tags\":[\"red_circle\"],\"actions\":[{\"action\":\"view\",\"label\":\"Open Example Site\",\"url\":\"https://site.example/health\"}],\"icon\":\"v-ntfyIcon\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1udGZ5dXNlcm5hbWU6di1udGZ5cGFzc3dvcmQ=",
+        "X-Call": "v-ntfyCall"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"message\":\"200 - OK\",\"priority\":5,\"title\":\"Example Site Up [Uptime-Kuma]\",\"tags\":[\"green_circle\"],\"actions\":[{\"action\":\"view\",\"label\":\"Open Example Site\",\"url\":\"https://site.example/health\"}],\"icon\":\"v-ntfyIcon\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1udGZ5dXNlcm5hbWU6di1udGZ5cGFzc3dvcmQ=",
+        "X-Call": "v-ntfyCall"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"title\":\"v-ntfytopic [Uptime-Kuma]\",\"message\":\"My Monitor Testing\",\"priority\":5,\"tags\":[\"test_tube\"]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "down": {
+   "config": {
+    "ntfyAuthenticationMethod": "none",
+    "ntfyusername": "v-ntfyusername",
+    "ntfypassword": "v-ntfypassword",
+    "ntfyaccesstoken": "v-ntfyaccesstoken",
+    "ntfyCall": "v-ntfyCall",
+    "ntfytopic": "v-ntfytopic",
+    "ntfyUseTemplate": true,
+    "ntfyCustomTitle": "{{ name }}",
+    "ntfyCustomMessage": "{{ msg }}",
+    "ntfyPriority": 2,
+    "ntfyserverurl": "https://svc.example/ntfyserverurl",
+    "ntfyPriorityDown": 5,
+    "ntfyIcon": "v-ntfyIcon",
+    "type": "ntfy"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Call": "v-ntfyCall"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"priority\":5,\"title\":\"Example Site\",\"tags\":[\"red_circle\"],\"actions\":[{\"action\":\"view\",\"label\":\"Open Example Site\",\"url\":\"https://site.example/health\"}],\"icon\":\"v-ntfyIcon\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Call": "v-ntfyCall"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"message\":\"[Example Site] [✅ Up] 200 - OK\",\"priority\":2,\"title\":\"Example Site\",\"tags\":[\"green_circle\"],\"actions\":[{\"action\":\"view\",\"label\":\"Open Example Site\",\"url\":\"https://site.example/health\"}],\"icon\":\"v-ntfyIcon\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/ntfyserverurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Call": "v-ntfyCall"
+       },
+       "body": "{\"topic\":\"v-ntfytopic\",\"title\":\"Monitor Name not available\",\"message\":\"My Monitor Testing\",\"priority\":2,\"tags\":[\"test_tube\"]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,113 @@
+{
+ "provider": "notifery",
+ "variants": {
+  "default": {
+   "config": {
+    "notiferyTitle": "v-notiferyTitle",
+    "notiferyGroup": "v-notiferyGroup",
+    "notiferyApiKey": "v-notiferyApiKey",
+    "type": "notifery"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.notifery.com/event",
+       "headers": {
+        "Content-Type": "application/json",
+        "x-api-key": "v-notiferyApiKey"
+       },
+       "body": "{\"title\":\"v-notiferyTitle\",\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\\n\\nMonitor: https://kuma.example/dashboard/42\",\"group\":\"v-notiferyGroup\",\"code\":1}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.notifery.com/event",
+       "headers": {
+        "Content-Type": "application/json",
+        "x-api-key": "v-notiferyApiKey"
+       },
+       "body": "{\"title\":\"v-notiferyTitle\",\"message\":\"[Example Site] [✅ Up] 200 - OK\\n\\nMonitor: https://kuma.example/dashboard/42\",\"group\":\"v-notiferyGroup\",\"code\":0,\"duration\":123}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.notifery.com/event",
+       "headers": {
+        "Content-Type": "application/json",
+        "x-api-key": "v-notiferyApiKey"
+       },
+       "body": "{\"title\":\"v-notiferyTitle\",\"message\":\"My Monitor Testing\",\"group\":\"v-notiferyGroup\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "notiferyApiKey": "v-notiferyApiKey",
+    "type": "notifery"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.notifery.com/event",
+       "headers": {
+        "Content-Type": "application/json",
+        "x-api-key": "v-notiferyApiKey"
+       },
+       "body": "{\"title\":\"Uptime Kuma Alert\",\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\\n\\nMonitor: https://kuma.example/dashboard/42\",\"code\":1}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.notifery.com/event",
+       "headers": {
+        "Content-Type": "application/json",
+        "x-api-key": "v-notiferyApiKey"
+       },
+       "body": "{\"title\":\"Uptime Kuma Alert\",\"message\":\"[Example Site] [✅ Up] 200 - OK\\n\\nMonitor: https://kuma.example/dashboard/42\",\"code\":0,\"duration\":123}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.notifery.com/event",
+       "headers": {
+        "Content-Type": "application/json",
+        "x-api-key": "v-notiferyApiKey"
+       },
+       "body": "{\"title\":\"Uptime Kuma Alert\",\"message\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

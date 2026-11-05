@@ -1,0 +1,111 @@
+{
+ "provider": "pushbullet",
+ "variants": {
+  "default": {
+   "config": {
+    "pushbulletAccessToken": "v-pushbulletAccessToken",
+    "type": "pushbullet"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushbullet.com/v2/pushes",
+       "headers": {
+        "Content-Type": "application/json",
+        "Access-Token": "v-pushbulletAccessToken"
+       },
+       "body": "{\"type\":\"note\",\"title\":\"UptimeKuma Alert: Example Site\",\"body\":\"[🔴 Down] connect ECONNREFUSED\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushbullet.com/v2/pushes",
+       "headers": {
+        "Content-Type": "application/json",
+        "Access-Token": "v-pushbulletAccessToken"
+       },
+       "body": "{\"type\":\"note\",\"title\":\"UptimeKuma Alert: Example Site\",\"body\":\"[✅ Up] 200 - OK\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushbullet.com/v2/pushes",
+       "headers": {
+        "Content-Type": "application/json",
+        "Access-Token": "v-pushbulletAccessToken"
+       },
+       "body": "{\"type\":\"note\",\"title\":\"Uptime Kuma Alert\",\"body\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "pushbulletAccessToken": "v-pushbulletAccessToken",
+    "type": "pushbullet"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushbullet.com/v2/pushes",
+       "headers": {
+        "Content-Type": "application/json",
+        "Access-Token": "v-pushbulletAccessToken"
+       },
+       "body": "{\"type\":\"note\",\"title\":\"UptimeKuma Alert: Example Site\",\"body\":\"[🔴 Down] connect ECONNREFUSED\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushbullet.com/v2/pushes",
+       "headers": {
+        "Content-Type": "application/json",
+        "Access-Token": "v-pushbulletAccessToken"
+       },
+       "body": "{\"type\":\"note\",\"title\":\"UptimeKuma Alert: Example Site\",\"body\":\"[✅ Up] 200 - OK\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.pushbullet.com/v2/pushes",
+       "headers": {
+        "Content-Type": "application/json",
+        "Access-Token": "v-pushbulletAccessToken"
+       },
+       "body": "{\"type\":\"note\",\"title\":\"Uptime Kuma Alert\",\"body\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

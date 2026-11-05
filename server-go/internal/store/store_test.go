@@ -7,6 +7,8 @@ import (
 	"math"
 	"net/url"
 	"os"
+	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -476,6 +478,9 @@ func TestReadOnlyRoleCantSeeSecrets(t *testing.T) {
 		`SELECT headers FROM monitor`,
 		`SELECT body FROM monitor`,
 		`SELECT * FROM monitor`,
+		`SELECT config FROM notification`,
+		`SELECT * FROM notification_import`,
+		`SELECT * FROM monitor_notification`,
 		`DELETE FROM heartbeat`,
 		`UPDATE monitor SET name = 'x'`,
 		`INSERT INTO heartbeat (monitor_id, time, status) VALUES (1, now(), 1)`,
@@ -596,5 +601,117 @@ func TestBeatsAfterARefreshStillCount(t *testing.T) {
 		if up != 3 {
 			t.Errorf("%s has %d beats, want 3: a beat after a refresh went missing", view, up)
 		}
+	}
+}
+
+func TestNotifications(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	newMonitor := func(name string) monitor.Monitor {
+		m := monitor.New()
+		m.Name, m.Type, m.URL, m.ResendInterval = name, monitor.TypeHTTP, "https://example.com", 4
+		created, err := s.CreateMonitor(ctx, m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return created
+	}
+	first := newMonitor("first")
+	if first.ResendInterval != 4 {
+		t.Errorf("resend interval wasn't stored: %d", first.ResendInterval)
+	}
+
+	config := map[string]any{"webhookURL": "https://hooks.example", "smtpPort": float64(587), "nested": map[string]any{"a": true}}
+	on, err := s.CreateNotification(ctx, Notification{Name: "on", Type: "webhook", Config: config, Active: true, IsDefault: true}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(on.Config, config) {
+		t.Errorf("config changed in storage: %v", on.Config)
+	}
+	off, err := s.CreateNotification(ctx, Notification{Name: "off", Type: "webhook", Config: config}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ids, err := s.MonitorNotificationIDs(ctx, first.ID); err != nil || !slices.Equal(ids, []int32{on.ID}) {
+		t.Fatalf("applying to all: %v %v", ids, err)
+	}
+	if err := s.SetMonitorNotifications(ctx, first.ID, []int32{on.ID, off.ID, on.ID}); err != nil {
+		t.Fatal(err)
+	}
+	active, err := s.ActiveNotificationsFor(ctx, first.ID)
+	if err != nil || len(active) != 1 || active[0].ID != on.ID {
+		t.Fatalf("an inactive notification would be sent: %v %v", active, err)
+	}
+	if err := s.SetMonitorNotifications(ctx, first.ID, []int32{on.ID, 9999}); !errors.Is(err, ErrInvalidNotification) {
+		t.Fatalf("unknown notification: %v", err)
+	}
+	// That failure must not have changed anything.
+	if ids, _ := s.MonitorNotificationIDs(ctx, first.ID); len(ids) != 2 {
+		t.Fatalf("a failed change left %v", ids)
+	}
+	if err := s.SetMonitorNotifications(ctx, 9999, nil); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown monitor: %v", err)
+	}
+
+	second := newMonitor("second")
+	if err := s.LinkDefaultNotifications(ctx, second.ID); err != nil {
+		t.Fatal(err)
+	}
+	if ids, _ := s.MonitorNotificationIDs(ctx, second.ID); !slices.Equal(ids, []int32{on.ID}) {
+		t.Fatalf("defaults: %v", ids)
+	}
+
+	on.Name = "renamed"
+	if updated, err := s.UpdateNotification(ctx, on, false); err != nil || updated.Name != "renamed" {
+		t.Fatalf("update: %+v %v", updated, err)
+	}
+	if err := s.DeleteNotification(ctx, on.ID); err != nil {
+		t.Fatal(err)
+	}
+	if ids, _ := s.MonitorNotificationIDs(ctx, second.ID); len(ids) != 0 {
+		t.Fatalf("delete didn't remove links: %v", ids)
+	}
+	if err := s.DeleteNotification(ctx, on.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("delete twice: %v", err)
+	}
+	if _, err := s.GetNotification(ctx, on.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("get deleted: %v", err)
+	}
+}
+
+func TestDownCountSurvivesARestart(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	m := monitor.New()
+	m.Name, m.Type, m.URL = "m", monitor.TypeHTTP, "https://example.com"
+	m.Active = true
+	created, err := s.CreateMonitor(ctx, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().UTC().Add(-time.Minute).Truncate(time.Millisecond)
+	beats := []Beat{
+		{MonitorID: created.ID, Time: at, Status: monitor.StatusDown, Important: true},
+		{MonitorID: created.ID, Time: at.Add(time.Second), Status: monitor.StatusDown, DownCount: 3},
+	}
+	if _, err := s.InsertBeats(ctx, beats); err != nil {
+		t.Fatal(err)
+	}
+	states, err := s.LatestStates(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if states[created.ID].DownCount != 3 {
+		t.Fatalf("state: %+v", states[created.ID])
+	}
+	down, err := s.LastDownTime(ctx, created.ID)
+	if err != nil || down == nil || !down.Equal(at) {
+		t.Fatalf("last down: %v %v", down, err)
+	}
+	path, err := s.MonitorPath(ctx, created.ID)
+	if err != nil || !slices.Equal(path, []string{"m"}) {
+		t.Fatalf("path: %v %v", path, err)
 	}
 }

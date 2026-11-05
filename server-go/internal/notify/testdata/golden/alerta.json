@@ -1,0 +1,119 @@
+{
+ "provider": "alerta",
+ "variants": {
+  "default": {
+   "config": {
+    "alertaApiKey": "v-alertaApiKey",
+    "alertaEnvironment": "v-alertaEnvironment",
+    "alertaApiEndpoint": "https://svc.example/alertaApiEndpoint",
+    "alertaAlertState": "v-alertaAlertState",
+    "alertaRecoverState": "v-alertaRecoverState",
+    "type": "alerta"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/alertaApiEndpoint",
+       "headers": {
+        "Content-Type": "application/json;charset=UTF-8",
+        "Authorization": "Key v-alertaApiKey"
+       },
+       "body": "{\"correlate\":[],\"event\":\"http\",\"group\":\"uptimekuma-http\",\"resource\":\"Example Site\",\"environment\":\"v-alertaEnvironment\",\"severity\":\"v-alertaAlertState\",\"service\":[\"UptimeKuma\"],\"value\":\"Timeout\",\"tags\":[\"uptimekuma\"],\"attributes\":{},\"origin\":\"uptimekuma\",\"type\":\"exceptionAlert\",\"text\":\"Service http is down.\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/alertaApiEndpoint",
+       "headers": {
+        "Content-Type": "application/json;charset=UTF-8",
+        "Authorization": "Key v-alertaApiKey"
+       },
+       "body": "{\"correlate\":[],\"event\":\"http\",\"group\":\"uptimekuma-http\",\"resource\":\"Example Site\",\"environment\":\"v-alertaEnvironment\",\"severity\":\"v-alertaRecoverState\",\"service\":[\"UptimeKuma\"],\"value\":\"Timeout\",\"tags\":[\"uptimekuma\"],\"attributes\":{},\"origin\":\"uptimekuma\",\"type\":\"exceptionAlert\",\"text\":\"Service http is up.\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/alertaApiEndpoint",
+       "headers": {
+        "Content-Type": "application/json;charset=UTF-8",
+        "Authorization": "Key v-alertaApiKey"
+       },
+       "body": "{\"event\":\"msg\",\"text\":\"My Monitor Testing\",\"group\":\"uptimekuma-msg\",\"resource\":\"Message\",\"environment\":\"v-alertaEnvironment\",\"severity\":\"critical\",\"correlate\":[],\"service\":[\"UptimeKuma\"],\"value\":\"Timeout\",\"tags\":[\"uptimekuma\"],\"attributes\":{},\"origin\":\"uptimekuma\",\"type\":\"exceptionAlert\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "alertaApiKey": "v-alertaApiKey",
+    "alertaEnvironment": "v-alertaEnvironment",
+    "alertaApiEndpoint": "https://svc.example/alertaApiEndpoint",
+    "alertaAlertState": "v-alertaAlertState",
+    "alertaRecoverState": "v-alertaRecoverState",
+    "type": "alerta"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/alertaApiEndpoint",
+       "headers": {
+        "Content-Type": "application/json;charset=UTF-8",
+        "Authorization": "Key v-alertaApiKey"
+       },
+       "body": "{\"correlate\":[],\"event\":\"http\",\"group\":\"uptimekuma-http\",\"resource\":\"Example Site\",\"environment\":\"v-alertaEnvironment\",\"severity\":\"v-alertaAlertState\",\"service\":[\"UptimeKuma\"],\"value\":\"Timeout\",\"tags\":[\"uptimekuma\"],\"attributes\":{},\"origin\":\"uptimekuma\",\"type\":\"exceptionAlert\",\"text\":\"Service http is down.\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/alertaApiEndpoint",
+       "headers": {
+        "Content-Type": "application/json;charset=UTF-8",
+        "Authorization": "Key v-alertaApiKey"
+       },
+       "body": "{\"correlate\":[],\"event\":\"http\",\"group\":\"uptimekuma-http\",\"resource\":\"Example Site\",\"environment\":\"v-alertaEnvironment\",\"severity\":\"v-alertaRecoverState\",\"service\":[\"UptimeKuma\"],\"value\":\"Timeout\",\"tags\":[\"uptimekuma\"],\"attributes\":{},\"origin\":\"uptimekuma\",\"type\":\"exceptionAlert\",\"text\":\"Service http is up.\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/alertaApiEndpoint",
+       "headers": {
+        "Content-Type": "application/json;charset=UTF-8",
+        "Authorization": "Key v-alertaApiKey"
+       },
+       "body": "{\"event\":\"msg\",\"text\":\"My Monitor Testing\",\"group\":\"uptimekuma-msg\",\"resource\":\"Message\",\"environment\":\"v-alertaEnvironment\",\"severity\":\"critical\",\"correlate\":[],\"service\":[\"UptimeKuma\"],\"value\":\"Timeout\",\"tags\":[\"uptimekuma\"],\"attributes\":{},\"origin\":\"uptimekuma\",\"type\":\"exceptionAlert\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

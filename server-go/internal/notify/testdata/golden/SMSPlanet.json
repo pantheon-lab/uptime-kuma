@@ -1,0 +1,121 @@
+{
+ "provider": "SMSPlanet",
+ "variants": {
+  "default": {
+   "config": {
+    "smsplanetApiToken": "v-smsplanetApiToken",
+    "smsplanetSenderName": "v-smsplanetSenderName",
+    "smsplanetPhoneNumbers": "v-smsplanetPhoneNumbers",
+    "type": "SMSPlanet"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.smsplanet.pl/sms",
+       "headers": {
+        "Content-Type": "multipart/form-data",
+        "Authorization": "Bearer v-smsplanetApiToken"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"from\"\r\n\r\nv-smsplanetSenderName\r\n----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"to\"\r\n\r\nv-smsplanetPhoneNumbers\r\n----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"msg\"\r\n\r\n[Example Site] [❌ Down] connect ECONNREFUSED\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": "SMSPlanet server did not respond with the expected result"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.smsplanet.pl/sms",
+       "headers": {
+        "Content-Type": "multipart/form-data",
+        "Authorization": "Bearer v-smsplanetApiToken"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"from\"\r\n\r\nv-smsplanetSenderName\r\n----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"to\"\r\n\r\nv-smsplanetPhoneNumbers\r\n----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"msg\"\r\n\r\n[Example Site] [✅ Up] 200 - OK\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": "SMSPlanet server did not respond with the expected result"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.smsplanet.pl/sms",
+       "headers": {
+        "Content-Type": "multipart/form-data",
+        "Authorization": "Bearer v-smsplanetApiToken"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"from\"\r\n\r\nv-smsplanetSenderName\r\n----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"to\"\r\n\r\nv-smsplanetPhoneNumbers\r\n----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"msg\"\r\n\r\nMy Monitor Testing\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": "SMSPlanet server did not respond with the expected result"
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "smsplanetApiToken": "v-smsplanetApiToken",
+    "smsplanetSenderName": "v-smsplanetSenderName",
+    "smsplanetPhoneNumbers": "v-smsplanetPhoneNumbers",
+    "type": "SMSPlanet"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.smsplanet.pl/sms",
+       "headers": {
+        "Content-Type": "multipart/form-data",
+        "Authorization": "Bearer v-smsplanetApiToken"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"from\"\r\n\r\nv-smsplanetSenderName\r\n----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"to\"\r\n\r\nv-smsplanetPhoneNumbers\r\n----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"msg\"\r\n\r\n[Example Site] [❌ Down] connect ECONNREFUSED\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": "SMSPlanet server did not respond with the expected result"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.smsplanet.pl/sms",
+       "headers": {
+        "Content-Type": "multipart/form-data",
+        "Authorization": "Bearer v-smsplanetApiToken"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"from\"\r\n\r\nv-smsplanetSenderName\r\n----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"to\"\r\n\r\nv-smsplanetPhoneNumbers\r\n----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"msg\"\r\n\r\n[Example Site] [✅ Up] 200 - OK\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": "SMSPlanet server did not respond with the expected result"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api2.smsplanet.pl/sms",
+       "headers": {
+        "Content-Type": "multipart/form-data",
+        "Authorization": "Bearer v-smsplanetApiToken"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"from\"\r\n\r\nv-smsplanetSenderName\r\n----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"to\"\r\n\r\nv-smsplanetPhoneNumbers\r\n----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"msg\"\r\n\r\nMy Monitor Testing\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": "SMSPlanet server did not respond with the expected result"
+    }
+   }
+  }
+ }
+}

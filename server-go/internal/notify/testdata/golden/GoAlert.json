@@ -1,0 +1,113 @@
+{
+ "provider": "GoAlert",
+ "variants": {
+  "default": {
+   "config": {
+    "goAlertBaseURL": "https://svc.example/goAlertBaseURL",
+    "goAlertToken": "v-goAlertToken",
+    "type": "GoAlert"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/goAlertBaseURL/api/v2/generic/incoming?token=v-goAlertToken",
+       "headers": {
+        "Content-Type": "multipart/form-data"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"summary\"\r\n\r\n[Example Site] [🔴 Down] connect ECONNREFUSED\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/goAlertBaseURL/api/v2/generic/incoming?token=v-goAlertToken",
+       "headers": {
+        "Content-Type": "multipart/form-data"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"summary\"\r\n\r\n[Example Site] [✅ Up] 200 - OK\r\n----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"action\"\r\n\r\nclose\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/goAlertBaseURL/api/v2/generic/incoming?token=v-goAlertToken",
+       "headers": {
+        "Content-Type": "multipart/form-data"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"summary\"\r\n\r\nMy Monitor Testing\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "goAlertBaseURL": "https://svc.example/goAlertBaseURL",
+    "goAlertToken": "v-goAlertToken",
+    "type": "GoAlert"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/goAlertBaseURL/api/v2/generic/incoming?token=v-goAlertToken",
+       "headers": {
+        "Content-Type": "multipart/form-data"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"summary\"\r\n\r\n[Example Site] [🔴 Down] connect ECONNREFUSED\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/goAlertBaseURL/api/v2/generic/incoming?token=v-goAlertToken",
+       "headers": {
+        "Content-Type": "multipart/form-data"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"summary\"\r\n\r\n[Example Site] [✅ Up] 200 - OK\r\n----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"action\"\r\n\r\nclose\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/goAlertBaseURL/api/v2/generic/incoming?token=v-goAlertToken",
+       "headers": {
+        "Content-Type": "multipart/form-data"
+       },
+       "body": "----------------------------abababababababababababab\r\nContent-Disposition: form-data; name=\"summary\"\r\n\r\nMy Monitor Testing\r\n----------------------------abababababababababababab--\r\n",
+       "multipart": true
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

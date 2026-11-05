@@ -1,0 +1,132 @@
+{
+ "provider": "JiraServiceManagement",
+ "variants": {
+  "default": {
+   "config": {
+    "jsmPriority": "v-jsmPriority",
+    "jsmCloudId": "v-jsmCloudId",
+    "jsmEmail": "v-jsmEmail",
+    "jsmApiToken": "v-jsmApiToken",
+    "type": "JiraServiceManagement"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.atlassian.com/jsm/ops/api/v-jsmCloudId/v1/alerts",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1qc21FbWFpbDp2LWpzbUFwaVRva2Vu"
+       },
+       "body": "{\"message\":\"Uptime Kuma Alert: Example Site\",\"alias\":\"Example Site\",\"description\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"source\":\"Uptime Kuma\",\"priority\":\"Pv-jsmPriority\",\"tags\":[\"Uptime Kuma\"]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://api.atlassian.com/jsm/ops/api/v-jsmCloudId/v1/alerts/alias?alias=Example%20Site",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1qc21FbWFpbDp2LWpzbUFwaVRva2Vu"
+       }
+      },
+      {
+       "method": "POST",
+       "url": "https://api.atlassian.com/jsm/ops/api/v-jsmCloudId/v1/alerts/stub-id/close",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1qc21FbWFpbDp2LWpzbUFwaVRva2Vu"
+       },
+       "body": "{\"source\":\"Uptime Kuma\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.atlassian.com/jsm/ops/api/v-jsmCloudId/v1/alerts",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1qc21FbWFpbDp2LWpzbUFwaVRva2Vu"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"alias\":\"uptime-kuma-notification-test\",\"source\":\"Uptime Kuma\",\"priority\":\"P5\",\"tags\":[\"Uptime Kuma\"]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "jsmCloudId": "v-jsmCloudId",
+    "jsmEmail": "v-jsmEmail",
+    "jsmApiToken": "v-jsmApiToken",
+    "type": "JiraServiceManagement"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.atlassian.com/jsm/ops/api/v-jsmCloudId/v1/alerts",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1qc21FbWFpbDp2LWpzbUFwaVRva2Vu"
+       },
+       "body": "{\"message\":\"Uptime Kuma Alert: Example Site\",\"alias\":\"Example Site\",\"description\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"source\":\"Uptime Kuma\",\"priority\":\"P3\",\"tags\":[\"Uptime Kuma\"]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://api.atlassian.com/jsm/ops/api/v-jsmCloudId/v1/alerts/alias?alias=Example%20Site",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1qc21FbWFpbDp2LWpzbUFwaVRva2Vu"
+       }
+      },
+      {
+       "method": "POST",
+       "url": "https://api.atlassian.com/jsm/ops/api/v-jsmCloudId/v1/alerts/stub-id/close",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1qc21FbWFpbDp2LWpzbUFwaVRva2Vu"
+       },
+       "body": "{\"source\":\"Uptime Kuma\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.atlassian.com/jsm/ops/api/v-jsmCloudId/v1/alerts",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1qc21FbWFpbDp2LWpzbUFwaVRva2Vu"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"alias\":\"uptime-kuma-notification-test\",\"source\":\"Uptime Kuma\",\"priority\":\"P5\",\"tags\":[\"Uptime Kuma\"]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

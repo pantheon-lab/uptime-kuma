@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/notify"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 )
 
@@ -46,6 +47,10 @@ type Target interface {
 	InsertBeats(ctx context.Context, beats []store.Beat) ([]store.Beat, error)
 	RefreshAggregates(ctx context.Context) error
 	ActivateImported(ctx context.Context) (int64, error)
+	ImportedNotifications(ctx context.Context) (map[int32]store.ImportedNotification, error)
+	ImportNotification(ctx context.Context, sourceID int32, n store.Notification, sourceActive bool) (int32, error)
+	SetMonitorNotifications(ctx context.Context, monitorID int32, ids []int32) error
+	ActivateImportedNotifications(ctx context.Context) (int64, error)
 }
 
 // Options controls an import. A nil Target means a dry run, which writes nothing.
@@ -66,21 +71,40 @@ type Skipped struct {
 
 // Report says what an import did, or what a dry run would do. It holds no credentials.
 type Report struct {
-	DryRun          bool           `json:"dryRun"`
-	SourceMonitors  int            `json:"sourceMonitors"`
-	Imported        int            `json:"imported"`
-	AlreadyActive   int            `json:"alreadyActive"`
-	Skipped         []Skipped      `json:"skipped"`
-	SkippedByReason map[string]int `json:"skippedByReason"`
-	DroppedSettings map[string]int `json:"droppedSettings"`
-	WithAlerts      int            `json:"importedWithNotifications"`
-	Beats           int64          `json:"beats"`
-	NewBeats        int64          `json:"newBeats"`
-	InvalidBeats    int64          `json:"invalidBeats"`
-	HourlyStats     int64          `json:"hourlyStats"`
-	DailyStats      int64          `json:"dailyStats"`
-	Activated       int64          `json:"activated"`
-	Cutover         time.Time      `json:"cutover"`
+	DryRun          bool               `json:"dryRun"`
+	SourceMonitors  int                `json:"sourceMonitors"`
+	Imported        int                `json:"imported"`
+	AlreadyActive   int                `json:"alreadyActive"`
+	Skipped         []Skipped          `json:"skipped"`
+	SkippedByReason map[string]int     `json:"skippedByReason"`
+	DroppedSettings map[string]int     `json:"droppedSettings"`
+	WithAlerts      int                `json:"importedWithNotifications"`
+	Beats           int64              `json:"beats"`
+	NewBeats        int64              `json:"newBeats"`
+	InvalidBeats    int64              `json:"invalidBeats"`
+	HourlyStats     int64              `json:"hourlyStats"`
+	DailyStats      int64              `json:"dailyStats"`
+	Activated       int64              `json:"activated"`
+	Notifications   NotificationReport `json:"notifications"`
+	Cutover         time.Time          `json:"cutover"`
+}
+
+// NotificationReport says what happened to notification settings. Never their config.
+type NotificationReport struct {
+	Source        int       `json:"source"`
+	Imported      int       `json:"imported"`
+	AlreadyActive int       `json:"alreadyActive"`
+	Skipped       []Skipped `json:"skipped"`
+	Links         int       `json:"links"`
+	// MonitorsLosingAlerts are imported monitors using a notification that wasn't imported.
+	MonitorsLosingAlerts int   `json:"monitorsLosingAlerts"`
+	Activated            int64 `json:"activated"`
+}
+
+type sourceNotification struct {
+	id           int32
+	active       bool
+	notification store.Notification
 }
 
 type sourceMonitor struct {
@@ -109,6 +133,7 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 		SkippedByReason: map[string]int{},
 		DroppedSettings: map[string]int{},
 		Cutover:         cutover,
+		Notifications:   NotificationReport{Skipped: []Skipped{}},
 	}
 
 	conn, err := opts.Source.Conn(ctx)
@@ -182,6 +207,11 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 	}
 	log.Info("monitors done", "imported", report.Imported, "skipped", len(report.Skipped), "alreadyActive", report.AlreadyActive)
 
+	if err := copyNotifications(ctx, conn, opts.Target, active, report); err != nil {
+		return nil, err
+	}
+	log.Info("notifications done", "imported", report.Notifications.Imported, "skipped", len(report.Notifications.Skipped), "links", report.Notifications.Links)
+
 	if err := copyStats(ctx, conn, opts.Target, false, targets, cutover, &report.HourlyStats); err != nil {
 		return nil, err
 	}
@@ -200,6 +230,9 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 		}
 		if opts.Activate {
 			if report.Activated, err = opts.Target.ActivateImported(ctx); err != nil {
+				return nil, err
+			}
+			if report.Notifications.Activated, err = opts.Target.ActivateImportedNotifications(ctx); err != nil {
 				return nil, err
 			}
 		}
@@ -300,6 +333,7 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 	m.Timeout = floatOf(row["timeout"])
 	m.MaxRetries = int32(intOf(row["maxretries"]))
 	m.UpsideDown = boolOf(row["upside_down"])
+	m.ResendInterval = int32(max(intOf(row["resend_interval"]), 0))
 
 	switch m.Type {
 	case monitor.TypeGroup:
@@ -387,16 +421,10 @@ func convertHeaders(raw string) (map[string]string, string) {
 func droppedSettings(row map[string]sql.NullString) []string {
 	var dropped []string
 	if row["type"].String != monitor.TypeHTTP && row["type"].String != monitor.TypeKeyword {
-		if intOf(row["resend_interval"]) > 0 {
-			dropped = append(dropped, "resendInterval")
-		}
 		return dropped
 	}
 	if boolOf(row["cache_bust"]) {
 		dropped = append(dropped, "cacheBust")
-	}
-	if intOf(row["resend_interval"]) > 0 {
-		dropped = append(dropped, "resendInterval")
 	}
 	// This is on by default, but only means something for HTTPS monitors.
 	if boolOf(row["expiry_notification"]) && strings.HasPrefix(row["url"].String, "https://") {
@@ -415,6 +443,113 @@ func droppedSettings(row map[string]sql.NullString) []string {
 		dropped = append(dropped, "description")
 	}
 	return dropped
+}
+
+// copyNotifications imports notification settings, switched off, and the links of the monitors
+// being imported. Settings that were switched on here are left alone, as monitors are.
+func copyNotifications(ctx context.Context, conn *sql.Conn, target Target, monitors []*sourceMonitor, report *Report) error {
+	source, err := readNotifications(ctx, conn, report)
+	if err != nil {
+		return err
+	}
+	existing := map[int32]store.ImportedNotification{}
+	if target != nil {
+		if existing, err = target.ImportedNotifications(ctx); err != nil {
+			return err
+		}
+	}
+	// Dry runs have no target ids, so any non-zero value stands in for "was imported".
+	ids := make(map[int32]int32, len(source))
+	for _, n := range source {
+		if previous, ok := existing[n.id]; ok && previous.Active {
+			report.Notifications.AlreadyActive++
+			ids[n.id] = previous.NotificationID
+			continue
+		}
+		ids[n.id] = n.id
+		if target != nil {
+			id, err := target.ImportNotification(ctx, n.id, n.notification, n.active)
+			if err != nil {
+				return fmt.Errorf("notification %d: %w", n.id, err)
+			}
+			ids[n.id] = id
+		}
+		report.Notifications.Imported++
+	}
+
+	rows, _, err := readRows(ctx, conn, "SELECT monitor_id, notification_id FROM monitor_notification ORDER BY monitor_id, notification_id")
+	if err != nil {
+		return fmt.Errorf("read monitor notifications: %w", err)
+	}
+	links := map[int32][]int32{}
+	for _, row := range rows {
+		id := int32(intOf(row["monitor_id"]))
+		links[id] = append(links[id], int32(intOf(row["notification_id"])))
+	}
+	for _, m := range monitors {
+		var linked []int32
+		losing := false
+		for _, sourceID := range links[m.id] {
+			id, ok := ids[sourceID]
+			if !ok {
+				losing = true
+				continue
+			}
+			if !slices.Contains(linked, id) {
+				linked = append(linked, id)
+			}
+		}
+		if losing {
+			report.Notifications.MonitorsLosingAlerts++
+		}
+		report.Notifications.Links += len(linked)
+		if target != nil {
+			if err := target.SetMonitorNotifications(ctx, m.targetID, linked); err != nil {
+				return fmt.Errorf("monitor %d: %w", m.id, err)
+			}
+		}
+	}
+	return nil
+}
+
+func readNotifications(ctx context.Context, conn *sql.Conn, report *Report) ([]sourceNotification, error) {
+	rows, _, err := readRows(ctx, conn, "SELECT * FROM notification ORDER BY id")
+	if err != nil {
+		return nil, fmt.Errorf("read notifications: %w", err)
+	}
+	report.Notifications.Source = len(rows)
+	list := make([]sourceNotification, 0, len(rows))
+	for _, row := range rows {
+		id, name := int32(intOf(row["id"])), strings.TrimSpace(row["name"].String)
+		n, reason := convertNotification(row)
+		if reason != "" {
+			report.Notifications.Skipped = append(report.Notifications.Skipped, Skipped{SourceID: id, Name: name, Reason: reason})
+			continue
+		}
+		list = append(list, sourceNotification{id: id, active: boolOf(row["active"]), notification: n})
+	}
+	return list, nil
+}
+
+func convertNotification(row map[string]sql.NullString) (store.Notification, string) {
+	raw := row["config"].String
+	// PostgreSQL can't store this character in JSON.
+	if strings.Contains(raw, `\u0000`) {
+		return store.Notification{}, "invalid setting: config contains a null character"
+	}
+	var config map[string]any
+	if err := json.Unmarshal([]byte(raw), &config); err != nil || config == nil {
+		return store.Notification{}, "invalid setting: config isn't a JSON object"
+	}
+	kind, _ := config["type"].(string)
+	if !notify.Supported(kind) {
+		return store.Notification{}, "unsupported notification type: " + kind
+	}
+	name := strings.TrimSpace(row["name"].String)
+	if name == "" {
+		name = kind
+	}
+	return store.Notification{Name: name, Type: kind, Config: config, IsDefault: boolOf(row["is_default"])}, ""
 }
 
 func monitorsWithNotifications(ctx context.Context, conn *sql.Conn) (map[int32]bool, error) {

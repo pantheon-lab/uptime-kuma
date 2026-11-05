@@ -1,0 +1,155 @@
+{
+ "provider": "ServerChan",
+ "variants": {
+  "default": {
+   "config": {
+    "serverChanSendKey": "https://svc.example/serverChanSendKey",
+    "type": "ServerChan"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://sctapi.ftqq.com/https://svc.example/serverChanSendKey.send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Down Example Site\",\"desp\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://sctapi.ftqq.com/https://svc.example/serverChanSendKey.send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Up Example Site\",\"desp\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://sctapi.ftqq.com/https://svc.example/serverChanSendKey.send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Message\",\"desp\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "serverChanSendKey": "https://svc.example/serverChanSendKey",
+    "type": "ServerChan"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://sctapi.ftqq.com/https://svc.example/serverChanSendKey.send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Down Example Site\",\"desp\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://sctapi.ftqq.com/https://svc.example/serverChanSendKey.send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Up Example Site\",\"desp\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://sctapi.ftqq.com/https://svc.example/serverChanSendKey.send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Message\",\"desp\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "sctp": {
+   "config": {
+    "serverChanSendKey": "sctp123tabc",
+    "type": "ServerChan"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://123.push.ft07.com/send/sctp123tabc.send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Down Example Site\",\"desp\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://123.push.ft07.com/send/sctp123tabc.send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Up Example Site\",\"desp\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://123.push.ft07.com/send/sctp123tabc.send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Message\",\"desp\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

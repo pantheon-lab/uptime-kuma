@@ -1,0 +1,191 @@
+{
+ "provider": "TurboSMTP",
+ "variants": {
+  "default": {
+   "config": {
+    "turbosmtpConsumerKey": "v-turbosmtpConsumerKey",
+    "turbosmtpConsumerSecret": "v-turbosmtpConsumerSecret",
+    "turbosmtpRegion": "v-turbosmtpRegion",
+    "turbosmtpFromEmail": "v-turbosmtpFromEmail",
+    "turbosmtpToEmail": "v-turbosmtpToEmail",
+    "turbosmtpSubject": "v-turbosmtpSubject",
+    "turbosmtpCcEmail": "v-turbosmtpCcEmail",
+    "turbosmtpBccEmail": "v-turbosmtpBccEmail",
+    "type": "TurboSMTP"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.turbo-smtp.com/api/v2/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "consumerKey": "v-turbosmtpConsumerKey",
+        "consumerSecret": "v-turbosmtpConsumerSecret"
+       },
+       "body": "{\"from\":\"v-turbosmtpFromEmail\",\"to\":\"v-turbosmtpToEmail\",\"subject\":\"v-turbosmtpSubject\",\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"cc\":\"v-turbosmtpCcEmail\",\"bcc\":\"v-turbosmtpBccEmail\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.turbo-smtp.com/api/v2/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "consumerKey": "v-turbosmtpConsumerKey",
+        "consumerSecret": "v-turbosmtpConsumerSecret"
+       },
+       "body": "{\"from\":\"v-turbosmtpFromEmail\",\"to\":\"v-turbosmtpToEmail\",\"subject\":\"v-turbosmtpSubject\",\"content\":\"[Example Site] [✅ Up] 200 - OK\",\"cc\":\"v-turbosmtpCcEmail\",\"bcc\":\"v-turbosmtpBccEmail\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.turbo-smtp.com/api/v2/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "consumerKey": "v-turbosmtpConsumerKey",
+        "consumerSecret": "v-turbosmtpConsumerSecret"
+       },
+       "body": "{\"from\":\"v-turbosmtpFromEmail\",\"to\":\"v-turbosmtpToEmail\",\"subject\":\"v-turbosmtpSubject\",\"content\":\"My Monitor Testing\",\"cc\":\"v-turbosmtpCcEmail\",\"bcc\":\"v-turbosmtpBccEmail\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "turbosmtpConsumerKey": "v-turbosmtpConsumerKey",
+    "turbosmtpConsumerSecret": "v-turbosmtpConsumerSecret",
+    "turbosmtpRegion": "v-turbosmtpRegion",
+    "turbosmtpFromEmail": "v-turbosmtpFromEmail",
+    "turbosmtpToEmail": "v-turbosmtpToEmail",
+    "type": "TurboSMTP"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.turbo-smtp.com/api/v2/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "consumerKey": "v-turbosmtpConsumerKey",
+        "consumerSecret": "v-turbosmtpConsumerSecret"
+       },
+       "body": "{\"from\":\"v-turbosmtpFromEmail\",\"to\":\"v-turbosmtpToEmail\",\"subject\":\"Notification from Your Uptime Kuma\",\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.turbo-smtp.com/api/v2/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "consumerKey": "v-turbosmtpConsumerKey",
+        "consumerSecret": "v-turbosmtpConsumerSecret"
+       },
+       "body": "{\"from\":\"v-turbosmtpFromEmail\",\"to\":\"v-turbosmtpToEmail\",\"subject\":\"Notification from Your Uptime Kuma\",\"content\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.turbo-smtp.com/api/v2/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "consumerKey": "v-turbosmtpConsumerKey",
+        "consumerSecret": "v-turbosmtpConsumerSecret"
+       },
+       "body": "{\"from\":\"v-turbosmtpFromEmail\",\"to\":\"v-turbosmtpToEmail\",\"subject\":\"Notification from Your Uptime Kuma\",\"content\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "eu": {
+   "config": {
+    "turbosmtpConsumerKey": "v-turbosmtpConsumerKey",
+    "turbosmtpConsumerSecret": "v-turbosmtpConsumerSecret",
+    "turbosmtpRegion": "eu",
+    "turbosmtpFromEmail": "v-turbosmtpFromEmail",
+    "turbosmtpToEmail": "v-turbosmtpToEmail",
+    "turbosmtpSubject": "v-turbosmtpSubject",
+    "turbosmtpCcEmail": "a@b, c@d",
+    "turbosmtpBccEmail": "v-turbosmtpBccEmail",
+    "type": "TurboSMTP"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.eu.turbo-smtp.com/api/v2/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "consumerKey": "v-turbosmtpConsumerKey",
+        "consumerSecret": "v-turbosmtpConsumerSecret"
+       },
+       "body": "{\"from\":\"v-turbosmtpFromEmail\",\"to\":\"v-turbosmtpToEmail\",\"subject\":\"v-turbosmtpSubject\",\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"cc\":\"a@b,c@d\",\"bcc\":\"v-turbosmtpBccEmail\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.eu.turbo-smtp.com/api/v2/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "consumerKey": "v-turbosmtpConsumerKey",
+        "consumerSecret": "v-turbosmtpConsumerSecret"
+       },
+       "body": "{\"from\":\"v-turbosmtpFromEmail\",\"to\":\"v-turbosmtpToEmail\",\"subject\":\"v-turbosmtpSubject\",\"content\":\"[Example Site] [✅ Up] 200 - OK\",\"cc\":\"a@b,c@d\",\"bcc\":\"v-turbosmtpBccEmail\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.eu.turbo-smtp.com/api/v2/mail/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "consumerKey": "v-turbosmtpConsumerKey",
+        "consumerSecret": "v-turbosmtpConsumerSecret"
+       },
+       "body": "{\"from\":\"v-turbosmtpFromEmail\",\"to\":\"v-turbosmtpToEmail\",\"subject\":\"v-turbosmtpSubject\",\"content\":\"My Monitor Testing\",\"cc\":\"a@b,c@d\",\"bcc\":\"v-turbosmtpBccEmail\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

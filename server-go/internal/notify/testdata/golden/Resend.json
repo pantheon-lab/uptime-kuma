@@ -1,0 +1,117 @@
+{
+ "provider": "Resend",
+ "variants": {
+  "default": {
+   "config": {
+    "resendApiKey": "v-resendApiKey",
+    "resendFromEmail": "v-resendFromEmail",
+    "resendFromName": "v-resendFromName",
+    "resendToEmail": "v-resendToEmail",
+    "resendSubject": "v-resendSubject",
+    "type": "Resend"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.resend.com/emails",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-resendApiKey"
+       },
+       "body": "{\"from\":\"v-resendFromName <v-resendFromEmail>\",\"to\":\"v-resendToEmail\",\"subject\":\"v-resendSubject\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.resend.com/emails",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-resendApiKey"
+       },
+       "body": "{\"from\":\"v-resendFromName <v-resendFromEmail>\",\"to\":\"v-resendToEmail\",\"subject\":\"v-resendSubject\",\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.resend.com/emails",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-resendApiKey"
+       },
+       "body": "{\"from\":\"v-resendFromName <v-resendFromEmail>\",\"to\":\"v-resendToEmail\",\"subject\":\"v-resendSubject\",\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "resendApiKey": "v-resendApiKey",
+    "resendFromEmail": "v-resendFromEmail",
+    "resendToEmail": "v-resendToEmail",
+    "type": "Resend"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.resend.com/emails",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-resendApiKey"
+       },
+       "body": "{\"from\":\"Uptime Kuma <v-resendFromEmail>\",\"to\":\"v-resendToEmail\",\"subject\":\"Notification from Your Uptime Kuma\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.resend.com/emails",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-resendApiKey"
+       },
+       "body": "{\"from\":\"Uptime Kuma <v-resendFromEmail>\",\"to\":\"v-resendToEmail\",\"subject\":\"Notification from Your Uptime Kuma\",\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.resend.com/emails",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-resendApiKey"
+       },
+       "body": "{\"from\":\"Uptime Kuma <v-resendFromEmail>\",\"to\":\"v-resendToEmail\",\"subject\":\"Notification from Your Uptime Kuma\",\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

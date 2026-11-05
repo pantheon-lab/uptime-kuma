@@ -1,0 +1,196 @@
+{
+ "provider": "smsir",
+ "variants": {
+  "default": {
+   "config": {
+    "smsirApiKey": "v-smsirApiKey",
+    "smsirNumber": "v-smsirNumber",
+    "smsirTemplate": "v-smsirTemplate",
+    "type": "smsir"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sms.ir/v1/send/verify",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsirApiKey"
+       },
+       "body": "{\"mobile\":\"v-smsirNumber\",\"templateId\":null,\"parameters\":[{\"name\":\"uptkumaalert\",\"value\":\"[ExampleSite][🔴...\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sms.ir/v1/send/verify",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsirApiKey"
+       },
+       "body": "{\"mobile\":\"v-smsirNumber\",\"templateId\":null,\"parameters\":[{\"name\":\"uptkumaalert\",\"value\":\"[ExampleSite][✅U...\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sms.ir/v1/send/verify",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsirApiKey"
+       },
+       "body": "{\"mobile\":\"v-smsirNumber\",\"templateId\":null,\"parameters\":[{\"name\":\"uptkumaalert\",\"value\":\"My Monitor Testing\"}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "smsirApiKey": "v-smsirApiKey",
+    "smsirNumber": "v-smsirNumber",
+    "type": "smsir"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sms.ir/v1/send/verify",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsirApiKey"
+       },
+       "body": "{\"mobile\":\"v-smsirNumber\",\"templateId\":null,\"parameters\":[{\"name\":\"uptkumaalert\",\"value\":\"[ExampleSite][🔴...\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sms.ir/v1/send/verify",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsirApiKey"
+       },
+       "body": "{\"mobile\":\"v-smsirNumber\",\"templateId\":null,\"parameters\":[{\"name\":\"uptkumaalert\",\"value\":\"[ExampleSite][✅U...\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sms.ir/v1/send/verify",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsirApiKey"
+       },
+       "body": "{\"mobile\":\"v-smsirNumber\",\"templateId\":null,\"parameters\":[{\"name\":\"uptkumaalert\",\"value\":\"My Monitor Testing\"}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "short": {
+   "config": {
+    "smsirApiKey": "v-smsirApiKey",
+    "smsirNumber": "09123456789,+98912",
+    "smsirTemplate": "v-smsirTemplate",
+    "type": "smsir"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sms.ir/v1/send/verify",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsirApiKey"
+       },
+       "body": "{\"mobile\":\"9123456789\",\"templateId\":null,\"parameters\":[{\"name\":\"uptkumaalert\",\"value\":\"[ExampleSite][🔴...\"}]}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.sms.ir/v1/send/verify",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsirApiKey"
+       },
+       "body": "{\"mobile\":\"+98912\",\"templateId\":null,\"parameters\":[{\"name\":\"uptkumaalert\",\"value\":\"[ExampleSite][🔴...\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sms.ir/v1/send/verify",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsirApiKey"
+       },
+       "body": "{\"mobile\":\"9123456789\",\"templateId\":null,\"parameters\":[{\"name\":\"uptkumaalert\",\"value\":\"[ExampleSite][✅U...\"}]}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.sms.ir/v1/send/verify",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsirApiKey"
+       },
+       "body": "{\"mobile\":\"+98912\",\"templateId\":null,\"parameters\":[{\"name\":\"uptkumaalert\",\"value\":\"[ExampleSite][✅U...\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.sms.ir/v1/send/verify",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsirApiKey"
+       },
+       "body": "{\"mobile\":\"9123456789\",\"templateId\":null,\"parameters\":[{\"name\":\"uptkumaalert\",\"value\":\"My Monitor Testing\"}]}"
+      },
+      {
+       "method": "POST",
+       "url": "https://api.sms.ir/v1/send/verify",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-API-Key": "v-smsirApiKey"
+       },
+       "body": "{\"mobile\":\"+98912\",\"templateId\":null,\"parameters\":[{\"name\":\"uptkumaalert\",\"value\":\"My Monitor Testing\"}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

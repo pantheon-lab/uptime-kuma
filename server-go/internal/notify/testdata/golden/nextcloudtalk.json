@@ -1,0 +1,129 @@
+{
+ "provider": "nextcloudtalk",
+ "variants": {
+  "default": {
+   "config": {
+    "botSecret": "v-botSecret",
+    "sendSilentUp": "v-sendSilentUp",
+    "sendSilentDown": "v-sendSilentDown",
+    "host": "https://svc.example/host",
+    "conversationToken": "v-conversationToken",
+    "type": "nextcloudtalk"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/host/ocs/v2.php/apps/spreed/api/v1/bot/v-conversationToken/message",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Nextcloud-Talk-Bot-Random": "abababababababababababababababababababababababababababababababab",
+        "X-Nextcloud-Talk-Bot-Signature": "0faf7c92f50fba74523a302a875ecd22d095fafe3c42bfbaa7d3496313fd6f01",
+        "OCS-APIRequest": "true"
+       },
+       "body": "{\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"silent\":\"v-sendSilentDown\"}"
+      }
+     ],
+     "error": "Nextcloud Talk Error 200"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/host/ocs/v2.php/apps/spreed/api/v1/bot/v-conversationToken/message",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Nextcloud-Talk-Bot-Random": "abababababababababababababababababababababababababababababababab",
+        "X-Nextcloud-Talk-Bot-Signature": "b7b9996efb2559802b0c242f481ba9b231f35041c03aa67f53956d0de9af1545",
+        "OCS-APIRequest": "true"
+       },
+       "body": "{\"message\":\"[Example Site] [✅ Up] 200 - OK\",\"silent\":\"v-sendSilentUp\"}"
+      }
+     ],
+     "error": "Nextcloud Talk Error 200"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/host/ocs/v2.php/apps/spreed/api/v1/bot/v-conversationToken/message",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Nextcloud-Talk-Bot-Random": "abababababababababababababababababababababababababababababababab",
+        "X-Nextcloud-Talk-Bot-Signature": "601581e795a3257e5cec1cca34699b958e59cd09c4926293953eff904fcb2862",
+        "OCS-APIRequest": "true"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"silent\":false}"
+      }
+     ],
+     "error": "Nextcloud Talk Error 200"
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "botSecret": "v-botSecret",
+    "host": "https://svc.example/host",
+    "conversationToken": "v-conversationToken",
+    "type": "nextcloudtalk"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/host/ocs/v2.php/apps/spreed/api/v1/bot/v-conversationToken/message",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Nextcloud-Talk-Bot-Random": "abababababababababababababababababababababababababababababababab",
+        "X-Nextcloud-Talk-Bot-Signature": "0faf7c92f50fba74523a302a875ecd22d095fafe3c42bfbaa7d3496313fd6f01",
+        "OCS-APIRequest": "true"
+       },
+       "body": "{\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": "Nextcloud Talk Error 200"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/host/ocs/v2.php/apps/spreed/api/v1/bot/v-conversationToken/message",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Nextcloud-Talk-Bot-Random": "abababababababababababababababababababababababababababababababab",
+        "X-Nextcloud-Talk-Bot-Signature": "b7b9996efb2559802b0c242f481ba9b231f35041c03aa67f53956d0de9af1545",
+        "OCS-APIRequest": "true"
+       },
+       "body": "{\"message\":\"[Example Site] [✅ Up] 200 - OK\",\"silent\":false}"
+      }
+     ],
+     "error": "Nextcloud Talk Error 200"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/host/ocs/v2.php/apps/spreed/api/v1/bot/v-conversationToken/message",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Nextcloud-Talk-Bot-Random": "abababababababababababababababababababababababababababababababab",
+        "X-Nextcloud-Talk-Bot-Signature": "601581e795a3257e5cec1cca34699b958e59cd09c4926293953eff904fcb2862",
+        "OCS-APIRequest": "true"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"silent\":false}"
+      }
+     ],
+     "error": "Nextcloud Talk Error 200"
+    }
+   }
+  }
+ }
+}

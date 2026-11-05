@@ -1,0 +1,110 @@
+{
+ "provider": "VK",
+ "variants": {
+  "default": {
+   "config": {
+    "vkAccessToken": "v-vkAccessToken",
+    "vkApiVersion": "v-vkApiVersion",
+    "vkPeerId": "v-vkPeerId",
+    "vkDontParseLinks": "v-vkDontParseLinks",
+    "type": "VK"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.vk.ru/method/messages.send",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "access_token=v-vkAccessToken&v=v-vkApiVersion&peer_id=v-vkPeerId&message=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&dont_parse_links=1&random_id=1073741823"
+      }
+     ],
+     "error": "Invalid VK API response"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.vk.ru/method/messages.send",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "access_token=v-vkAccessToken&v=v-vkApiVersion&peer_id=v-vkPeerId&message=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&dont_parse_links=1&random_id=1073741823"
+      }
+     ],
+     "error": "Invalid VK API response"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.vk.ru/method/messages.send",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "access_token=v-vkAccessToken&v=v-vkApiVersion&peer_id=v-vkPeerId&message=My+Monitor+Testing&dont_parse_links=1&random_id=1073741823"
+      }
+     ],
+     "error": "Invalid VK API response"
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "vkAccessToken": "v-vkAccessToken",
+    "vkApiVersion": "v-vkApiVersion",
+    "vkPeerId": "v-vkPeerId",
+    "type": "VK"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.vk.ru/method/messages.send",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "access_token=v-vkAccessToken&v=v-vkApiVersion&peer_id=v-vkPeerId&message=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&dont_parse_links=0&random_id=1073741823"
+      }
+     ],
+     "error": "Invalid VK API response"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.vk.ru/method/messages.send",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "access_token=v-vkAccessToken&v=v-vkApiVersion&peer_id=v-vkPeerId&message=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&dont_parse_links=0&random_id=1073741823"
+      }
+     ],
+     "error": "Invalid VK API response"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.vk.ru/method/messages.send",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "access_token=v-vkAccessToken&v=v-vkApiVersion&peer_id=v-vkPeerId&message=My+Monitor+Testing&dont_parse_links=0&random_id=1073741823"
+      }
+     ],
+     "error": "Invalid VK API response"
+    }
+   }
+  }
+ }
+}

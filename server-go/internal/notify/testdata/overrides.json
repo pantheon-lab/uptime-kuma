@@ -1,0 +1,442 @@
+{
+ "webhook": {
+  "default": {
+   "webhookAdditionalHeaders": "{\"X-Team\":\"ops\"}",
+   "webhookContentType": "json",
+   "httpMethod": "post"
+  },
+  "get": {
+   "webhookAdditionalHeaders": "",
+   "httpMethod": "GET"
+  },
+  "form": {
+   "webhookAdditionalHeaders": "",
+   "webhookContentType": "form-data",
+   "httpMethod": "post"
+  },
+  "custom": {
+   "webhookAdditionalHeaders": "{\"Content-Type\":\"text/plain\"}",
+   "webhookContentType": "custom",
+   "httpMethod": "post",
+   "webhookCustomBody": "{{ name }} {{ status }} {{ hostnameOrURL }} {{ msg }}"
+  }
+ },
+ "octopush": {
+  "default": {
+   "octopushVersion": "2",
+   "octopushDMLogin": "l"
+  },
+  "v1": {
+   "octopushVersion": "1"
+  }
+ },
+ "threema": {
+  "default": {
+   "threemaRecipientType": "identity",
+   "threemaRecipient": "ABCDEFGH"
+  },
+  "email": {
+   "threemaRecipientType": "email",
+   "threemaRecipient": "a@b.example"
+  },
+  "phone": {
+   "threemaRecipientType": "phone",
+   "threemaRecipient": "+85212345678"
+  }
+ },
+ "Indigo": {
+  "default": {
+   "indigoVariableId": "12",
+   "indigoActionGroupId": "34"
+  },
+  "variable": {
+   "indigoVariableId": "12",
+   "indigoActionGroupId": null
+  }
+ },
+ "GoogleChat": {
+  "default": {
+   "googleChatMaxRetries": 1
+  },
+  "template": {
+   "googleChatMaxRetries": 1,
+   "googleChatUseTemplate": true,
+   "googleChatTemplate": "{{ name }}: {{ msg }}"
+  },
+  "plain": {
+   "googleChatMaxRetries": 1,
+   "googleChatUseTemplate": false
+  }
+ },
+ "SMSEagle": {
+  "default": {
+   "smseagleApiType": "smseagle-apiv2",
+   "smseagleMsgType": "smseagle-sms",
+   "smseagleRecipientContact": "1,2",
+   "smseagleRecipientGroup": "3",
+   "smseagleRecipientTo": "+1,+2",
+   "smseagleEncoding": true,
+   "smseaglePriority": 2
+  },
+  "v2ring": {
+   "smseagleApiType": "smseagle-apiv2",
+   "smseagleMsgType": "smseagle-ring",
+   "smseagleRecipientTo": "+1",
+   "smseagleRecipientContact": null,
+   "smseagleRecipientGroup": null,
+   "smseagleDuration": 7
+  },
+  "v2tts": {
+   "smseagleApiType": "smseagle-apiv2",
+   "smseagleMsgType": "smseagle-tts-advanced",
+   "smseagleRecipientTo": "+1",
+   "smseagleRecipientContact": null,
+   "smseagleRecipientGroup": null,
+   "smseagleTtsModel": 4
+  },
+  "v1": {
+   "smseagleApiType": "smseagle-apiv1",
+   "smseagleRecipientType": "smseagle-to",
+   "smseagleMsgType": "smseagle-sms",
+   "smseagleRecipient": "+1"
+  },
+  "v1tts": {
+   "smseagleApiType": "smseagle-apiv1",
+   "smseagleRecipientType": "smseagle-to",
+   "smseagleMsgType": "smseagle-tts",
+   "smseagleRecipient": "+1"
+  },
+  "v1contact": {
+   "smseagleApiType": "smseagle-apiv1",
+   "smseagleRecipientType": "smseagle-contact",
+   "smseagleRecipient": "c"
+  }
+ },
+ "PagerDuty": {
+  "default": {
+   "pagerdutyAutoResolve": "resolve"
+  },
+  "noresolve": {
+   "pagerdutyAutoResolve": "0"
+  },
+  "ack": {
+   "pagerdutyAutoResolve": "acknowledge",
+   "pagerdutyPriority": null
+  }
+ },
+ "PagerTree": {
+  "default": {
+   "pagertreeAutoResolve": "resolve"
+  },
+  "none": {
+   "pagertreeAutoResolve": "0"
+  }
+ },
+ "Splunk": {
+  "default": {
+   "splunkAutoResolve": "RECOVERY"
+  },
+  "none": {
+   "splunkAutoResolve": "0"
+  }
+ },
+ "discord": {
+  "normal": {
+   "discordMessageFormat": "normal",
+   "discordChannelType": "channel",
+   "discordPrefixMessage": null,
+   "disableUrl": false,
+   "discordSuppressNotifications": false
+  },
+  "minimalist": {
+   "discordMessageFormat": "minimalist",
+   "discordChannelType": "postToThread"
+  },
+  "custom": {
+   "discordMessageFormat": "custom",
+   "discordMessageTemplate": "{{ name }}!",
+   "discordChannelType": "createNewForumPost"
+  }
+ },
+ "fluxer": {
+  "normal": {
+   "fluxerMessageFormat": "normal",
+   "fluxerPrefixMessage": null,
+   "disableUrl": false
+  },
+  "minimalist": {
+   "fluxerMessageFormat": "minimalist"
+  },
+  "custom": {
+   "fluxerMessageFormat": "custom",
+   "fluxerMessageTemplate": "{{ name }}!"
+  }
+ },
+ "telegram": {
+  "plain": {
+   "telegramUseTemplate": false,
+   "telegramMessageThreadID": null,
+   "telegramSendSilently": true
+  },
+  "md": {
+   "telegramUseTemplate": true,
+   "telegramTemplateParseMode": "MarkdownV2",
+   "telegramTemplate": "{{ msg }} {{ monitorJSON.name }}"
+  },
+  "html": {
+   "telegramUseTemplate": true,
+   "telegramTemplateParseMode": "HTML",
+   "telegramTemplate": "<b>{{ name }}</b> {{ status }}"
+  }
+ },
+ "slack": {
+  "plain": {
+   "slackUseTemplate": false,
+   "slackrichmessage": false,
+   "slackchannelnotify": false
+  },
+  "rich": {
+   "slackUseTemplate": false,
+   "slackrichmessage": true
+  },
+  "template": {
+   "slackUseTemplate": true,
+   "slackTemplate": "{{ name }}"
+  }
+ },
+ "ntfy": {
+  "token": {
+   "ntfyAuthenticationMethod": "accessToken",
+   "ntfyUseTemplate": false,
+   "ntfyPriority": 3,
+   "ntfyPriorityDown": null
+  },
+  "basic": {
+   "ntfyAuthenticationMethod": "usernamePassword",
+   "ntfyUseTemplate": false,
+   "ntfyPriority": 5,
+   "ntfyPriorityDown": null
+  },
+  "down": {
+   "ntfyAuthenticationMethod": "none",
+   "ntfyUseTemplate": true,
+   "ntfyCustomTitle": "{{ name }}",
+   "ntfyCustomMessage": "{{ msg }}",
+   "ntfyPriority": 2,
+   "ntfyPriorityDown": 5
+  }
+ },
+ "Opsgenie": {
+  "eu": {
+   "opsgenieRegion": "eu",
+   "opsgeniePriority": 2
+  },
+  "us": {
+   "opsgenieRegion": "us",
+   "opsgeniePriority": null
+  }
+ },
+ "matrix": {
+  "plain": {
+   "matrixUseTemplate": false
+  },
+  "template": {
+   "matrixUseTemplate": true,
+   "matrixTemplate": "{{ name }}"
+  }
+ },
+ "Bark": {
+  "v2": {
+   "apiVersion": "v2"
+  },
+  "v1": {
+   "apiVersion": "v1",
+   "barkGroup": "G",
+   "barkSound": "S"
+  },
+  "v1default": {
+   "apiVersion": null,
+   "barkGroup": null,
+   "barkSound": null
+  }
+ },
+ "plivo": {
+  "call": {
+   "plivoMessageType": "call",
+   "plivoAnswerUrl": "https://svc.example/answer?a=1"
+  },
+  "sms": {
+   "plivoMessageType": "sms"
+  }
+ },
+ "Onesender": {
+  "private": {
+   "onesenderTypeReceiver": "private"
+  },
+  "group": {
+   "onesenderTypeReceiver": "group"
+  }
+ },
+ "Milky": {
+  "group": {
+   "httpAddr": "host.example:9000",
+   "msgType": "group"
+  },
+  "private": {
+   "httpAddr": "http://host.example/",
+   "msgType": "private"
+  }
+ },
+ "OneBot": {
+  "group": {
+   "httpAddr": "host.example:9000",
+   "msgType": "group"
+  },
+  "private": {
+   "httpAddr": "http://host.example/",
+   "msgType": "private"
+  }
+ },
+ "ServerChan": {
+  "sctp": {
+   "serverChanSendKey": "sctp123tabc"
+  }
+ },
+ "lunasea": {
+  "user": {
+   "lunaseaTarget": "user"
+  },
+  "device": {
+   "lunaseaTarget": "device"
+  }
+ },
+ "HomeAssistant": {
+  "persistent": {
+   "notificationService": "persistent_notification"
+  }
+ },
+ "Whatsapp360messenger": {
+  "both": {
+   "Whatsapp360messengerUseTemplate": true,
+   "Whatsapp360messengerTemplate": "{{ msg }} {{ monitorJSON['name'] }}{% if monitorJSON %}!{% endif %}",
+   "Whatsapp360messengerRecipient": "+1;+2",
+   "Whatsapp360messengerGroupIds": [
+    {
+     "id": "g1"
+    },
+    "g2"
+   ]
+  },
+  "recipient": {
+   "Whatsapp360messengerRecipient": "+1",
+   "Whatsapp360messengerGroupIds": null,
+   "Whatsapp360messengerGroupId": null
+  }
+ },
+ "amootsms": {
+  "simple": {
+   "amootUsePattern": false
+  },
+  "pattern": {
+   "amootUsePattern": true,
+   "amootUseOwnLine": false,
+   "amootPatternCodeId": "7"
+  },
+  "own": {
+   "amootUsePattern": true,
+   "amootUseOwnLine": true,
+   "amootPatternCodeId": "7"
+  }
+ },
+ "smsir": {
+  "short": {
+   "smsirNumber": "09123456789,+98912"
+  }
+ },
+ "AliyunSMS": {
+  "optional": {
+   "optionalParameters": true
+  }
+ },
+ "serwersms": {
+  "group": {
+   "serwersmsRecipientType": "group"
+  },
+  "phone": {
+   "serwersmsRecipientType": "to"
+  }
+ },
+ "squadcast": {
+  "tags": {}
+ },
+ "DingDing": {
+  "everyone": {
+   "mentioning": "everyone",
+   "webHookUrl": "https://svc.example/robot?access_token=x"
+  },
+  "mobiles": {
+   "mentioning": "specify-mobiles",
+   "mobileList": [
+    "1",
+    "2"
+   ],
+   "webHookUrl": "https://svc.example/robot?access_token=x"
+  },
+  "users": {
+   "mentioning": "specify-users",
+   "userList": [
+    "u"
+   ],
+   "webHookUrl": "https://svc.example/robot?access_token=x"
+  }
+ },
+ "Ooredoo": {
+  "many": {
+   "ooredooToNumber": "1234567 +9601234567, 9601111111"
+  }
+ },
+ "WeCom": {
+  "mentions": {
+   "weComMentionedMobileList": "1, 2,"
+  }
+ },
+ "max": {
+  "md": {
+   "maxUseTemplate": true,
+   "maxTemplate": "{{ name }}",
+   "maxTemplateFormat": "markdown"
+  },
+  "plain": {
+   "maxUseTemplate": false
+  }
+ },
+ "VKTeams": {
+  "md": {
+   "vkteamsUseTemplate": true,
+   "vkteamsTemplate": "{{ name }}",
+   "vkteamsTemplateFormat": "HTML"
+  },
+  "plain": {
+   "vkteamsUseTemplate": false
+  }
+ },
+ "TurboSMTP": {
+  "eu": {
+   "turbosmtpRegion": "eu",
+   "turbosmtpCcEmail": "a@b, c@d"
+  }
+ },
+ "MicrosoftGraph": {
+  "plain": {
+   "customSubject": null,
+   "customBody": null,
+   "msGraphCC": "a@b; c@d",
+   "msGraphBCC": null
+  },
+  "html": {
+   "customSubject": "{{ name }}",
+   "customBody": "<b>{{ msg }}</b>",
+   "htmlBody": true
+  }
+ }
+}

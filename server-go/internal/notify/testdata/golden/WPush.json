@@ -1,0 +1,106 @@
+{
+ "provider": "WPush",
+ "variants": {
+  "default": {
+   "config": {
+    "wpushAPIkey": "v-wpushAPIkey",
+    "wpushChannel": "v-wpushChannel",
+    "type": "WPush"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.wpush.cn/api/v1/send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Down Example Site\",\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"apikey\":\"v-wpushAPIkey\",\"channel\":\"v-wpushChannel\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.wpush.cn/api/v1/send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Up Example Site\",\"content\":\"[Example Site] [✅ Up] 200 - OK\",\"apikey\":\"v-wpushAPIkey\",\"channel\":\"v-wpushChannel\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.wpush.cn/api/v1/send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Message\",\"content\":\"My Monitor Testing\",\"apikey\":\"v-wpushAPIkey\",\"channel\":\"v-wpushChannel\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "wpushAPIkey": "v-wpushAPIkey",
+    "type": "WPush"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.wpush.cn/api/v1/send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Down Example Site\",\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"apikey\":\"v-wpushAPIkey\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.wpush.cn/api/v1/send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Up Example Site\",\"content\":\"[Example Site] [✅ Up] 200 - OK\",\"apikey\":\"v-wpushAPIkey\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.wpush.cn/api/v1/send",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Message\",\"content\":\"My Monitor Testing\",\"apikey\":\"v-wpushAPIkey\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

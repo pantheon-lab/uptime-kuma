@@ -1,0 +1,180 @@
+{
+ "provider": "Teltonika",
+ "variants": {
+  "default": {
+   "config": {
+    "teltonikaUrl": "https://svc.example/teltonikaUrl",
+    "teltonikaUnsafeTls": "v-teltonikaUnsafeTls",
+    "teltonikaUsername": "v-teltonikaUsername",
+    "teltonikaPassword": "v-teltonikaPassword",
+    "teltonikaModem": "v-teltonikaModem",
+    "teltonikaPhoneNumber": "v-teltonikaPhoneNumber",
+    "type": "Teltonika"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/api/login",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"username\":\"v-teltonikaUsername\",\"password\":\"v-teltonikaPassword\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/api/messages/actions/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache",
+        "Authorization": "Bearer stub-token"
+       },
+       "body": "{\"data\":{\"modem\":\"v-teltonikaModem\",\"number\":\"v-teltonikaPhoneNumber\",\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/api/login",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"username\":\"v-teltonikaUsername\",\"password\":\"v-teltonikaPassword\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/api/messages/actions/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache",
+        "Authorization": "Bearer stub-token"
+       },
+       "body": "{\"data\":{\"modem\":\"v-teltonikaModem\",\"number\":\"v-teltonikaPhoneNumber\",\"message\":\"[Example Site] [✅ Up] 200 - OK\"}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/api/login",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"username\":\"v-teltonikaUsername\",\"password\":\"v-teltonikaPassword\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/api/messages/actions/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache",
+        "Authorization": "Bearer stub-token"
+       },
+       "body": "{\"data\":{\"modem\":\"v-teltonikaModem\",\"number\":\"v-teltonikaPhoneNumber\",\"message\":\"My Monitor Testing\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "teltonikaUrl": "https://svc.example/teltonikaUrl",
+    "teltonikaUsername": "v-teltonikaUsername",
+    "teltonikaPassword": "v-teltonikaPassword",
+    "teltonikaModem": "v-teltonikaModem",
+    "teltonikaPhoneNumber": "v-teltonikaPhoneNumber",
+    "type": "Teltonika"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/api/login",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"username\":\"v-teltonikaUsername\",\"password\":\"v-teltonikaPassword\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/api/messages/actions/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache",
+        "Authorization": "Bearer stub-token"
+       },
+       "body": "{\"data\":{\"modem\":\"v-teltonikaModem\",\"number\":\"v-teltonikaPhoneNumber\",\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/api/login",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"username\":\"v-teltonikaUsername\",\"password\":\"v-teltonikaPassword\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/api/messages/actions/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache",
+        "Authorization": "Bearer stub-token"
+       },
+       "body": "{\"data\":{\"modem\":\"v-teltonikaModem\",\"number\":\"v-teltonikaPhoneNumber\",\"message\":\"[Example Site] [✅ Up] 200 - OK\"}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/api/login",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"username\":\"v-teltonikaUsername\",\"password\":\"v-teltonikaPassword\"}"
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/api/messages/actions/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache",
+        "Authorization": "Bearer stub-token"
+       },
+       "body": "{\"data\":{\"modem\":\"v-teltonikaModem\",\"number\":\"v-teltonikaPhoneNumber\",\"message\":\"My Monitor Testing\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,223 @@
+{
+ "provider": "Opsgenie",
+ "variants": {
+  "default": {
+   "config": {
+    "opsgeniePriority": "v-opsgeniePriority",
+    "opsgenieRegion": "v-opsgenieRegion",
+    "opsgenieApiKey": "v-opsgenieApiKey",
+    "type": "Opsgenie"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.opsgenie.com/v2/alerts",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "GenieKey v-opsgenieApiKey"
+       },
+       "body": "{\"message\":\"Uptime Kuma Alert: Example Site\",\"alias\":\"Example Site\",\"description\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"source\":\"Uptime Kuma\",\"priority\":\"Pv-opsgeniePriority\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.opsgenie.com/v2/alerts/Example%20Site/close?identifierType=alias",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "GenieKey v-opsgenieApiKey"
+       },
+       "body": "{\"source\":\"Uptime Kuma\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.opsgenie.com/v2/alerts",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "GenieKey v-opsgenieApiKey"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"alias\":\"uptime-kuma-notification-test\",\"source\":\"Uptime Kuma\",\"priority\":\"P5\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "opsgenieRegion": "v-opsgenieRegion",
+    "opsgenieApiKey": "v-opsgenieApiKey",
+    "type": "Opsgenie"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.opsgenie.com/v2/alerts",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "GenieKey v-opsgenieApiKey"
+       },
+       "body": "{\"message\":\"Uptime Kuma Alert: Example Site\",\"alias\":\"Example Site\",\"description\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"source\":\"Uptime Kuma\",\"priority\":\"P3\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.opsgenie.com/v2/alerts/Example%20Site/close?identifierType=alias",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "GenieKey v-opsgenieApiKey"
+       },
+       "body": "{\"source\":\"Uptime Kuma\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.opsgenie.com/v2/alerts",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "GenieKey v-opsgenieApiKey"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"alias\":\"uptime-kuma-notification-test\",\"source\":\"Uptime Kuma\",\"priority\":\"P5\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "eu": {
+   "config": {
+    "opsgeniePriority": 2,
+    "opsgenieRegion": "eu",
+    "opsgenieApiKey": "v-opsgenieApiKey",
+    "type": "Opsgenie"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.eu.opsgenie.com/v2/alerts",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "GenieKey v-opsgenieApiKey"
+       },
+       "body": "{\"message\":\"Uptime Kuma Alert: Example Site\",\"alias\":\"Example Site\",\"description\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"source\":\"Uptime Kuma\",\"priority\":\"P2\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.eu.opsgenie.com/v2/alerts/Example%20Site/close?identifierType=alias",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "GenieKey v-opsgenieApiKey"
+       },
+       "body": "{\"source\":\"Uptime Kuma\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.eu.opsgenie.com/v2/alerts",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "GenieKey v-opsgenieApiKey"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"alias\":\"uptime-kuma-notification-test\",\"source\":\"Uptime Kuma\",\"priority\":\"P5\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "us": {
+   "config": {
+    "opsgenieRegion": "us",
+    "opsgenieApiKey": "v-opsgenieApiKey",
+    "type": "Opsgenie"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.opsgenie.com/v2/alerts",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "GenieKey v-opsgenieApiKey"
+       },
+       "body": "{\"message\":\"Uptime Kuma Alert: Example Site\",\"alias\":\"Example Site\",\"description\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"source\":\"Uptime Kuma\",\"priority\":\"P3\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.opsgenie.com/v2/alerts/Example%20Site/close?identifierType=alias",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "GenieKey v-opsgenieApiKey"
+       },
+       "body": "{\"source\":\"Uptime Kuma\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.opsgenie.com/v2/alerts",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "GenieKey v-opsgenieApiKey"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"alias\":\"uptime-kuma-notification-test\",\"source\":\"Uptime Kuma\",\"priority\":\"P5\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}
