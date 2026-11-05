@@ -20,17 +20,17 @@ export GRAFANA_DB_PASSWORD="$(openssl rand -hex 32)"
 docker compose up --build
 ```
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `DATABASE_URL` | required | PostgreSQL URL of a server with TimescaleDB Community Edition |
-| `ANALYTICS_API_TOKEN` | required | Admin bearer token for managing API keys, at least 32 characters |
-| `LISTEN_ADDR` | `127.0.0.1:3002` | Address to listen on |
-| `RETENTION_DAYS` | `365` | Raw beat retention, `0` keeps them forever. Aggregates are kept regardless |
-| `CHECK_CONCURRENCY` | `2000` | Maximum checks running at once |
-| `API_KEY_RATE_LIMIT` | `50` | Requests per second allowed per API key |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | not set | OTLP gRPC endpoint. Without it nothing is exported. Other standard `OTEL_*` variables apply too |
-| `KUMA_TRACE_SUCCESS_RATIO` | `0.01` | Share of successful traces to export. Failures are always exported |
-| `GRAFANA_DB_PASSWORD` | not set | Creates or updates the read-only `kuma_grafana` database role |
+| Variable                      | Default          | Purpose                                                                                         |
+| ----------------------------- | ---------------- | ----------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                | required         | PostgreSQL URL of a server with TimescaleDB Community Edition                                   |
+| `ANALYTICS_API_TOKEN`         | required         | Admin bearer token for managing API keys, at least 32 characters                                |
+| `LISTEN_ADDR`                 | `127.0.0.1:3002` | Address to listen on                                                                            |
+| `RETENTION_DAYS`              | `365`            | Raw beat retention, `0` keeps them forever. Aggregates are kept regardless                      |
+| `CHECK_CONCURRENCY`           | `2000`           | Maximum checks running at once                                                                  |
+| `API_KEY_RATE_LIMIT`          | `50`             | Requests per second allowed per API key                                                         |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | not set          | OTLP gRPC endpoint. Without it nothing is exported. Other standard `OTEL_*` variables apply too |
+| `KUMA_TRACE_SUCCESS_RATIO`    | `0.01`           | Share of successful traces to export. Failures are always exported                              |
+| `GRAFANA_DB_PASSWORD`         | not set          | Creates or updates the read-only `kuma_grafana` database role                                   |
 
 Run a single instance: there's no coordination between schedulers, so two instances
 would both run every check.
@@ -59,12 +59,12 @@ The response holds the key, `kuma_...`, and this is the only time you can see it
 SHA-256 hash is stored. List keys with `GET /api/v1/api-keys`, and revoke one with
 `DELETE /api/v1/api-keys/{id}`, which takes effect on the next request.
 
-| Scope | Allows |
-|---|---|
-| `monitors:read` | List and read monitors, with credentials hidden |
+| Scope            | Allows                                                                       |
+| ---------------- | ---------------------------------------------------------------------------- |
+| `monitors:read`  | List and read monitors, with credentials hidden                              |
 | `monitors:write` | Create, change, pause, resume and delete monitors, and see their credentials |
-| `beats:read` | Read beats, charts, percentiles and stats, and stream events |
-| `beats:write` | Store beats directly, for importing |
+| `beats:read`     | Read beats, charts, percentiles and stats, and stream events                 |
+| `beats:write`    | Store beats directly, for importing                                          |
 
 Each key may make `API_KEY_RATE_LIMIT` requests per second (default 50), with short bursts of
 four times that. Over the limit, requests get `429` with a `Retry-After` header. The limit
@@ -97,28 +97,36 @@ curl -X POST http://localhost:3002/api/v1/monitors/1/resume -H "Authorization: B
 curl -X DELETE http://localhost:3002/api/v1/monitors/1 -H "Authorization: Bearer $KEY"
 ```
 
-| Route | Scope | Description |
-|---|---|---|
-| `GET /healthz` | none | Database connectivity |
-| `GET /api/v1/openapi.json` | none | This API's description |
-| `GET, POST /api/v1/monitors` | `monitors:read`, `monitors:write` | List with `type`, `active`, `parentId`, `limit` and `offset`, or create |
-| `GET /api/v1/monitors/{id}` | `monitors:read` | Read a monitor |
-| `PUT /api/v1/monitors/{id}` | `monitors:write` | Replace a monitor. Fields left out return to their defaults |
-| `PATCH /api/v1/monitors/{id}` | `monitors:write` | Change only the fields sent |
-| `DELETE /api/v1/monitors/{id}` | `monitors:write` | Delete a monitor, its beats and its history |
-| `POST /api/v1/monitors/{id}/pause`, `/resume` | `monitors:write` | Stop or restart checks |
-| `GET /api/v1/monitors/{id}/beats?limit=100` | `beats:read` | Newest raw beats, up to 1,000 |
-| `GET /api/v1/monitors/{id}/chart?hours=24` | `beats:read` | Buckets: 1 min to 6h, 5 min to 24h, hourly to 30d, then daily |
-| `GET /api/v1/monitors/{id}/percentiles?hours=168&p=50,95,99` | `beats:read` | Ping percentiles of up beats, from raw data |
-| `GET /api/v1/stats` | `beats:read` | 24h, 30d and 1y uptime and 24h average ping for all monitors |
-| `GET /api/v1/events?monitorId=1` | `beats:read` | SSE stream of new beats, without replay |
-| `POST /api/v1/beats` | `beats:write` | Store up to 5,000 beats; safe to replay. For importing, because the scheduler writes its own beats |
+| Route                                                        | Scope                             | Description                                                                                        |
+| ------------------------------------------------------------ | --------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `GET /healthz`                                               | none                              | Database connectivity                                                                              |
+| `GET /api/v1/openapi.json`                                   | none                              | This API's description                                                                             |
+| `GET, POST /api/v1/monitors`                                 | `monitors:read`, `monitors:write` | List with `type`, `active`, `parentId`, `limit` and `offset`, or create                            |
+| `GET /api/v1/monitors/{id}`                                  | `monitors:read`                   | Read a monitor                                                                                     |
+| `PUT /api/v1/monitors/{id}`                                  | `monitors:write`                  | Replace a monitor. Fields left out return to their defaults                                        |
+| `PATCH /api/v1/monitors/{id}`                                | `monitors:write`                  | Change only the fields sent                                                                        |
+| `DELETE /api/v1/monitors/{id}`                               | `monitors:write`                  | Delete a monitor, its beats and its history                                                        |
+| `POST /api/v1/monitors/{id}/pause`, `/resume`                | `monitors:write`                  | Stop or restart checks                                                                             |
+| `GET /api/v1/monitors/{id}/beats?limit=100`                  | `beats:read`                      | Newest raw beats, up to 1,000                                                                      |
+| `GET /api/v1/monitors/{id}/chart?hours=24`                   | `beats:read`                      | Buckets: 1 min to 6h, 5 min to 24h, hourly to 30d, then daily                                      |
+| `GET /api/v1/monitors/{id}/percentiles?hours=168&p=50,95,99` | `beats:read`                      | Ping percentiles of up beats, from raw data                                                        |
+| `GET /api/v1/stats`                                          | `beats:read`                      | 24h, 30d and 1y uptime and 24h average ping for all monitors                                       |
+| `GET /api/v1/events?monitorId=1`                             | `beats:read`                      | SSE stream of new beats, without replay                                                            |
+| `POST /api/v1/beats`                                         | `beats:write`                     | Store up to 5,000 beats; safe to replay. For importing, because the scheduler writes its own beats |
 
 A beat looks like this. Status is 0 down, 1 up, 2 pending or 3 maintenance:
 
 ```json
-{"monitorId": 1, "time": "2026-11-04T05:00:00Z", "status": 1, "ping": 42.5,
- "msg": "200 - OK", "important": false, "duration": 60, "retries": 0}
+{
+  "monitorId": 1,
+  "time": "2026-11-04T05:00:00Z",
+  "status": 1,
+  "ping": 42.5,
+  "msg": "200 - OK",
+  "important": false,
+  "duration": 60,
+  "retries": 0
+}
 ```
 
 A failed beat, meaning DOWN or PENDING, also has a `traceId`. Successful beats don't, because
@@ -127,10 +135,24 @@ most of their traces aren't kept.
 A monitor needs a name and a type. These are the defaults for everything else:
 
 ```json
-{"name": "Site", "type": "http", "url": "https://example.com", "active": true,
- "interval": 60, "retryInterval": 0, "timeout": 0, "maxRetries": 0, "upsideDown": false,
- "method": "GET", "headers": {}, "body": "", "bodyEncoding": "json",
- "acceptedStatusCodes": ["200-299"], "maxRedirects": 10, "ignoreTls": false}
+{
+  "name": "Site",
+  "type": "http",
+  "url": "https://example.com",
+  "active": true,
+  "interval": 60,
+  "retryInterval": 0,
+  "timeout": 0,
+  "maxRetries": 0,
+  "upsideDown": false,
+  "method": "GET",
+  "headers": {},
+  "body": "",
+  "bodyEncoding": "json",
+  "acceptedStatusCodes": ["200-299"],
+  "maxRedirects": 10,
+  "ignoreTls": false
+}
 ```
 
 Set `parentId` to put a monitor in a group, and `propagateTrace` to send a W3C `traceparent`
@@ -195,11 +217,11 @@ Grafana is at http://localhost:3003. Log in as `admin` with `GRAFANA_ADMIN_PASSW
 `GRAFANA_BIND=0.0.0.0` to open it from other machines. Everything is provisioned from
 `observability/`, so change dashboards there rather than in the UI.
 
-| Dashboard | Shows | Source |
-|---|---|---|
-| Uptime by group | Group and monitor uptime, response time, failed checks | TimescaleDB |
-| Monitor failures | Recent failures, with links from each trace ID to Tempo | TimescaleDB, Tempo |
-| Service health | Checks, durations, scheduler lag, beat queue, API, SSE, memory | Prometheus |
+| Dashboard        | Shows                                                          | Source             |
+| ---------------- | -------------------------------------------------------------- | ------------------ |
+| Uptime by group  | Group and monitor uptime, response time, failed checks         | TimescaleDB        |
+| Monitor failures | Recent failures, with links from each trace ID to Tempo        | TimescaleDB, Tempo |
+| Service health   | Checks, durations, scheduler lag, beat queue, API, SSE, memory | Prometheus         |
 
 Group uptime is the share of successful checks, `up / (up + down)`, across every monitor in
 the group, including nested groups. Pending counts as failed, and maintenance doesn't count.
