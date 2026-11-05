@@ -1,0 +1,119 @@
+{
+ "provider": "openwa",
+ "variants": {
+  "default": {
+   "config": {
+    "openwaCustomMessage": "v-openwaCustomMessage",
+    "openwaUseCustomMessage": "v-openwaUseCustomMessage",
+    "openwaApiKey": "v-openwaApiKey",
+    "openwaChatId": "v-openwaChatId",
+    "openwaApiUrl": "https://svc.example/openwaApiUrl",
+    "openwaSession": "v-openwaSession",
+    "type": "openwa"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/openwaApiUrl/api/sessions/v-openwaSession/messages/send-text",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Api-Key": "v-openwaApiKey"
+       },
+       "body": "{\"chatId\":\"v-openwaChatId\",\"text\":\"v-openwaCustomMessage\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/openwaApiUrl/api/sessions/v-openwaSession/messages/send-text",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Api-Key": "v-openwaApiKey"
+       },
+       "body": "{\"chatId\":\"v-openwaChatId\",\"text\":\"v-openwaCustomMessage\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/openwaApiUrl/api/sessions/v-openwaSession/messages/send-text",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Api-Key": "v-openwaApiKey"
+       },
+       "body": "{\"chatId\":\"v-openwaChatId\",\"text\":\"v-openwaCustomMessage\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "openwaApiKey": "v-openwaApiKey",
+    "openwaChatId": "v-openwaChatId",
+    "openwaApiUrl": "https://svc.example/openwaApiUrl",
+    "openwaSession": "v-openwaSession",
+    "type": "openwa"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/openwaApiUrl/api/sessions/v-openwaSession/messages/send-text",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Api-Key": "v-openwaApiKey"
+       },
+       "body": "{\"chatId\":\"v-openwaChatId\",\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/openwaApiUrl/api/sessions/v-openwaSession/messages/send-text",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Api-Key": "v-openwaApiKey"
+       },
+       "body": "{\"chatId\":\"v-openwaChatId\",\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/openwaApiUrl/api/sessions/v-openwaSession/messages/send-text",
+       "headers": {
+        "Content-Type": "application/json",
+        "X-Api-Key": "v-openwaApiKey"
+       },
+       "body": "{\"chatId\":\"v-openwaChatId\",\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

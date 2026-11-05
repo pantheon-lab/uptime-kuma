@@ -1,0 +1,231 @@
+{
+ "provider": "matrix",
+ "variants": {
+  "default": {
+   "config": {
+    "internalRoomId": "v-internalRoomId",
+    "accessToken": "v-accessToken",
+    "matrixUseTemplate": "v-matrixUseTemplate",
+    "matrixTemplate": "v-matrixTemplate",
+    "homeserverUrl": "https://svc.example/homeserverUrl",
+    "type": "matrix"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "PUT",
+       "url": "https://svc.example/homeserverUrl/_matrix/client/r0/rooms/v-internalRoomId/send/m.room.message/q6urq6urq6urq6urq6ur",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"msgtype\":\"m.text\",\"body\":\"v-matrixTemplate\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "PUT",
+       "url": "https://svc.example/homeserverUrl/_matrix/client/r0/rooms/v-internalRoomId/send/m.room.message/q6urq6urq6urq6urq6ur",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"msgtype\":\"m.text\",\"body\":\"v-matrixTemplate\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "PUT",
+       "url": "https://svc.example/homeserverUrl/_matrix/client/r0/rooms/v-internalRoomId/send/m.room.message/q6urq6urq6urq6urq6ur",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"msgtype\":\"m.text\",\"body\":\"v-matrixTemplate\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "internalRoomId": "v-internalRoomId",
+    "accessToken": "v-accessToken",
+    "homeserverUrl": "https://svc.example/homeserverUrl",
+    "type": "matrix"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "PUT",
+       "url": "https://svc.example/homeserverUrl/_matrix/client/r0/rooms/v-internalRoomId/send/m.room.message/q6urq6urq6urq6urq6ur",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"msgtype\":\"m.text\",\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "PUT",
+       "url": "https://svc.example/homeserverUrl/_matrix/client/r0/rooms/v-internalRoomId/send/m.room.message/q6urq6urq6urq6urq6ur",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"msgtype\":\"m.text\",\"body\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "PUT",
+       "url": "https://svc.example/homeserverUrl/_matrix/client/r0/rooms/v-internalRoomId/send/m.room.message/q6urq6urq6urq6urq6ur",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"msgtype\":\"m.text\",\"body\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "plain": {
+   "config": {
+    "internalRoomId": "v-internalRoomId",
+    "accessToken": "v-accessToken",
+    "matrixUseTemplate": false,
+    "matrixTemplate": "v-matrixTemplate",
+    "homeserverUrl": "https://svc.example/homeserverUrl",
+    "type": "matrix"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "PUT",
+       "url": "https://svc.example/homeserverUrl/_matrix/client/r0/rooms/v-internalRoomId/send/m.room.message/q6urq6urq6urq6urq6ur",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"msgtype\":\"m.text\",\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "PUT",
+       "url": "https://svc.example/homeserverUrl/_matrix/client/r0/rooms/v-internalRoomId/send/m.room.message/q6urq6urq6urq6urq6ur",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"msgtype\":\"m.text\",\"body\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "PUT",
+       "url": "https://svc.example/homeserverUrl/_matrix/client/r0/rooms/v-internalRoomId/send/m.room.message/q6urq6urq6urq6urq6ur",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"msgtype\":\"m.text\",\"body\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "template": {
+   "config": {
+    "internalRoomId": "v-internalRoomId",
+    "accessToken": "v-accessToken",
+    "matrixUseTemplate": true,
+    "matrixTemplate": "{{ name }}",
+    "homeserverUrl": "https://svc.example/homeserverUrl",
+    "type": "matrix"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "PUT",
+       "url": "https://svc.example/homeserverUrl/_matrix/client/r0/rooms/v-internalRoomId/send/m.room.message/q6urq6urq6urq6urq6ur",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"msgtype\":\"m.text\",\"body\":\"Example Site\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "PUT",
+       "url": "https://svc.example/homeserverUrl/_matrix/client/r0/rooms/v-internalRoomId/send/m.room.message/q6urq6urq6urq6urq6ur",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"msgtype\":\"m.text\",\"body\":\"Example Site\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "PUT",
+       "url": "https://svc.example/homeserverUrl/_matrix/client/r0/rooms/v-internalRoomId/send/m.room.message/q6urq6urq6urq6urq6ur",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"msgtype\":\"m.text\",\"body\":\"Monitor Name not available\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

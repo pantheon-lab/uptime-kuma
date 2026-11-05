@@ -1,0 +1,115 @@
+{
+ "provider": "HaloPSA",
+ "variants": {
+  "default": {
+   "config": {
+    "haloUsername": "v-haloUsername",
+    "haloPassword": "v-haloPassword",
+    "halowebhookurl": "https://svc.example/halowebhookurl",
+    "type": "HaloPSA"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/halowebhookurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1oYWxvVXNlcm5hbWU6di1oYWxvUGFzc3dvcmQ="
+       },
+       "body": "{\"title\":\"Uptime Kuma Alert\",\"status\":\"DOWN\",\"monitor\":\"Example Site\",\"monitor_id\":42,\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"timestamp\":\"2026-01-02T03:04:05.678Z\",\"uptime_kuma_version\":\"unknown\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/halowebhookurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1oYWxvVXNlcm5hbWU6di1oYWxvUGFzc3dvcmQ="
+       },
+       "body": "{\"title\":\"Uptime Kuma Alert\",\"status\":\"UP\",\"monitor\":\"Example Site\",\"monitor_id\":42,\"message\":\"[Example Site] [✅ Up] 200 - OK\",\"timestamp\":\"2026-01-02T03:04:05.678Z\",\"uptime_kuma_version\":\"unknown\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/halowebhookurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1oYWxvVXNlcm5hbWU6di1oYWxvUGFzc3dvcmQ="
+       },
+       "body": "{\"title\":\"Uptime Kuma Alert\",\"status\":\"UNKNOWN\",\"monitor\":\"No Monitor\",\"monitor_id\":null,\"message\":\"My Monitor Testing\",\"timestamp\":\"2026-01-02T03:04:05.678Z\",\"uptime_kuma_version\":\"unknown\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "haloUsername": "v-haloUsername",
+    "haloPassword": "v-haloPassword",
+    "halowebhookurl": "https://svc.example/halowebhookurl",
+    "type": "HaloPSA"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/halowebhookurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1oYWxvVXNlcm5hbWU6di1oYWxvUGFzc3dvcmQ="
+       },
+       "body": "{\"title\":\"Uptime Kuma Alert\",\"status\":\"DOWN\",\"monitor\":\"Example Site\",\"monitor_id\":42,\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"timestamp\":\"2026-01-02T03:04:05.678Z\",\"uptime_kuma_version\":\"unknown\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/halowebhookurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1oYWxvVXNlcm5hbWU6di1oYWxvUGFzc3dvcmQ="
+       },
+       "body": "{\"title\":\"Uptime Kuma Alert\",\"status\":\"UP\",\"monitor\":\"Example Site\",\"monitor_id\":42,\"message\":\"[Example Site] [✅ Up] 200 - OK\",\"timestamp\":\"2026-01-02T03:04:05.678Z\",\"uptime_kuma_version\":\"unknown\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/halowebhookurl",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1oYWxvVXNlcm5hbWU6di1oYWxvUGFzc3dvcmQ="
+       },
+       "body": "{\"title\":\"Uptime Kuma Alert\",\"status\":\"UNKNOWN\",\"monitor\":\"No Monitor\",\"monitor_id\":null,\"message\":\"My Monitor Testing\",\"timestamp\":\"2026-01-02T03:04:05.678Z\",\"uptime_kuma_version\":\"unknown\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

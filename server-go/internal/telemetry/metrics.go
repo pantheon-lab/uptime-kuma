@@ -21,6 +21,7 @@ type Instruments struct {
 	flushedBeats  metric.Int64Counter
 	droppedBeats  metric.Int64Counter
 	droppedSSE    metric.Int64Counter
+	notifications metric.Int64Counter
 
 	mu       sync.Mutex
 	monitors map[int32]monitorUp
@@ -59,6 +60,8 @@ func newInstruments() *Instruments {
 	i.flushedBeats, _ = meter.Int64Counter("kuma.beats.written", metric.WithDescription("Beats written to the database"), metric.WithUnit("{beat}"))
 	i.droppedBeats, _ = meter.Int64Counter("kuma.beats.dropped", metric.WithDescription("Beats dropped because the queue was full"), metric.WithUnit("{beat}"))
 	i.droppedSSE, _ = meter.Int64Counter("kuma.sse.dropped_clients", metric.WithDescription("SSE clients dropped for falling behind"), metric.WithUnit("{client}"))
+
+	i.notifications, _ = meter.Int64Counter("kuma.notifications", metric.WithDescription("Notifications by provider and outcome"), metric.WithUnit("{notification}"))
 
 	up, _ := meter.Int64ObservableGauge("kuma.monitor.up", metric.WithDescription("1 if the monitor's last beat was UP, otherwise 0"))
 	queue, _ := meter.Int64ObservableGauge("kuma.beats.queue", metric.WithDescription("Beats waiting to be written"), metric.WithUnit("{beat}"))
@@ -137,6 +140,11 @@ func (i *Instruments) RecordDroppedBeats(n int) { i.droppedBeats.Add(context.Bac
 
 // RecordDroppedStream counts an SSE client dropped for falling behind.
 func (i *Instruments) RecordDroppedStream() { i.droppedSSE.Add(context.Background(), 1) }
+
+// RecordNotification counts a notification. Outcome is sent, failed or dropped.
+func (i *Instruments) RecordNotification(provider, outcome string) {
+	i.notifications.Add(context.Background(), 1, metric.WithAttributes(attribute.String("provider", provider), attribute.String("outcome", outcome)))
+}
 
 // ObserveQueue sets the function that reports the beat queue length.
 func (i *Instruments) ObserveQueue(fn func() int64) {

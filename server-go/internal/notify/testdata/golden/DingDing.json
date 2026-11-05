@@ -1,0 +1,279 @@
+{
+ "provider": "DingDing",
+ "variants": {
+  "default": {
+   "config": {
+    "mentioning": "v-mentioning",
+    "mobileList": "v-mobileList",
+    "userList": "v-userList",
+    "webHookUrl": "https://svc.example/webHookUrl",
+    "secretKey": "v-secretKey",
+    "type": "DingDing"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webHookUrl&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"markdown\",\"markdown\":{\"title\":\"[DOWN] Example Site\",\"text\":\"## [DOWN] Example Site \\n> connect ECONNREFUSED\\n> Time (Asia/Hong_Kong): 2026-01-02 11:04:05\"},\"at\":{\"isAtAll\":false,\"atUserIds\":[],\"atMobiles\":[]}}"
+      }
+     ],
+     "error": "Error"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webHookUrl&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"markdown\",\"markdown\":{\"title\":\"[UP] Example Site\",\"text\":\"## [UP] Example Site \\n> 200 - OK\\n> Time (Asia/Hong_Kong): 2026-01-02 11:04:05\"},\"at\":{\"isAtAll\":false,\"atUserIds\":[],\"atMobiles\":[]}}"
+      }
+     ],
+     "error": "Error"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webHookUrl&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"text\",\"text\":{\"content\":\"My Monitor Testing\"},\"at\":{\"isAtAll\":false,\"atUserIds\":[],\"atMobiles\":[]}}"
+      }
+     ],
+     "error": "Error"
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "mobileList": "v-mobileList",
+    "userList": "v-userList",
+    "webHookUrl": "https://svc.example/webHookUrl",
+    "secretKey": "v-secretKey",
+    "type": "DingDing"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webHookUrl&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"markdown\",\"markdown\":{\"title\":\"[DOWN] Example Site\",\"text\":\"## [DOWN] Example Site \\n> connect ECONNREFUSED\\n> Time (Asia/Hong_Kong): 2026-01-02 11:04:05\"},\"at\":{\"isAtAll\":false,\"atUserIds\":[],\"atMobiles\":[]}}"
+      }
+     ],
+     "error": "Error"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webHookUrl&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"markdown\",\"markdown\":{\"title\":\"[UP] Example Site\",\"text\":\"## [UP] Example Site \\n> 200 - OK\\n> Time (Asia/Hong_Kong): 2026-01-02 11:04:05\"},\"at\":{\"isAtAll\":false,\"atUserIds\":[],\"atMobiles\":[]}}"
+      }
+     ],
+     "error": "Error"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webHookUrl&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"text\",\"text\":{\"content\":\"My Monitor Testing\"},\"at\":{\"isAtAll\":false,\"atUserIds\":[],\"atMobiles\":[]}}"
+      }
+     ],
+     "error": "Error"
+    }
+   }
+  },
+  "everyone": {
+   "config": {
+    "mentioning": "everyone",
+    "mobileList": "v-mobileList",
+    "userList": "v-userList",
+    "webHookUrl": "https://svc.example/robot?access_token=x",
+    "secretKey": "v-secretKey",
+    "type": "DingDing"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/robot?access_token=x&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"markdown\",\"markdown\":{\"title\":\"[DOWN] Example Site\",\"text\":\"## [DOWN] Example Site \\n> connect ECONNREFUSED\\n> Time (Asia/Hong_Kong): 2026-01-02 11:04:05\"},\"at\":{\"isAtAll\":true,\"atUserIds\":[],\"atMobiles\":[]}}"
+      }
+     ],
+     "error": "Error"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/robot?access_token=x&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"markdown\",\"markdown\":{\"title\":\"[UP] Example Site\",\"text\":\"## [UP] Example Site \\n> 200 - OK\\n> Time (Asia/Hong_Kong): 2026-01-02 11:04:05\"},\"at\":{\"isAtAll\":true,\"atUserIds\":[],\"atMobiles\":[]}}"
+      }
+     ],
+     "error": "Error"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/robot?access_token=x&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"text\",\"text\":{\"content\":\"My Monitor Testing\"},\"at\":{\"isAtAll\":true,\"atUserIds\":[],\"atMobiles\":[]}}"
+      }
+     ],
+     "error": "Error"
+    }
+   }
+  },
+  "mobiles": {
+   "config": {
+    "mentioning": "specify-mobiles",
+    "mobileList": [
+     "1",
+     "2"
+    ],
+    "userList": "v-userList",
+    "webHookUrl": "https://svc.example/robot?access_token=x",
+    "secretKey": "v-secretKey",
+    "type": "DingDing"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/robot?access_token=x&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"markdown\",\"markdown\":{\"title\":\"[DOWN] Example Site\",\"text\":\"## [DOWN] Example Site \\n> connect ECONNREFUSED\\n> Time (Asia/Hong_Kong): 2026-01-02 11:04:05\\n\"},\"at\":{\"isAtAll\":false,\"atUserIds\":[],\"atMobiles\":[\"1\",\"2\"]}}"
+      }
+     ],
+     "error": "Error"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/robot?access_token=x&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"markdown\",\"markdown\":{\"title\":\"[UP] Example Site\",\"text\":\"## [UP] Example Site \\n> 200 - OK\\n> Time (Asia/Hong_Kong): 2026-01-02 11:04:05\\n\"},\"at\":{\"isAtAll\":false,\"atUserIds\":[],\"atMobiles\":[\"1\",\"2\"]}}"
+      }
+     ],
+     "error": "Error"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/robot?access_token=x&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"text\",\"text\":{\"content\":\"My Monitor Testing\\n\"},\"at\":{\"isAtAll\":false,\"atUserIds\":[],\"atMobiles\":[\"1\",\"2\"]}}"
+      }
+     ],
+     "error": "Error"
+    }
+   }
+  },
+  "users": {
+   "config": {
+    "mentioning": "specify-users",
+    "mobileList": "v-mobileList",
+    "userList": [
+     "u"
+    ],
+    "webHookUrl": "https://svc.example/robot?access_token=x",
+    "secretKey": "v-secretKey",
+    "type": "DingDing"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/robot?access_token=x&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"markdown\",\"markdown\":{\"title\":\"[DOWN] Example Site\",\"text\":\"## [DOWN] Example Site \\n> connect ECONNREFUSED\\n> Time (Asia/Hong_Kong): 2026-01-02 11:04:05\\n\"},\"at\":{\"isAtAll\":false,\"atUserIds\":[\"u\"],\"atMobiles\":[]}}"
+      }
+     ],
+     "error": "Error"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/robot?access_token=x&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"markdown\",\"markdown\":{\"title\":\"[UP] Example Site\",\"text\":\"## [UP] Example Site \\n> 200 - OK\\n> Time (Asia/Hong_Kong): 2026-01-02 11:04:05\\n\"},\"at\":{\"isAtAll\":false,\"atUserIds\":[\"u\"],\"atMobiles\":[]}}"
+      }
+     ],
+     "error": "Error"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/robot?access_token=x&timestamp=1767323045678&sign=dul%2BYvQ40LjSCla2p%2Fvaauy%2FR40HTJ89AEEAoplhj0o%3D",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"text\",\"text\":{\"content\":\"My Monitor Testing\\n\"},\"at\":{\"isAtAll\":false,\"atUserIds\":[\"u\"],\"atMobiles\":[]}}"
+      }
+     ],
+     "error": "Error"
+    }
+   }
+  }
+ }
+}

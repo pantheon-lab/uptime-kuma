@@ -1,0 +1,109 @@
+{
+ "provider": "PushByTechulus",
+ "variants": {
+  "default": {
+   "config": {
+    "pushTitle": "v-pushTitle",
+    "pushTimeSensitive": "v-pushTimeSensitive",
+    "pushChannel": "v-pushChannel",
+    "pushSound": "v-pushSound",
+    "pushAPIKey": "v-pushAPIKey",
+    "type": "PushByTechulus"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.techulus.com/api/v1/notify/v-pushAPIKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"v-pushTitle\",\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"timeSensitive\":\"v-pushTimeSensitive\",\"channel\":\"v-pushChannel\",\"sound\":\"v-pushSound\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.techulus.com/api/v1/notify/v-pushAPIKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"v-pushTitle\",\"body\":\"[Example Site] [✅ Up] 200 - OK\",\"timeSensitive\":\"v-pushTimeSensitive\",\"channel\":\"v-pushChannel\",\"sound\":\"v-pushSound\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.techulus.com/api/v1/notify/v-pushAPIKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"v-pushTitle\",\"body\":\"My Monitor Testing\",\"timeSensitive\":\"v-pushTimeSensitive\",\"channel\":\"v-pushChannel\",\"sound\":\"v-pushSound\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "pushAPIKey": "v-pushAPIKey",
+    "type": "PushByTechulus"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.techulus.com/api/v1/notify/v-pushAPIKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"Uptime-Kuma\",\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"timeSensitive\":true}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.techulus.com/api/v1/notify/v-pushAPIKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"Uptime-Kuma\",\"body\":\"[Example Site] [✅ Up] 200 - OK\",\"timeSensitive\":true}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.techulus.com/api/v1/notify/v-pushAPIKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"Uptime-Kuma\",\"body\":\"My Monitor Testing\",\"timeSensitive\":true}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

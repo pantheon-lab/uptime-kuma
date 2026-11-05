@@ -1,0 +1,93 @@
+{
+ "provider": "bearsms",
+ "variants": {
+  "default": {
+   "config": {
+    "bearsmsUsername": "v-bearsmsUsername",
+    "bearsmsHashKey": "v-bearsmsHashKey",
+    "bearsmsPhoneNumber": "v-bearsmsPhoneNumber",
+    "bearsmsSenderId": "v-bearsmsSenderId",
+    "type": "bearsms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://app.bearsms.com/index.php?app=ws&u=v-bearsmsUsername&h=v-bearsmsHashKey&op=pv&to=v-bearsmsPhoneNumber&msg=%5BExample+Site%5D+%5BDown%5D+connect+ECONNREFUSED&from=v-bearsmsSenderId",
+       "headers": {}
+      }
+     ],
+     "error": "{\"ok\":true,\"success\":true,\"status\":\"success\",\"result\":{\"id\":1},\"code\":0,\"errcode\":0,\"errorCode\":0,\"ErrorCode\":0,\"Code\":\"OK\",\"error\":0,\"errors\":[],\"access_token\":\"stub-access-token\",\"token\":\"stub-token\",\"accessToken\":\"stub-access-token\",\"tenant_access_token\":\"stub-tenant-token\",\"expires_in\":3600,\"id\":\"stub-id\",\"data\":{\"id\":\"stub-id\",\"token\":\"stub-token\",\"ok\":true},\"message\":\"ok\",\"msg\":\"ok\",\"ret\":0,\"event_id\":\"stub\",\"sid\":\"stub\"}"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://app.bearsms.com/index.php?app=ws&u=v-bearsmsUsername&h=v-bearsmsHashKey&op=pv&to=v-bearsmsPhoneNumber&msg=%5BExample+Site%5D+%5BUp%5D+200+-+OK&from=v-bearsmsSenderId",
+       "headers": {}
+      }
+     ],
+     "error": "{\"ok\":true,\"success\":true,\"status\":\"success\",\"result\":{\"id\":1},\"code\":0,\"errcode\":0,\"errorCode\":0,\"ErrorCode\":0,\"Code\":\"OK\",\"error\":0,\"errors\":[],\"access_token\":\"stub-access-token\",\"token\":\"stub-token\",\"accessToken\":\"stub-access-token\",\"tenant_access_token\":\"stub-tenant-token\",\"expires_in\":3600,\"id\":\"stub-id\",\"data\":{\"id\":\"stub-id\",\"token\":\"stub-token\",\"ok\":true},\"message\":\"ok\",\"msg\":\"ok\",\"ret\":0,\"event_id\":\"stub\",\"sid\":\"stub\"}"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://app.bearsms.com/index.php?app=ws&u=v-bearsmsUsername&h=v-bearsmsHashKey&op=pv&to=v-bearsmsPhoneNumber&msg=My+Monitor+Testing&from=v-bearsmsSenderId",
+       "headers": {}
+      }
+     ],
+     "error": "{\"ok\":true,\"success\":true,\"status\":\"success\",\"result\":{\"id\":1},\"code\":0,\"errcode\":0,\"errorCode\":0,\"ErrorCode\":0,\"Code\":\"OK\",\"error\":0,\"errors\":[],\"access_token\":\"stub-access-token\",\"token\":\"stub-token\",\"accessToken\":\"stub-access-token\",\"tenant_access_token\":\"stub-tenant-token\",\"expires_in\":3600,\"id\":\"stub-id\",\"data\":{\"id\":\"stub-id\",\"token\":\"stub-token\",\"ok\":true},\"message\":\"ok\",\"msg\":\"ok\",\"ret\":0,\"event_id\":\"stub\",\"sid\":\"stub\"}"
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "bearsmsUsername": "v-bearsmsUsername",
+    "bearsmsHashKey": "v-bearsmsHashKey",
+    "bearsmsPhoneNumber": "v-bearsmsPhoneNumber",
+    "bearsmsSenderId": "v-bearsmsSenderId",
+    "type": "bearsms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://app.bearsms.com/index.php?app=ws&u=v-bearsmsUsername&h=v-bearsmsHashKey&op=pv&to=v-bearsmsPhoneNumber&msg=%5BExample+Site%5D+%5BDown%5D+connect+ECONNREFUSED&from=v-bearsmsSenderId",
+       "headers": {}
+      }
+     ],
+     "error": "{\"ok\":true,\"success\":true,\"status\":\"success\",\"result\":{\"id\":1},\"code\":0,\"errcode\":0,\"errorCode\":0,\"ErrorCode\":0,\"Code\":\"OK\",\"error\":0,\"errors\":[],\"access_token\":\"stub-access-token\",\"token\":\"stub-token\",\"accessToken\":\"stub-access-token\",\"tenant_access_token\":\"stub-tenant-token\",\"expires_in\":3600,\"id\":\"stub-id\",\"data\":{\"id\":\"stub-id\",\"token\":\"stub-token\",\"ok\":true},\"message\":\"ok\",\"msg\":\"ok\",\"ret\":0,\"event_id\":\"stub\",\"sid\":\"stub\"}"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://app.bearsms.com/index.php?app=ws&u=v-bearsmsUsername&h=v-bearsmsHashKey&op=pv&to=v-bearsmsPhoneNumber&msg=%5BExample+Site%5D+%5BUp%5D+200+-+OK&from=v-bearsmsSenderId",
+       "headers": {}
+      }
+     ],
+     "error": "{\"ok\":true,\"success\":true,\"status\":\"success\",\"result\":{\"id\":1},\"code\":0,\"errcode\":0,\"errorCode\":0,\"ErrorCode\":0,\"Code\":\"OK\",\"error\":0,\"errors\":[],\"access_token\":\"stub-access-token\",\"token\":\"stub-token\",\"accessToken\":\"stub-access-token\",\"tenant_access_token\":\"stub-tenant-token\",\"expires_in\":3600,\"id\":\"stub-id\",\"data\":{\"id\":\"stub-id\",\"token\":\"stub-token\",\"ok\":true},\"message\":\"ok\",\"msg\":\"ok\",\"ret\":0,\"event_id\":\"stub\",\"sid\":\"stub\"}"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://app.bearsms.com/index.php?app=ws&u=v-bearsmsUsername&h=v-bearsmsHashKey&op=pv&to=v-bearsmsPhoneNumber&msg=My+Monitor+Testing&from=v-bearsmsSenderId",
+       "headers": {}
+      }
+     ],
+     "error": "{\"ok\":true,\"success\":true,\"status\":\"success\",\"result\":{\"id\":1},\"code\":0,\"errcode\":0,\"errorCode\":0,\"ErrorCode\":0,\"Code\":\"OK\",\"error\":0,\"errors\":[],\"access_token\":\"stub-access-token\",\"token\":\"stub-token\",\"accessToken\":\"stub-access-token\",\"tenant_access_token\":\"stub-tenant-token\",\"expires_in\":3600,\"id\":\"stub-id\",\"data\":{\"id\":\"stub-id\",\"token\":\"stub-token\",\"ok\":true},\"message\":\"ok\",\"msg\":\"ok\",\"ret\":0,\"event_id\":\"stub\",\"sid\":\"stub\"}"
+    }
+   }
+  }
+ }
+}

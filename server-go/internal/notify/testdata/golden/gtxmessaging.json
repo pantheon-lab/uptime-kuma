@@ -1,0 +1,109 @@
+{
+ "provider": "gtxmessaging",
+ "variants": {
+  "default": {
+   "config": {
+    "gtxMessagingFrom": "v-gtxMessagingFrom",
+    "gtxMessagingTo": "v-gtxMessagingTo",
+    "gtxMessagingApiKey": "v-gtxMessagingApiKey",
+    "type": "gtxmessaging"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://rest.gtx-messaging.net/smsc/sendsms/v-gtxMessagingApiKey/json",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "from=v-gtxMessagingFrom&to=v-gtxMessagingTo&text=%5BExample+Site%5D+%5BDown%5D+connect+ECONNREFUSED"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://rest.gtx-messaging.net/smsc/sendsms/v-gtxMessagingApiKey/json",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "from=v-gtxMessagingFrom&to=v-gtxMessagingTo&text=%5BExample+Site%5D+%5BUp%5D+200+-+OK"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://rest.gtx-messaging.net/smsc/sendsms/v-gtxMessagingApiKey/json",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "from=v-gtxMessagingFrom&to=v-gtxMessagingTo&text=My+Monitor+Testing"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "gtxMessagingFrom": "v-gtxMessagingFrom",
+    "gtxMessagingTo": "v-gtxMessagingTo",
+    "gtxMessagingApiKey": "v-gtxMessagingApiKey",
+    "type": "gtxmessaging"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://rest.gtx-messaging.net/smsc/sendsms/v-gtxMessagingApiKey/json",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "from=v-gtxMessagingFrom&to=v-gtxMessagingTo&text=%5BExample+Site%5D+%5BDown%5D+connect+ECONNREFUSED"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://rest.gtx-messaging.net/smsc/sendsms/v-gtxMessagingApiKey/json",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "from=v-gtxMessagingFrom&to=v-gtxMessagingTo&text=%5BExample+Site%5D+%5BUp%5D+200+-+OK"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://rest.gtx-messaging.net/smsc/sendsms/v-gtxMessagingApiKey/json",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+       },
+       "body": "from=v-gtxMessagingFrom&to=v-gtxMessagingTo&text=My+Monitor+Testing"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

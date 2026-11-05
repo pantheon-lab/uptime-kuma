@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -219,7 +220,7 @@ func TestImportsMonitorsFaithfully(t *testing.T) {
 	if report.SkippedByReason["unsupported monitor type"] != 2 {
 		t.Errorf("by reason: %+v", report.SkippedByReason)
 	}
-	if report.DroppedSettings["cacheBust"] != 1 || report.DroppedSettings["resendInterval"] != 1 || report.DroppedSettings["certificateExpiryNotification"] != 5 || report.DroppedSettings["saveResponse"] != 0 || report.WithAlerts != 2 {
+	if report.DroppedSettings["cacheBust"] != 1 || report.DroppedSettings["resendInterval"] != 0 || report.DroppedSettings["certificateExpiryNotification"] != 5 || report.DroppedSettings["saveResponse"] != 0 || report.WithAlerts != 2 {
 		t.Errorf("reported losses: %+v, alerts %d", report.DroppedSettings, report.WithAlerts)
 	}
 
@@ -510,5 +511,87 @@ func TestConvertBeatRejectsBadTime(t *testing.T) {
 	row := map[string]sql.NullString{"time": {String: "0000-00-00 00:00:00", Valid: true}, "status": {String: "1", Valid: true}}
 	if _, err := convertBeat(row, 1); err == nil {
 		t.Error("expected an error")
+	}
+}
+
+func TestImportsNotifications(t *testing.T) {
+	f := newFixture(t)
+	f.seedMonitors(t)
+	f.exec(t, `INSERT INTO notification (id, name, active, is_default, config) VALUES
+		(1, 'Ops webhook', 1, 1, '{"type":"webhook","webhookURL":"https://hooks.example/secret-token","webhookContentType":"json"}'),
+		(2, 'Mail', 0, 0, '{"type":"smtp","smtpHost":"mail.example","smtpPort":587,"smtpPassword":"secret-pass"}'),
+		(5, 'Push', 1, 0, '{"type":"nostr","accessToken":"secret-nostr"}'),
+		(6, 'Broken', 1, 0, 'not json')`)
+	f.exec(t, "INSERT INTO monitor_notification (monitor_id, notification_id) VALUES (4, 5)")
+
+	dry := f.run(t, false, false)
+	if dry.Notifications.Source != 4 || dry.Notifications.Imported != 2 || len(dry.Notifications.Skipped) != 2 || dry.Notifications.Links != 3 || dry.Notifications.MonitorsLosingAlerts != 1 {
+		t.Fatalf("dry run: %+v", dry.Notifications)
+	}
+	if n := f.count(t, "SELECT count(*) FROM notification"); n != 0 {
+		t.Fatalf("a dry run wrote %d notifications", n)
+	}
+	encoded, err := json.Marshal(dry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "secret") {
+		t.Fatalf("the report leaks credentials: %s", encoded)
+	}
+
+	report := f.run(t, true, false)
+	if report.Notifications.Imported != 2 || report.Notifications.Links != 3 {
+		t.Fatalf("apply: %+v", report.Notifications)
+	}
+	// Uptime Kuma still sends these alerts during a parallel run, so nothing may be on yet.
+	if n := f.count(t, "SELECT count(*) FROM notification WHERE active"); n != 0 {
+		t.Fatalf("%d notifications are on before the cutover", n)
+	}
+	if n := f.count(t, "SELECT count(*) FROM monitor_notification WHERE monitor_id = $1", f.targetID(t, 3)); n != 2 {
+		t.Fatalf("monitor 3 has %d notifications", n)
+	}
+	if n := f.count(t, "SELECT count(*) FROM monitor_notification WHERE monitor_id = $1", f.targetID(t, 4)); n != 1 {
+		t.Fatalf("monitor 4 has %d notifications", n)
+	}
+
+	// A link removed in the source goes away, and nothing is duplicated.
+	f.exec(t, "DELETE FROM monitor_notification WHERE monitor_id = 3 AND notification_id = 2")
+	f.run(t, true, false)
+	if n := f.count(t, "SELECT count(*) FROM monitor_notification WHERE monitor_id = $1", f.targetID(t, 3)); n != 1 {
+		t.Fatalf("after re-import, monitor 3 has %d notifications", n)
+	}
+	if n := f.count(t, "SELECT count(*) FROM notification"); n != 2 {
+		t.Fatalf("re-import made %d notifications", n)
+	}
+
+	// Activating only switches on what was on in the source.
+	activated := f.run(t, true, true)
+	if activated.Notifications.Activated != 1 {
+		t.Fatalf("activated: %+v", activated.Notifications)
+	}
+	if n := f.count(t, "SELECT count(*) FROM notification WHERE active AND name = 'Ops webhook'"); n != 1 {
+		t.Fatal("the active notification wasn't switched on")
+	}
+	if n := f.count(t, "SELECT count(*) FROM notification WHERE active AND name = 'Mail'"); n != 0 {
+		t.Fatal("an inactive notification was switched on")
+	}
+
+	// Once on, later imports leave it alone.
+	f.exec(t, "UPDATE notification SET config = '{\"type\":\"webhook\",\"webhookURL\":\"https://changed.example\"}' WHERE id = 1")
+	again := f.run(t, true, false)
+	if again.Notifications.AlreadyActive != 1 {
+		t.Fatalf("again: %+v", again.Notifications)
+	}
+	if n := f.count(t, "SELECT count(*) FROM notification WHERE config->>'webhookURL' = 'https://changed.example'"); n != 0 {
+		t.Fatal("an active notification was overwritten")
+	}
+}
+
+func TestImportsResendInterval(t *testing.T) {
+	f := newFixture(t)
+	f.monitor(t, 1, "Resends", "http", map[string]any{"url": "https://example.com", "resend_interval": 5})
+	f.run(t, true, false)
+	if n := f.count(t, "SELECT resend_interval FROM monitor WHERE id = $1", f.targetID(t, 1)); n != 5 {
+		t.Fatalf("resend interval: %d", n)
 	}
 }

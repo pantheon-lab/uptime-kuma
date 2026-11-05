@@ -1,0 +1,113 @@
+{
+ "provider": "line",
+ "variants": {
+  "default": {
+   "config": {
+    "lineChannelAccessToken": "v-lineChannelAccessToken",
+    "lineUserID": "v-lineUserID",
+    "type": "line"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.line.me/v2/bot/message/push",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-lineChannelAccessToken"
+       },
+       "body": "{\"to\":\"v-lineUserID\",\"messages\":[{\"type\":\"text\",\"text\":\"UptimeKuma Alert: [🔴 Down]\\nName: Example Site \\nconnect ECONNREFUSED\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.line.me/v2/bot/message/push",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-lineChannelAccessToken"
+       },
+       "body": "{\"to\":\"v-lineUserID\",\"messages\":[{\"type\":\"text\",\"text\":\"UptimeKuma Alert: [✅ Up]\\nName: Example Site \\n200 - OK\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.line.me/v2/bot/message/push",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-lineChannelAccessToken"
+       },
+       "body": "{\"to\":\"v-lineUserID\",\"messages\":[{\"type\":\"text\",\"text\":\"Test Successful!\"}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "lineChannelAccessToken": "v-lineChannelAccessToken",
+    "lineUserID": "v-lineUserID",
+    "type": "line"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.line.me/v2/bot/message/push",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-lineChannelAccessToken"
+       },
+       "body": "{\"to\":\"v-lineUserID\",\"messages\":[{\"type\":\"text\",\"text\":\"UptimeKuma Alert: [🔴 Down]\\nName: Example Site \\nconnect ECONNREFUSED\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.line.me/v2/bot/message/push",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-lineChannelAccessToken"
+       },
+       "body": "{\"to\":\"v-lineUserID\",\"messages\":[{\"type\":\"text\",\"text\":\"UptimeKuma Alert: [✅ Up]\\nName: Example Site \\n200 - OK\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.line.me/v2/bot/message/push",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-lineChannelAccessToken"
+       },
+       "body": "{\"to\":\"v-lineUserID\",\"messages\":[{\"type\":\"text\",\"text\":\"Test Successful!\"}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

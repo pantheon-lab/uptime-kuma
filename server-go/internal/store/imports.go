@@ -69,12 +69,12 @@ func (s *Store) ImportMonitor(ctx context.Context, sourceID int32, m monitor.Mon
 		err = tx.QueryRow(ctx, `
 			INSERT INTO monitor (name, type, active, interval_seconds, retry_interval_seconds, timeout_seconds,
 				max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
-				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port)
-			VALUES ($1, $2, false, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, resend_interval)
+			VALUES ($1, $2, false, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 			RETURNING id`,
 			m.Name, m.Type, m.Interval, m.RetryInterval, m.Timeout, m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers,
 			m.Body, m.BodyEncoding, m.AcceptedStatusCodes, m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword,
-			m.Hostname, m.Port).Scan(&id)
+			m.Hostname, m.Port, m.ResendInterval).Scan(&id)
 		if err != nil {
 			return 0, fmt.Errorf("create monitor: %w", err)
 		}
@@ -85,11 +85,11 @@ func (s *Store) ImportMonitor(ctx context.Context, sourceID int32, m monitor.Mon
 			UPDATE monitor SET name = $2, type = $3, interval_seconds = $4, retry_interval_seconds = $5, timeout_seconds = $6,
 				max_retries = $7, upside_down = $8, url = $9, method = $10, headers = $11, body = $12, body_encoding = $13,
 				accepted_status_codes = $14, max_redirects = $15, ignore_tls = $16, keyword = $17, invert_keyword = $18,
-				hostname = $19, port = $20, updated_at = now()
+				hostname = $19, port = $20, resend_interval = $21, updated_at = now()
 			WHERE id = $1`,
 			id, m.Name, m.Type, m.Interval, m.RetryInterval, m.Timeout, m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers,
 			m.Body, m.BodyEncoding, m.AcceptedStatusCodes, m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword,
-			m.Hostname, m.Port)
+			m.Hostname, m.Port, m.ResendInterval)
 		if err != nil {
 			return 0, fmt.Errorf("update monitor: %w", err)
 		}

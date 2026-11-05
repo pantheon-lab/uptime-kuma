@@ -1,0 +1,108 @@
+{
+ "provider": "gotify",
+ "variants": {
+  "default": {
+   "config": {
+    "gotifyserverurl": "https://svc.example/gotifyserverurl",
+    "gotifyapplicationToken": "v-gotifyapplicationToken",
+    "gotifyPriority": "v-gotifyPriority",
+    "type": "gotify"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/gotifyserverurl/message?token=v-gotifyapplicationToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"priority\":\"v-gotifyPriority\",\"title\":\"Uptime-Kuma\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/gotifyserverurl/message?token=v-gotifyapplicationToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"[Example Site] [✅ Up] 200 - OK\",\"priority\":\"v-gotifyPriority\",\"title\":\"Uptime-Kuma\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/gotifyserverurl/message?token=v-gotifyapplicationToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"priority\":\"v-gotifyPriority\",\"title\":\"Uptime-Kuma\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "gotifyserverurl": "https://svc.example/gotifyserverurl",
+    "gotifyapplicationToken": "v-gotifyapplicationToken",
+    "type": "gotify"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/gotifyserverurl/message?token=v-gotifyapplicationToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"priority\":8,\"title\":\"Uptime-Kuma\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/gotifyserverurl/message?token=v-gotifyapplicationToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"[Example Site] [✅ Up] 200 - OK\",\"priority\":8,\"title\":\"Uptime-Kuma\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/gotifyserverurl/message?token=v-gotifyapplicationToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"priority\":8,\"title\":\"Uptime-Kuma\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

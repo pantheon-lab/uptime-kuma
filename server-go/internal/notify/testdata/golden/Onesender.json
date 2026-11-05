@@ -1,0 +1,229 @@
+{
+ "provider": "Onesender",
+ "variants": {
+  "default": {
+   "config": {
+    "onesenderReceiver": "v-onesenderReceiver",
+    "onesenderTypeReceiver": "v-onesenderTypeReceiver",
+    "onesenderToken": "v-onesenderToken",
+    "onesenderURL": "https://svc.example/onesenderURL",
+    "type": "Onesender"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/onesenderURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-onesenderToken"
+       },
+       "body": "{\"heartbeat\":{\"monitorID\":42,\"status\":0,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"connect ECONNREFUSED\",\"ping\":null,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\"},\"monitor\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null,\"interval\":60,\"active\":true,\"parent\":null,\"pathName\":\"Team / Example Site\",\"description\":null,\"maxretries\":1,\"keyword\":null,\"tags\":[]},\"msg\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"to\":\"v-onesenderReceiver@g.us\",\"type\":\"text\",\"recipient_type\":\"group\",\"text\":{\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/onesenderURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-onesenderToken"
+       },
+       "body": "{\"heartbeat\":{\"monitorID\":42,\"status\":1,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"200 - OK\",\"ping\":123,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\",\"lastDownTime\":\"2026-01-02 02:04:05.678\"},\"monitor\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null,\"interval\":60,\"active\":true,\"parent\":null,\"pathName\":\"Team / Example Site\",\"description\":null,\"maxretries\":1,\"keyword\":null,\"tags\":[]},\"msg\":\"[Example Site] [✅ Up] 200 - OK\",\"to\":\"v-onesenderReceiver@g.us\",\"type\":\"text\",\"recipient_type\":\"group\",\"text\":{\"body\":\"[Example Site] [✅ Up] 200 - OK\"}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/onesenderURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-onesenderToken"
+       },
+       "body": "{\"heartbeat\":null,\"monitor\":null,\"msg\":\"My Monitor Testing\",\"to\":\"v-onesenderReceiver@g.us\",\"type\":\"text\",\"recipient_type\":\"group\",\"text\":{\"body\":\"My Monitor Testing\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "onesenderReceiver": "v-onesenderReceiver",
+    "onesenderTypeReceiver": "v-onesenderTypeReceiver",
+    "onesenderToken": "v-onesenderToken",
+    "onesenderURL": "https://svc.example/onesenderURL",
+    "type": "Onesender"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/onesenderURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-onesenderToken"
+       },
+       "body": "{\"heartbeat\":{\"monitorID\":42,\"status\":0,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"connect ECONNREFUSED\",\"ping\":null,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\"},\"monitor\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null,\"interval\":60,\"active\":true,\"parent\":null,\"pathName\":\"Team / Example Site\",\"description\":null,\"maxretries\":1,\"keyword\":null,\"tags\":[]},\"msg\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"to\":\"v-onesenderReceiver@g.us\",\"type\":\"text\",\"recipient_type\":\"group\",\"text\":{\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/onesenderURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-onesenderToken"
+       },
+       "body": "{\"heartbeat\":{\"monitorID\":42,\"status\":1,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"200 - OK\",\"ping\":123,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\",\"lastDownTime\":\"2026-01-02 02:04:05.678\"},\"monitor\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null,\"interval\":60,\"active\":true,\"parent\":null,\"pathName\":\"Team / Example Site\",\"description\":null,\"maxretries\":1,\"keyword\":null,\"tags\":[]},\"msg\":\"[Example Site] [✅ Up] 200 - OK\",\"to\":\"v-onesenderReceiver@g.us\",\"type\":\"text\",\"recipient_type\":\"group\",\"text\":{\"body\":\"[Example Site] [✅ Up] 200 - OK\"}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/onesenderURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-onesenderToken"
+       },
+       "body": "{\"heartbeat\":null,\"monitor\":null,\"msg\":\"My Monitor Testing\",\"to\":\"v-onesenderReceiver@g.us\",\"type\":\"text\",\"recipient_type\":\"group\",\"text\":{\"body\":\"My Monitor Testing\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "private": {
+   "config": {
+    "onesenderReceiver": "v-onesenderReceiver",
+    "onesenderTypeReceiver": "private",
+    "onesenderToken": "v-onesenderToken",
+    "onesenderURL": "https://svc.example/onesenderURL",
+    "type": "Onesender"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/onesenderURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-onesenderToken"
+       },
+       "body": "{\"heartbeat\":{\"monitorID\":42,\"status\":0,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"connect ECONNREFUSED\",\"ping\":null,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\"},\"monitor\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null,\"interval\":60,\"active\":true,\"parent\":null,\"pathName\":\"Team / Example Site\",\"description\":null,\"maxretries\":1,\"keyword\":null,\"tags\":[]},\"msg\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"to\":\"v-onesenderReceiver@s.whatsapp.net\",\"type\":\"text\",\"recipient_type\":\"individual\",\"text\":{\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/onesenderURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-onesenderToken"
+       },
+       "body": "{\"heartbeat\":{\"monitorID\":42,\"status\":1,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"200 - OK\",\"ping\":123,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\",\"lastDownTime\":\"2026-01-02 02:04:05.678\"},\"monitor\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null,\"interval\":60,\"active\":true,\"parent\":null,\"pathName\":\"Team / Example Site\",\"description\":null,\"maxretries\":1,\"keyword\":null,\"tags\":[]},\"msg\":\"[Example Site] [✅ Up] 200 - OK\",\"to\":\"v-onesenderReceiver@s.whatsapp.net\",\"type\":\"text\",\"recipient_type\":\"individual\",\"text\":{\"body\":\"[Example Site] [✅ Up] 200 - OK\"}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/onesenderURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-onesenderToken"
+       },
+       "body": "{\"heartbeat\":null,\"monitor\":null,\"msg\":\"My Monitor Testing\",\"to\":\"v-onesenderReceiver@s.whatsapp.net\",\"type\":\"text\",\"recipient_type\":\"individual\",\"text\":{\"body\":\"My Monitor Testing\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "group": {
+   "config": {
+    "onesenderReceiver": "v-onesenderReceiver",
+    "onesenderTypeReceiver": "group",
+    "onesenderToken": "v-onesenderToken",
+    "onesenderURL": "https://svc.example/onesenderURL",
+    "type": "Onesender"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/onesenderURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-onesenderToken"
+       },
+       "body": "{\"heartbeat\":{\"monitorID\":42,\"status\":0,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"connect ECONNREFUSED\",\"ping\":null,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\"},\"monitor\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null,\"interval\":60,\"active\":true,\"parent\":null,\"pathName\":\"Team / Example Site\",\"description\":null,\"maxretries\":1,\"keyword\":null,\"tags\":[]},\"msg\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"to\":\"v-onesenderReceiver@g.us\",\"type\":\"text\",\"recipient_type\":\"group\",\"text\":{\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/onesenderURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-onesenderToken"
+       },
+       "body": "{\"heartbeat\":{\"monitorID\":42,\"status\":1,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"200 - OK\",\"ping\":123,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\",\"lastDownTime\":\"2026-01-02 02:04:05.678\"},\"monitor\":{\"id\":42,\"name\":\"Example Site\",\"type\":\"http\",\"url\":\"https://site.example/health\",\"hostname\":null,\"port\":null,\"interval\":60,\"active\":true,\"parent\":null,\"pathName\":\"Team / Example Site\",\"description\":null,\"maxretries\":1,\"keyword\":null,\"tags\":[]},\"msg\":\"[Example Site] [✅ Up] 200 - OK\",\"to\":\"v-onesenderReceiver@g.us\",\"type\":\"text\",\"recipient_type\":\"group\",\"text\":{\"body\":\"[Example Site] [✅ Up] 200 - OK\"}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/onesenderURL",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-onesenderToken"
+       },
+       "body": "{\"heartbeat\":null,\"monitor\":null,\"msg\":\"My Monitor Testing\",\"to\":\"v-onesenderReceiver@g.us\",\"type\":\"text\",\"recipient_type\":\"group\",\"text\":{\"body\":\"My Monitor Testing\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

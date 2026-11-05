@@ -1,0 +1,120 @@
+{
+ "provider": "twilio",
+ "variants": {
+  "default": {
+   "config": {
+    "twilioApiKey": "v-twilioApiKey",
+    "twilioAccountSID": "v-twilioAccountSID",
+    "twilioAuthToken": "v-twilioAuthToken",
+    "twilioToNumber": "v-twilioToNumber",
+    "twilioFromNumber": "v-twilioFromNumber",
+    "twilioMessagingServiceSID": "v-twilioMessagingServiceSID",
+    "type": "twilio"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.twilio.com/2010-04-01/Accounts/v-twilioAccountSID/Messages.json",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+        "Authorization": "Basic di10d2lsaW9BcGlLZXk6di10d2lsaW9BdXRoVG9rZW4="
+       },
+       "body": "To=v-twilioToNumber&From=v-twilioFromNumber&Body=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&MessagingServiceSid=v-twilioMessagingServiceSID"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.twilio.com/2010-04-01/Accounts/v-twilioAccountSID/Messages.json",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+        "Authorization": "Basic di10d2lsaW9BcGlLZXk6di10d2lsaW9BdXRoVG9rZW4="
+       },
+       "body": "To=v-twilioToNumber&From=v-twilioFromNumber&Body=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&MessagingServiceSid=v-twilioMessagingServiceSID"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.twilio.com/2010-04-01/Accounts/v-twilioAccountSID/Messages.json",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+        "Authorization": "Basic di10d2lsaW9BcGlLZXk6di10d2lsaW9BdXRoVG9rZW4="
+       },
+       "body": "To=v-twilioToNumber&From=v-twilioFromNumber&Body=My+Monitor+Testing&MessagingServiceSid=v-twilioMessagingServiceSID"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "twilioApiKey": "v-twilioApiKey",
+    "twilioAccountSID": "v-twilioAccountSID",
+    "twilioAuthToken": "v-twilioAuthToken",
+    "twilioToNumber": "v-twilioToNumber",
+    "twilioFromNumber": "v-twilioFromNumber",
+    "type": "twilio"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.twilio.com/2010-04-01/Accounts/v-twilioAccountSID/Messages.json",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+        "Authorization": "Basic di10d2lsaW9BcGlLZXk6di10d2lsaW9BdXRoVG9rZW4="
+       },
+       "body": "To=v-twilioToNumber&From=v-twilioFromNumber&Body=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.twilio.com/2010-04-01/Accounts/v-twilioAccountSID/Messages.json",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+        "Authorization": "Basic di10d2lsaW9BcGlLZXk6di10d2lsaW9BdXRoVG9rZW4="
+       },
+       "body": "To=v-twilioToNumber&From=v-twilioFromNumber&Body=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.twilio.com/2010-04-01/Accounts/v-twilioAccountSID/Messages.json",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+        "Authorization": "Basic di10d2lsaW9BcGlLZXk6di10d2lsaW9BdXRoVG9rZW4="
+       },
+       "body": "To=v-twilioToNumber&From=v-twilioFromNumber&Body=My+Monitor+Testing"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

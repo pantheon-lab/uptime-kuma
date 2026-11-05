@@ -1,0 +1,229 @@
+{
+ "provider": "Milky",
+ "variants": {
+  "default": {
+   "config": {
+    "httpAddr": "v-httpAddr",
+    "msgType": "v-msgType",
+    "accessToken": "v-accessToken",
+    "recieverId": "v-recieverId",
+    "type": "Milky"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://v-httpAddr/api/send_private_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"message\":[{\"type\":\"text\",\"data\":{\"text\":\"UptimeKuma Alert: [Example Site] [🔴 Down] connect ECONNREFUSED\"}}],\"user_id\":\"v-recieverId\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://v-httpAddr/api/send_private_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"message\":[{\"type\":\"text\",\"data\":{\"text\":\"UptimeKuma Alert: [Example Site] [✅ Up] 200 - OK\"}}],\"user_id\":\"v-recieverId\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://v-httpAddr/api/send_private_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"message\":[{\"type\":\"text\",\"data\":{\"text\":\"UptimeKuma Alert: My Monitor Testing\"}}],\"user_id\":\"v-recieverId\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "httpAddr": "v-httpAddr",
+    "msgType": "v-msgType",
+    "accessToken": "v-accessToken",
+    "recieverId": "v-recieverId",
+    "type": "Milky"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://v-httpAddr/api/send_private_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"message\":[{\"type\":\"text\",\"data\":{\"text\":\"UptimeKuma Alert: [Example Site] [🔴 Down] connect ECONNREFUSED\"}}],\"user_id\":\"v-recieverId\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://v-httpAddr/api/send_private_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"message\":[{\"type\":\"text\",\"data\":{\"text\":\"UptimeKuma Alert: [Example Site] [✅ Up] 200 - OK\"}}],\"user_id\":\"v-recieverId\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://v-httpAddr/api/send_private_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"message\":[{\"type\":\"text\",\"data\":{\"text\":\"UptimeKuma Alert: My Monitor Testing\"}}],\"user_id\":\"v-recieverId\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "group": {
+   "config": {
+    "httpAddr": "host.example:9000",
+    "msgType": "group",
+    "accessToken": "v-accessToken",
+    "recieverId": "v-recieverId",
+    "type": "Milky"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://host.example:9000/api/send_group_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"message\":[{\"type\":\"text\",\"data\":{\"text\":\"UptimeKuma Alert: [Example Site] [🔴 Down] connect ECONNREFUSED\"}}],\"group_id\":\"v-recieverId\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://host.example:9000/api/send_group_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"message\":[{\"type\":\"text\",\"data\":{\"text\":\"UptimeKuma Alert: [Example Site] [✅ Up] 200 - OK\"}}],\"group_id\":\"v-recieverId\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://host.example:9000/api/send_group_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"message\":[{\"type\":\"text\",\"data\":{\"text\":\"UptimeKuma Alert: My Monitor Testing\"}}],\"group_id\":\"v-recieverId\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "private": {
+   "config": {
+    "httpAddr": "http://host.example/",
+    "msgType": "private",
+    "accessToken": "v-accessToken",
+    "recieverId": "v-recieverId",
+    "type": "Milky"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://host.example/send_private_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"message\":[{\"type\":\"text\",\"data\":{\"text\":\"UptimeKuma Alert: [Example Site] [🔴 Down] connect ECONNREFUSED\"}}],\"user_id\":\"v-recieverId\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://host.example/send_private_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"message\":[{\"type\":\"text\",\"data\":{\"text\":\"UptimeKuma Alert: [Example Site] [✅ Up] 200 - OK\"}}],\"user_id\":\"v-recieverId\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "http://host.example/send_private_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"message\":[{\"type\":\"text\",\"data\":{\"text\":\"UptimeKuma Alert: My Monitor Testing\"}}],\"user_id\":\"v-recieverId\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

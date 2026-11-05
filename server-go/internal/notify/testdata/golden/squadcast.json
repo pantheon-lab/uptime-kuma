@@ -1,0 +1,155 @@
+{
+ "provider": "squadcast",
+ "variants": {
+  "default": {
+   "config": {
+    "squadcastWebhookURL": "https://svc.example/squadcastWebhookURL",
+    "type": "squadcast"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/squadcastWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"Example Site is DOWN\",\"description\":\"connect ECONNREFUSED\",\"tags\":{\"AlertAddress\":\"https://site.example/health\"},\"heartbeat\":{\"monitorID\":42,\"status\":0,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"connect ECONNREFUSED\",\"ping\":null,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\"},\"source\":\"uptime-kuma\",\"event_id\":42,\"status\":\"trigger\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/squadcastWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"Example Site is UP\",\"description\":\"200 - OK\",\"tags\":{\"AlertAddress\":\"https://site.example/health\"},\"heartbeat\":{\"monitorID\":42,\"status\":1,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"200 - OK\",\"ping\":123,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\",\"lastDownTime\":\"2026-01-02 02:04:05.678\"},\"source\":\"uptime-kuma\",\"event_id\":42,\"status\":\"resolve\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/squadcastWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"description\":\"\",\"tags\":{},\"heartbeat\":null,\"source\":\"uptime-kuma\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "squadcastWebhookURL": "https://svc.example/squadcastWebhookURL",
+    "type": "squadcast"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/squadcastWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"Example Site is DOWN\",\"description\":\"connect ECONNREFUSED\",\"tags\":{\"AlertAddress\":\"https://site.example/health\"},\"heartbeat\":{\"monitorID\":42,\"status\":0,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"connect ECONNREFUSED\",\"ping\":null,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\"},\"source\":\"uptime-kuma\",\"event_id\":42,\"status\":\"trigger\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/squadcastWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"Example Site is UP\",\"description\":\"200 - OK\",\"tags\":{\"AlertAddress\":\"https://site.example/health\"},\"heartbeat\":{\"monitorID\":42,\"status\":1,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"200 - OK\",\"ping\":123,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\",\"lastDownTime\":\"2026-01-02 02:04:05.678\"},\"source\":\"uptime-kuma\",\"event_id\":42,\"status\":\"resolve\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/squadcastWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"description\":\"\",\"tags\":{},\"heartbeat\":null,\"source\":\"uptime-kuma\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "tags": {
+   "config": {
+    "squadcastWebhookURL": "https://svc.example/squadcastWebhookURL",
+    "type": "squadcast"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/squadcastWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"Example Site is DOWN\",\"description\":\"connect ECONNREFUSED\",\"tags\":{\"AlertAddress\":\"https://site.example/health\"},\"heartbeat\":{\"monitorID\":42,\"status\":0,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"connect ECONNREFUSED\",\"ping\":null,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\"},\"source\":\"uptime-kuma\",\"event_id\":42,\"status\":\"trigger\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/squadcastWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"Example Site is UP\",\"description\":\"200 - OK\",\"tags\":{\"AlertAddress\":\"https://site.example/health\"},\"heartbeat\":{\"monitorID\":42,\"status\":1,\"time\":\"2026-01-02 03:04:05.678\",\"msg\":\"200 - OK\",\"ping\":123,\"important\":true,\"duration\":60,\"retries\":0,\"timezone\":\"Asia/Hong_Kong\",\"timezoneOffset\":\"+08:00\",\"localDateTime\":\"2026-01-02 11:04:05\",\"lastDownTime\":\"2026-01-02 02:04:05.678\"},\"source\":\"uptime-kuma\",\"event_id\":42,\"status\":\"resolve\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/squadcastWebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message\":\"My Monitor Testing\",\"description\":\"\",\"tags\":{},\"heartbeat\":null,\"source\":\"uptime-kuma\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,247 @@
+{
+ "provider": "Bark",
+ "variants": {
+  "default": {
+   "config": {
+    "barkEndpoint": "https://svc.example/barkEndpoint",
+    "barkGroup": "v-barkGroup",
+    "barkSound": "v-barkSound",
+    "apiVersion": "v-apiVersion",
+    "type": "Bark"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/barkEndpoint",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Down\",\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"icon\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"sound\":\"v-barkSound\",\"group\":\"v-barkGroup\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/barkEndpoint",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Up\",\"body\":\"[Example Site] [✅ Up] 200 - OK\",\"icon\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"sound\":\"v-barkSound\",\"group\":\"v-barkGroup\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/barkEndpoint",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Message\",\"body\":\"My Monitor Testing\",\"icon\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"sound\":\"v-barkSound\",\"group\":\"v-barkGroup\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "barkEndpoint": "https://svc.example/barkEndpoint",
+    "apiVersion": "v-apiVersion",
+    "type": "Bark"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/barkEndpoint",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Down\",\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"icon\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"sound\":\"telegraph\",\"group\":\"UptimeKuma\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/barkEndpoint",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Up\",\"body\":\"[Example Site] [✅ Up] 200 - OK\",\"icon\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"sound\":\"telegraph\",\"group\":\"UptimeKuma\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/barkEndpoint",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Message\",\"body\":\"My Monitor Testing\",\"icon\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"sound\":\"telegraph\",\"group\":\"UptimeKuma\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "v2": {
+   "config": {
+    "barkEndpoint": "https://svc.example/barkEndpoint",
+    "barkGroup": "v-barkGroup",
+    "barkSound": "v-barkSound",
+    "apiVersion": "v2",
+    "type": "Bark"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/barkEndpoint",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Down\",\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"icon\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"sound\":\"v-barkSound\",\"group\":\"v-barkGroup\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/barkEndpoint",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Monitor Up\",\"body\":\"[Example Site] [✅ Up] 200 - OK\",\"icon\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"sound\":\"v-barkSound\",\"group\":\"v-barkGroup\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/barkEndpoint",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma Message\",\"body\":\"My Monitor Testing\",\"icon\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"sound\":\"v-barkSound\",\"group\":\"v-barkGroup\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "v1": {
+   "config": {
+    "barkEndpoint": "https://svc.example/barkEndpoint",
+    "barkGroup": "G",
+    "barkSound": "S",
+    "apiVersion": "v1",
+    "type": "Bark"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/barkEndpoint/UptimeKuma%20Monitor%20Down/%5BExample%20Site%5D%20%5B%F0%9F%94%B4%20Down%5D%20connect%20ECONNREFUSED?icon=https://github.com/louislam/uptime-kuma/raw/master/public/icon.png&group=G&sound=S",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/barkEndpoint/UptimeKuma%20Monitor%20Up/%5BExample%20Site%5D%20%5B%E2%9C%85%20Up%5D%20200%20-%20OK?icon=https://github.com/louislam/uptime-kuma/raw/master/public/icon.png&group=G&sound=S",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/barkEndpoint/UptimeKuma%20Message/My%20Monitor%20Testing?icon=https://github.com/louislam/uptime-kuma/raw/master/public/icon.png&group=G&sound=S",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "v1default": {
+   "config": {
+    "barkEndpoint": "https://svc.example/barkEndpoint",
+    "type": "Bark"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/barkEndpoint/UptimeKuma%20Monitor%20Down/%5BExample%20Site%5D%20%5B%F0%9F%94%B4%20Down%5D%20connect%20ECONNREFUSED?icon=https://github.com/louislam/uptime-kuma/raw/master/public/icon.png&group=UptimeKuma&sound=telegraph",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/barkEndpoint/UptimeKuma%20Monitor%20Up/%5BExample%20Site%5D%20%5B%E2%9C%85%20Up%5D%20200%20-%20OK?icon=https://github.com/louislam/uptime-kuma/raw/master/public/icon.png&group=UptimeKuma&sound=telegraph",
+       "headers": {}
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/barkEndpoint/UptimeKuma%20Message/My%20Monitor%20Testing?icon=https://github.com/louislam/uptime-kuma/raw/master/public/icon.png&group=UptimeKuma&sound=telegraph",
+       "headers": {}
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

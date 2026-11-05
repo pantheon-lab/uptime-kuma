@@ -1,0 +1,155 @@
+{
+ "provider": "Splunk",
+ "variants": {
+  "default": {
+   "config": {
+    "splunkAutoResolve": "RECOVERY",
+    "splunkSeverity": "v-splunkSeverity",
+    "splunkRestURL": "https://svc.example/splunkRestURL",
+    "pagerdutyIntegrationKey": "v-pagerdutyIntegrationKey",
+    "type": "Splunk"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/splunkRestURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message_type\":\"v-splunkSeverity\",\"state_message\":\"[Uptime Kuma Monitor 🔴 Down] [https://site.example/health] connect ECONNREFUSED\",\"entity_display_name\":\"Uptime Kuma Alert: Example Site\",\"routing_key\":\"v-pagerdutyIntegrationKey\",\"entity_id\":\"Uptime Kuma/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/splunkRestURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message_type\":\"RECOVERY\",\"state_message\":\"[Uptime Kuma Monitor ✅ Up] [https://site.example/health] 200 - OK\",\"entity_display_name\":\"Uptime Kuma Alert: Example Site\",\"routing_key\":\"v-pagerdutyIntegrationKey\",\"entity_id\":\"Uptime Kuma/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/splunkRestURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message_type\":\"v-splunkSeverity\",\"state_message\":\"[Uptime Kuma Alert] [Uptime Kuma Test Button] My Monitor Testing\",\"entity_display_name\":\"Uptime Kuma Alert: undefined\",\"routing_key\":\"v-pagerdutyIntegrationKey\",\"entity_id\":\"Uptime Kuma/undefined\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "splunkAutoResolve": "v-splunkAutoResolve",
+    "splunkSeverity": "v-splunkSeverity",
+    "splunkRestURL": "https://svc.example/splunkRestURL",
+    "pagerdutyIntegrationKey": "v-pagerdutyIntegrationKey",
+    "type": "Splunk"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/splunkRestURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message_type\":\"v-splunkSeverity\",\"state_message\":\"[Uptime Kuma Monitor 🔴 Down] [https://site.example/health] connect ECONNREFUSED\",\"entity_display_name\":\"Uptime Kuma Alert: Example Site\",\"routing_key\":\"v-pagerdutyIntegrationKey\",\"entity_id\":\"Uptime Kuma/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/splunkRestURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message_type\":\"v-splunkAutoResolve\",\"state_message\":\"[Uptime Kuma Monitor ✅ Up] [https://site.example/health] 200 - OK\",\"entity_display_name\":\"Uptime Kuma Alert: Example Site\",\"routing_key\":\"v-pagerdutyIntegrationKey\",\"entity_id\":\"Uptime Kuma/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/splunkRestURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message_type\":\"v-splunkSeverity\",\"state_message\":\"[Uptime Kuma Alert] [Uptime Kuma Test Button] My Monitor Testing\",\"entity_display_name\":\"Uptime Kuma Alert: undefined\",\"routing_key\":\"v-pagerdutyIntegrationKey\",\"entity_id\":\"Uptime Kuma/undefined\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "none": {
+   "config": {
+    "splunkAutoResolve": "0",
+    "splunkSeverity": "v-splunkSeverity",
+    "splunkRestURL": "https://svc.example/splunkRestURL",
+    "pagerdutyIntegrationKey": "v-pagerdutyIntegrationKey",
+    "type": "Splunk"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/splunkRestURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message_type\":\"v-splunkSeverity\",\"state_message\":\"[Uptime Kuma Monitor 🔴 Down] [https://site.example/health] connect ECONNREFUSED\",\"entity_display_name\":\"Uptime Kuma Alert: Example Site\",\"routing_key\":\"v-pagerdutyIntegrationKey\",\"entity_id\":\"Uptime Kuma/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/splunkRestURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"message_type\":\"v-splunkSeverity\",\"state_message\":\"[Uptime Kuma Alert] [Uptime Kuma Test Button] My Monitor Testing\",\"entity_display_name\":\"Uptime Kuma Alert: undefined\",\"routing_key\":\"v-pagerdutyIntegrationKey\",\"entity_id\":\"Uptime Kuma/undefined\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

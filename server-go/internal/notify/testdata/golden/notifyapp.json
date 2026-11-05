@@ -1,0 +1,108 @@
+{
+ "provider": "notifyapp",
+ "variants": {
+  "default": {
+   "config": {
+    "notifyAppIconUrl": "https://svc.example/notifyAppIconUrl",
+    "notifyAppDeviceId": "v-notifyAppDeviceId",
+    "notifyAppToken": "v-notifyAppToken",
+    "type": "notifyapp"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.getnotifyapp.com/notify-json/v-notifyAppDeviceId?token=v-notifyAppToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"title\":\"Example Site is DOWN\",\"iconUrl\":\"https://svc.example/notifyAppIconUrl\",\"timeSensitive\":true}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.getnotifyapp.com/notify-json/v-notifyAppDeviceId?token=v-notifyAppToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"[Example Site] [✅ Up] 200 - OK\",\"title\":\"Example Site is UP\",\"iconUrl\":\"https://svc.example/notifyAppIconUrl\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.getnotifyapp.com/notify-json/v-notifyAppDeviceId?token=v-notifyAppToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"My Monitor Testing\",\"title\":\"Uptime Kuma\",\"iconUrl\":\"https://svc.example/notifyAppIconUrl\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "notifyAppDeviceId": "v-notifyAppDeviceId",
+    "notifyAppToken": "v-notifyAppToken",
+    "type": "notifyapp"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.getnotifyapp.com/notify-json/v-notifyAppDeviceId?token=v-notifyAppToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"title\":\"Example Site is DOWN\",\"timeSensitive\":true}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.getnotifyapp.com/notify-json/v-notifyAppDeviceId?token=v-notifyAppToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"[Example Site] [✅ Up] 200 - OK\",\"title\":\"Example Site is UP\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.getnotifyapp.com/notify-json/v-notifyAppDeviceId?token=v-notifyAppToken",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"My Monitor Testing\",\"title\":\"Uptime Kuma\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

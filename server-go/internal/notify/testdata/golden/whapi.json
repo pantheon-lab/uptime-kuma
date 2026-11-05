@@ -1,0 +1,115 @@
+{
+ "provider": "whapi",
+ "variants": {
+  "default": {
+   "config": {
+    "whapiAuthToken": "v-whapiAuthToken",
+    "whapiRecipient": "v-whapiRecipient",
+    "whapiApiUrl": "https://svc.example/whapiApiUrl",
+    "type": "whapi"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/whapiApiUrl/messages/text",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-whapiAuthToken"
+       },
+       "body": "{\"to\":\"v-whapiRecipient\",\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/whapiApiUrl/messages/text",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-whapiAuthToken"
+       },
+       "body": "{\"to\":\"v-whapiRecipient\",\"body\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/whapiApiUrl/messages/text",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-whapiAuthToken"
+       },
+       "body": "{\"to\":\"v-whapiRecipient\",\"body\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "whapiAuthToken": "v-whapiAuthToken",
+    "whapiRecipient": "v-whapiRecipient",
+    "whapiApiUrl": "https://svc.example/whapiApiUrl",
+    "type": "whapi"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/whapiApiUrl/messages/text",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-whapiAuthToken"
+       },
+       "body": "{\"to\":\"v-whapiRecipient\",\"body\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/whapiApiUrl/messages/text",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-whapiAuthToken"
+       },
+       "body": "{\"to\":\"v-whapiRecipient\",\"body\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/whapiApiUrl/messages/text",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-whapiAuthToken"
+       },
+       "body": "{\"to\":\"v-whapiRecipient\",\"body\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

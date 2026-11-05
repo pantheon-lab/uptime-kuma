@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +27,10 @@ type fakeStore struct {
 	created    []monitor.Monitor
 	keys       map[string]store.APIKey
 	findKeyErr error
+
+	notifications  map[int32]store.Notification
+	appliedToAll   bool
+	linkedDefaults []int32
 }
 
 func (f *fakeStore) Ping(context.Context) error { return nil }
@@ -73,6 +79,58 @@ func (f *fakeStore) FindAPIKey(_ context.Context, hash []byte) (store.APIKey, er
 	return store.APIKey{}, store.ErrNotFound
 }
 func (f *fakeStore) TouchAPIKey(context.Context, int64) error { return nil }
+func (f *fakeStore) ListNotifications(context.Context) ([]store.Notification, error) {
+	list := []store.Notification{}
+	for _, n := range f.notifications {
+		list = append(list, n)
+	}
+	return list, nil
+}
+func (f *fakeStore) GetNotification(_ context.Context, id int32) (store.Notification, error) {
+	n, ok := f.notifications[id]
+	if !ok {
+		return n, store.ErrNotFound
+	}
+	return n, nil
+}
+func (f *fakeStore) CreateNotification(_ context.Context, n store.Notification, applyToAll bool) (store.Notification, error) {
+	if f.notifications == nil {
+		f.notifications = map[int32]store.Notification{}
+	}
+	n.ID = int32(len(f.notifications) + 1)
+	f.notifications[n.ID] = n
+	f.appliedToAll = applyToAll
+	return n, nil
+}
+func (f *fakeStore) UpdateNotification(_ context.Context, n store.Notification, _ bool) (store.Notification, error) {
+	if _, ok := f.notifications[n.ID]; !ok {
+		return n, store.ErrNotFound
+	}
+	f.notifications[n.ID] = n
+	return n, nil
+}
+func (f *fakeStore) DeleteNotification(_ context.Context, id int32) error {
+	if _, ok := f.notifications[id]; !ok {
+		return store.ErrNotFound
+	}
+	delete(f.notifications, id)
+	return nil
+}
+func (f *fakeStore) MonitorNotificationIDs(context.Context, int32) ([]int32, error) {
+	return nil, store.ErrNotFound
+}
+func (f *fakeStore) SetMonitorNotifications(_ context.Context, _ int32, ids []int32) error {
+	for _, id := range ids {
+		if _, ok := f.notifications[id]; !ok {
+			return fmt.Errorf("%w: notification %d doesn't exist", store.ErrInvalidNotification, id)
+		}
+	}
+	return nil
+}
+func (f *fakeStore) LinkDefaultNotifications(_ context.Context, id int32) error {
+	f.linkedDefaults = append(f.linkedDefaults, id)
+	return nil
+}
 func (f *fakeStore) GetMonitor(context.Context, int32) (monitor.Monitor, error) {
 	return monitor.Monitor{}, store.ErrNotFound
 }
@@ -400,6 +458,11 @@ func TestScopes(t *testing.T) {
 		{"GET", "/api/v1/api-keys"},
 		{"POST", "/api/v1/api-keys"},
 		{"DELETE", "/api/v1/api-keys/1"},
+		{"GET", "/api/v1/notifications"},
+		{"POST", "/api/v1/notifications"},
+		{"POST", "/api/v1/notifications/1/test"},
+		{"GET", "/api/v1/monitors/1/notifications"},
+		{"PUT", "/api/v1/monitors/1/notifications"},
 	} {
 		if res := do(t, r[0], ts.URL+r[1], key, "{}"); res.StatusCode != http.StatusForbidden {
 			t.Errorf("%s %s without scope: %d", r[0], r[1], res.StatusCode)
@@ -470,5 +533,112 @@ func TestCreateKeyValidation(t *testing.T) {
 	data, _ := io.ReadAll(res.Body)
 	if res.StatusCode != http.StatusCreated || !strings.Contains(string(data), `"key":"kuma_`) {
 		t.Errorf("create: %d %s", res.StatusCode, data)
+	}
+}
+
+func notificationBody(url string) string {
+	return `{"name":"Ops","type":"webhook","config":{"webhookURL":"` + url + `","webhookContentType":"json"}}`
+}
+
+func TestNotificationConfigIsHiddenFromReadOnlyKeys(t *testing.T) {
+	ts, key, f := keyedServer(t, ScopeNotificationsRead)
+	f.notifications = map[int32]store.Notification{1: {ID: 1, Name: "Ops", Type: "webhook", Config: map[string]any{"webhookURL": "https://hooks.example/s3cret"}}}
+	for _, path := range []string{"/api/v1/notifications", "/api/v1/notifications/1"} {
+		res := do(t, "GET", ts.URL+path, key, "")
+		body, _ := io.ReadAll(res.Body)
+		if res.StatusCode != http.StatusOK || strings.Contains(string(body), "s3cret") || !strings.Contains(string(body), "webhookURL") {
+			t.Errorf("%s: %d %s", path, res.StatusCode, body)
+		}
+	}
+	res := do(t, "GET", ts.URL+"/api/v1/notifications/1", testToken, "")
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), "s3cret") {
+		t.Errorf("the admin token should see config: %s", body)
+	}
+}
+
+func TestNotificationValidation(t *testing.T) {
+	ts, _ := newTestServer(t, &fakeStore{})
+	for name, body := range map[string]string{
+		"no name":      `{"type":"webhook","config":{}}`,
+		"unknown type": `{"name":"x","type":"nope","config":{}}`,
+		"no config":    `{"name":"x","type":"webhook"}`,
+		"extra field":  `{"name":"x","type":"webhook","config":{},"nope":1}`,
+		"not json":     `{`,
+	} {
+		if res := do(t, "POST", ts.URL+"/api/v1/notifications", testToken, body); res.StatusCode != http.StatusBadRequest {
+			t.Errorf("%s: %d", name, res.StatusCode)
+		}
+	}
+	for path, want := range map[string]int{"/api/v1/notifications/abc": 400, "/api/v1/notifications/0": 400, "/api/v1/notifications/9": 404} {
+		if res := do(t, "GET", ts.URL+path, testToken, ""); res.StatusCode != want {
+			t.Errorf("%s: %d", path, res.StatusCode)
+		}
+	}
+	res := do(t, "GET", ts.URL+"/api/v1/notifications/providers", testToken, "")
+	var names []string
+	if err := json.NewDecoder(res.Body).Decode(&names); err != nil || !slices.Contains(names, "smtp") {
+		t.Errorf("providers: %v %v", names, err)
+	}
+}
+
+func TestNotificationLifecycleAndTestSend(t *testing.T) {
+	f := &fakeStore{}
+	ts, _ := newTestServer(t, f)
+	var received map[string]any
+	status := http.StatusOK
+	hook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&received)
+		w.WriteHeader(status)
+	}))
+	defer hook.Close()
+
+	body := strings.TrimSuffix(notificationBody(hook.URL), "}") + `,"applyToAllMonitors":true}`
+	res := do(t, "POST", ts.URL+"/api/v1/notifications", testToken, body)
+	if res.StatusCode != http.StatusCreated || res.Header.Get("Location") != "/api/v1/notifications/1" || !f.appliedToAll {
+		t.Fatalf("create: %d %v", res.StatusCode, f.appliedToAll)
+	}
+	if !f.notifications[1].Active {
+		t.Error("a new notification should default to active")
+	}
+	res = do(t, "POST", ts.URL+"/api/v1/notifications/1/test", testToken, "")
+	if res.StatusCode != http.StatusOK || received["msg"] != "Ops Testing" {
+		t.Errorf("test: %d %v", res.StatusCode, received)
+	}
+	status = http.StatusForbidden
+	res = do(t, "POST", ts.URL+"/api/v1/notifications/1/test", testToken, "")
+	if res.StatusCode != http.StatusBadGateway {
+		t.Errorf("a refused test: %d", res.StatusCode)
+	}
+	if res := do(t, "PUT", ts.URL+"/api/v1/notifications/1", testToken, notificationBody(hook.URL)); res.StatusCode != http.StatusOK {
+		t.Errorf("update: %d", res.StatusCode)
+	}
+	if res := do(t, "PUT", ts.URL+"/api/v1/notifications/9", testToken, notificationBody(hook.URL)); res.StatusCode != http.StatusNotFound {
+		t.Errorf("update missing: %d", res.StatusCode)
+	}
+	if res := do(t, "DELETE", ts.URL+"/api/v1/notifications/1", testToken, ""); res.StatusCode != http.StatusNoContent {
+		t.Errorf("delete: %d", res.StatusCode)
+	}
+}
+
+func TestNewMonitorGetsDefaultNotifications(t *testing.T) {
+	f := &fakeStore{}
+	ts, _ := newTestServer(t, f)
+	res := do(t, "POST", ts.URL+"/api/v1/monitors", testToken, `{"name":"x","type":"http","url":"https://example.com"}`)
+	if res.StatusCode != http.StatusCreated || len(f.linkedDefaults) != 1 {
+		t.Fatalf("%d, linked %v", res.StatusCode, f.linkedDefaults)
+	}
+}
+
+func TestMonitorNotificationsValidation(t *testing.T) {
+	ts, _ := newTestServer(t, &fakeStore{})
+	if res := do(t, "PUT", ts.URL+"/api/v1/monitors/1/notifications", testToken, `{"notificationIds":[99]}`); res.StatusCode != http.StatusBadRequest {
+		t.Errorf("unknown notification: %d", res.StatusCode)
+	}
+	if res := do(t, "PUT", ts.URL+"/api/v1/monitors/1/notifications", testToken, `{"nope":1}`); res.StatusCode != http.StatusBadRequest {
+		t.Errorf("extra field: %d", res.StatusCode)
+	}
+	if res := do(t, "GET", ts.URL+"/api/v1/monitors/1/notifications", testToken, ""); res.StatusCode != http.StatusNotFound {
+		t.Errorf("unknown monitor: %d", res.StatusCode)
 	}
 }

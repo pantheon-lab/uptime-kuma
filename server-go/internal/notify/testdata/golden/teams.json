@@ -1,0 +1,106 @@
+{
+ "provider": "teams",
+ "variants": {
+  "default": {
+   "config": {
+    "webhookUrl": "https://svc.example/webhookUrl",
+    "teamsEnableTags": "v-teamsEnableTags",
+    "type": "teams"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"type\":\"message\",\"summary\":\"🔴 [Example Site] went down\",\"attachments\":[{\"contentType\":\"application/vnd.microsoft.card.adaptive\",\"contentUrl\":\"\",\"content\":{\"type\":\"AdaptiveCard\",\"body\":[{\"type\":\"Container\",\"verticalContentAlignment\":\"Center\",\"items\":[{\"type\":\"ColumnSet\",\"style\":\"attention\",\"columns\":[{\"type\":\"Column\",\"width\":\"auto\",\"verticalContentAlignment\":\"Center\",\"items\":[{\"type\":\"Image\",\"width\":\"32px\",\"style\":\"Person\",\"url\":\"https://raw.githubusercontent.com/louislam/uptime-kuma/master/public/icon.png\",\"altText\":\"Uptime Kuma Logo\"}]},{\"type\":\"Column\",\"width\":\"stretch\",\"items\":[{\"type\":\"TextBlock\",\"size\":\"Medium\",\"weight\":\"Bolder\",\"text\":\"**[Example Site] went down**\"},{\"type\":\"TextBlock\",\"size\":\"Small\",\"weight\":\"Default\",\"text\":\"Uptime Kuma Alert\",\"isSubtle\":true,\"spacing\":\"None\"}]}]}]},{\"type\":\"FactSet\",\"separator\":false,\"facts\":[{\"title\":\"Description\",\"value\":\"connect ECONNREFUSED\"},{\"title\":\"Monitor\",\"value\":\"Example Site\"},{\"title\":\"URL\",\"value\":\"[https://site.example/health](https://site.example/health)\"},{\"title\":\"Time\",\"value\":\"2026-01-02 11:04:05 (Asia/Hong_Kong)\"}]},{\"type\":\"ActionSet\",\"actions\":[{\"type\":\"Action.OpenUrl\",\"title\":\"Visit Uptime Kuma\",\"url\":\"https://kuma.example/dashboard/42\"},{\"type\":\"Action.OpenUrl\",\"title\":\"Visit Monitor URL\",\"url\":\"https://site.example/health\"}]}],\"$schema\":\"http://adaptivecards.io/schemas/adaptive-card.json\",\"version\":\"1.5\"}}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"type\":\"message\",\"summary\":\"✅ [Example Site] is back online\",\"attachments\":[{\"contentType\":\"application/vnd.microsoft.card.adaptive\",\"contentUrl\":\"\",\"content\":{\"type\":\"AdaptiveCard\",\"body\":[{\"type\":\"Container\",\"verticalContentAlignment\":\"Center\",\"items\":[{\"type\":\"ColumnSet\",\"style\":\"good\",\"columns\":[{\"type\":\"Column\",\"width\":\"auto\",\"verticalContentAlignment\":\"Center\",\"items\":[{\"type\":\"Image\",\"width\":\"32px\",\"style\":\"Person\",\"url\":\"https://raw.githubusercontent.com/louislam/uptime-kuma/master/public/icon.png\",\"altText\":\"Uptime Kuma Logo\"}]},{\"type\":\"Column\",\"width\":\"stretch\",\"items\":[{\"type\":\"TextBlock\",\"size\":\"Medium\",\"weight\":\"Bolder\",\"text\":\"**[Example Site] is back online**\"},{\"type\":\"TextBlock\",\"size\":\"Small\",\"weight\":\"Default\",\"text\":\"Uptime Kuma Alert\",\"isSubtle\":true,\"spacing\":\"None\"}]}]}]},{\"type\":\"FactSet\",\"separator\":false,\"facts\":[{\"title\":\"Description\",\"value\":\"200 - OK\"},{\"title\":\"Monitor\",\"value\":\"Example Site\"},{\"title\":\"URL\",\"value\":\"[https://site.example/health](https://site.example/health)\"},{\"title\":\"Time\",\"value\":\"2026-01-02 11:04:05 (Asia/Hong_Kong)\"}]},{\"type\":\"ActionSet\",\"actions\":[{\"type\":\"Action.OpenUrl\",\"title\":\"Visit Uptime Kuma\",\"url\":\"https://kuma.example/dashboard/42\"},{\"type\":\"Action.OpenUrl\",\"title\":\"Visit Monitor URL\",\"url\":\"https://site.example/health\"}]}],\"$schema\":\"http://adaptivecards.io/schemas/adaptive-card.json\",\"version\":\"1.5\"}}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"type\":\"message\",\"summary\":\"Notification\",\"attachments\":[{\"contentType\":\"application/vnd.microsoft.card.adaptive\",\"contentUrl\":\"\",\"content\":{\"type\":\"AdaptiveCard\",\"body\":[{\"type\":\"Container\",\"verticalContentAlignment\":\"Center\",\"items\":[{\"type\":\"ColumnSet\",\"style\":\"emphasis\",\"columns\":[{\"type\":\"Column\",\"width\":\"auto\",\"verticalContentAlignment\":\"Center\",\"items\":[{\"type\":\"Image\",\"width\":\"32px\",\"style\":\"Person\",\"url\":\"https://raw.githubusercontent.com/louislam/uptime-kuma/master/public/icon.png\",\"altText\":\"Uptime Kuma Logo\"}]},{\"type\":\"Column\",\"width\":\"stretch\",\"items\":[{\"type\":\"TextBlock\",\"size\":\"Medium\",\"weight\":\"Bolder\",\"text\":\"**Notification**\"},{\"type\":\"TextBlock\",\"size\":\"Small\",\"weight\":\"Default\",\"text\":\"Uptime Kuma Alert\",\"isSubtle\":true,\"spacing\":\"None\"}]}]}]},{\"type\":\"FactSet\",\"separator\":false,\"facts\":[{\"title\":\"Description\",\"value\":\"My Monitor Testing\"}]},{\"type\":\"ActionSet\",\"actions\":[]}],\"$schema\":\"http://adaptivecards.io/schemas/adaptive-card.json\",\"version\":\"1.5\"}}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "webhookUrl": "https://svc.example/webhookUrl",
+    "type": "teams"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"type\":\"message\",\"summary\":\"🔴 [Example Site] went down\",\"attachments\":[{\"contentType\":\"application/vnd.microsoft.card.adaptive\",\"contentUrl\":\"\",\"content\":{\"type\":\"AdaptiveCard\",\"body\":[{\"type\":\"Container\",\"verticalContentAlignment\":\"Center\",\"items\":[{\"type\":\"ColumnSet\",\"style\":\"attention\",\"columns\":[{\"type\":\"Column\",\"width\":\"auto\",\"verticalContentAlignment\":\"Center\",\"items\":[{\"type\":\"Image\",\"width\":\"32px\",\"style\":\"Person\",\"url\":\"https://raw.githubusercontent.com/louislam/uptime-kuma/master/public/icon.png\",\"altText\":\"Uptime Kuma Logo\"}]},{\"type\":\"Column\",\"width\":\"stretch\",\"items\":[{\"type\":\"TextBlock\",\"size\":\"Medium\",\"weight\":\"Bolder\",\"text\":\"**[Example Site] went down**\"},{\"type\":\"TextBlock\",\"size\":\"Small\",\"weight\":\"Default\",\"text\":\"Uptime Kuma Alert\",\"isSubtle\":true,\"spacing\":\"None\"}]}]}]},{\"type\":\"FactSet\",\"separator\":false,\"facts\":[{\"title\":\"Description\",\"value\":\"connect ECONNREFUSED\"},{\"title\":\"Monitor\",\"value\":\"Example Site\"},{\"title\":\"URL\",\"value\":\"[https://site.example/health](https://site.example/health)\"},{\"title\":\"Time\",\"value\":\"2026-01-02 11:04:05 (Asia/Hong_Kong)\"}]},{\"type\":\"ActionSet\",\"actions\":[{\"type\":\"Action.OpenUrl\",\"title\":\"Visit Uptime Kuma\",\"url\":\"https://kuma.example/dashboard/42\"},{\"type\":\"Action.OpenUrl\",\"title\":\"Visit Monitor URL\",\"url\":\"https://site.example/health\"}]}],\"$schema\":\"http://adaptivecards.io/schemas/adaptive-card.json\",\"version\":\"1.5\"}}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"type\":\"message\",\"summary\":\"✅ [Example Site] is back online\",\"attachments\":[{\"contentType\":\"application/vnd.microsoft.card.adaptive\",\"contentUrl\":\"\",\"content\":{\"type\":\"AdaptiveCard\",\"body\":[{\"type\":\"Container\",\"verticalContentAlignment\":\"Center\",\"items\":[{\"type\":\"ColumnSet\",\"style\":\"good\",\"columns\":[{\"type\":\"Column\",\"width\":\"auto\",\"verticalContentAlignment\":\"Center\",\"items\":[{\"type\":\"Image\",\"width\":\"32px\",\"style\":\"Person\",\"url\":\"https://raw.githubusercontent.com/louislam/uptime-kuma/master/public/icon.png\",\"altText\":\"Uptime Kuma Logo\"}]},{\"type\":\"Column\",\"width\":\"stretch\",\"items\":[{\"type\":\"TextBlock\",\"size\":\"Medium\",\"weight\":\"Bolder\",\"text\":\"**[Example Site] is back online**\"},{\"type\":\"TextBlock\",\"size\":\"Small\",\"weight\":\"Default\",\"text\":\"Uptime Kuma Alert\",\"isSubtle\":true,\"spacing\":\"None\"}]}]}]},{\"type\":\"FactSet\",\"separator\":false,\"facts\":[{\"title\":\"Description\",\"value\":\"200 - OK\"},{\"title\":\"Monitor\",\"value\":\"Example Site\"},{\"title\":\"URL\",\"value\":\"[https://site.example/health](https://site.example/health)\"},{\"title\":\"Time\",\"value\":\"2026-01-02 11:04:05 (Asia/Hong_Kong)\"}]},{\"type\":\"ActionSet\",\"actions\":[{\"type\":\"Action.OpenUrl\",\"title\":\"Visit Uptime Kuma\",\"url\":\"https://kuma.example/dashboard/42\"},{\"type\":\"Action.OpenUrl\",\"title\":\"Visit Monitor URL\",\"url\":\"https://site.example/health\"}]}],\"$schema\":\"http://adaptivecards.io/schemas/adaptive-card.json\",\"version\":\"1.5\"}}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/webhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"type\":\"message\",\"summary\":\"Notification\",\"attachments\":[{\"contentType\":\"application/vnd.microsoft.card.adaptive\",\"contentUrl\":\"\",\"content\":{\"type\":\"AdaptiveCard\",\"body\":[{\"type\":\"Container\",\"verticalContentAlignment\":\"Center\",\"items\":[{\"type\":\"ColumnSet\",\"style\":\"emphasis\",\"columns\":[{\"type\":\"Column\",\"width\":\"auto\",\"verticalContentAlignment\":\"Center\",\"items\":[{\"type\":\"Image\",\"width\":\"32px\",\"style\":\"Person\",\"url\":\"https://raw.githubusercontent.com/louislam/uptime-kuma/master/public/icon.png\",\"altText\":\"Uptime Kuma Logo\"}]},{\"type\":\"Column\",\"width\":\"stretch\",\"items\":[{\"type\":\"TextBlock\",\"size\":\"Medium\",\"weight\":\"Bolder\",\"text\":\"**Notification**\"},{\"type\":\"TextBlock\",\"size\":\"Small\",\"weight\":\"Default\",\"text\":\"Uptime Kuma Alert\",\"isSubtle\":true,\"spacing\":\"None\"}]}]}]},{\"type\":\"FactSet\",\"separator\":false,\"facts\":[{\"title\":\"Description\",\"value\":\"My Monitor Testing\"}]},{\"type\":\"ActionSet\",\"actions\":[]}],\"$schema\":\"http://adaptivecards.io/schemas/adaptive-card.json\",\"version\":\"1.5\"}}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

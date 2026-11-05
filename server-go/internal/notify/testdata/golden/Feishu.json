@@ -1,0 +1,105 @@
+{
+ "provider": "Feishu",
+ "variants": {
+  "default": {
+   "config": {
+    "feishuWebHookUrl": "https://svc.example/feishuWebHookUrl",
+    "type": "Feishu"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/feishuWebHookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msg_type\":\"interactive\",\"card\":{\"config\":{\"update_multi\":false,\"wide_screen_mode\":true},\"header\":{\"title\":{\"tag\":\"plain_text\",\"content\":\"UptimeKuma Alert: [Down] Example Site\"},\"template\":\"red\"},\"elements\":[{\"tag\":\"div\",\"text\":{\"tag\":\"lark_md\",\"content\":\"**Message**: connect ECONNREFUSED\\n**Ping**: N/A\\n**Time (Asia/Hong_Kong)**: 2026-01-02 11:04:05\"}}]}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/feishuWebHookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msg_type\":\"interactive\",\"card\":{\"config\":{\"update_multi\":false,\"wide_screen_mode\":true},\"header\":{\"title\":{\"tag\":\"plain_text\",\"content\":\"UptimeKuma Alert: [UP] Example Site\"},\"template\":\"green\"},\"elements\":[{\"tag\":\"div\",\"text\":{\"tag\":\"lark_md\",\"content\":\"**Message**: 200 - OK\\n**Ping**: 123 ms\\n**Time (Asia/Hong_Kong)**: 2026-01-02 11:04:05\"}}]}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/feishuWebHookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msg_type\":\"text\",\"content\":{\"text\":\"My Monitor Testing\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "feishuWebHookUrl": "https://svc.example/feishuWebHookUrl",
+    "type": "Feishu"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/feishuWebHookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msg_type\":\"interactive\",\"card\":{\"config\":{\"update_multi\":false,\"wide_screen_mode\":true},\"header\":{\"title\":{\"tag\":\"plain_text\",\"content\":\"UptimeKuma Alert: [Down] Example Site\"},\"template\":\"red\"},\"elements\":[{\"tag\":\"div\",\"text\":{\"tag\":\"lark_md\",\"content\":\"**Message**: connect ECONNREFUSED\\n**Ping**: N/A\\n**Time (Asia/Hong_Kong)**: 2026-01-02 11:04:05\"}}]}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/feishuWebHookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msg_type\":\"interactive\",\"card\":{\"config\":{\"update_multi\":false,\"wide_screen_mode\":true},\"header\":{\"title\":{\"tag\":\"plain_text\",\"content\":\"UptimeKuma Alert: [UP] Example Site\"},\"template\":\"green\"},\"elements\":[{\"tag\":\"div\",\"text\":{\"tag\":\"lark_md\",\"content\":\"**Message**: 200 - OK\\n**Ping**: 123 ms\\n**Time (Asia/Hong_Kong)**: 2026-01-02 11:04:05\"}}]}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/feishuWebHookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msg_type\":\"text\",\"content\":{\"text\":\"My Monitor Testing\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

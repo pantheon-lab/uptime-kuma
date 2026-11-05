@@ -1,0 +1,105 @@
+{
+ "provider": "stackfield",
+ "variants": {
+  "default": {
+   "config": {
+    "stackfieldwebhookURL": "https://svc.example/stackfieldwebhookURL",
+    "type": "stackfield"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/stackfieldwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"Title\":\"+Uptime Kuma Alert+\\n*Example Site*\\n[Example Site] [🔴 Down] connect ECONNREFUSED\\nhttps://kuma.example/dashboard/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/stackfieldwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"Title\":\"+Uptime Kuma Alert+\\n*Example Site*\\n[Example Site] [✅ Up] 200 - OK\\nhttps://kuma.example/dashboard/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/stackfieldwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"Title\":\"+Uptime Kuma Alert+\\nMy Monitor Testing\\nhttps://kuma.example/\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "stackfieldwebhookURL": "https://svc.example/stackfieldwebhookURL",
+    "type": "stackfield"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/stackfieldwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"Title\":\"+Uptime Kuma Alert+\\n*Example Site*\\n[Example Site] [🔴 Down] connect ECONNREFUSED\\nhttps://kuma.example/dashboard/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/stackfieldwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"Title\":\"+Uptime Kuma Alert+\\n*Example Site*\\n[Example Site] [✅ Up] 200 - OK\\nhttps://kuma.example/dashboard/42\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/stackfieldwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"Title\":\"+Uptime Kuma Alert+\\nMy Monitor Testing\\nhttps://kuma.example/\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

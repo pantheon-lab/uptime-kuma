@@ -168,6 +168,31 @@ var migrations = [][]string{
 			SELECT monitor_id, bucket, up, down, maintenance, ping_sum, ping_count, min_ping, max_ping
 			FROM imported_stat_daily`,
 	},
+	{
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS resend_interval integer NOT NULL DEFAULT 0`,
+		`ALTER TABLE heartbeat ADD COLUMN IF NOT EXISTS down_count integer NOT NULL DEFAULT 0`,
+		`CREATE TABLE IF NOT EXISTS notification (
+			id serial PRIMARY KEY,
+			name text NOT NULL,
+			type text NOT NULL,
+			config jsonb NOT NULL,
+			active boolean NOT NULL DEFAULT true,
+			is_default boolean NOT NULL DEFAULT false,
+			created_at timestamptz NOT NULL DEFAULT now(),
+			updated_at timestamptz NOT NULL DEFAULT now()
+		)`,
+		`CREATE TABLE IF NOT EXISTS monitor_notification (
+			monitor_id integer NOT NULL REFERENCES monitor (id) ON DELETE CASCADE,
+			notification_id integer NOT NULL REFERENCES notification (id) ON DELETE CASCADE,
+			PRIMARY KEY (monitor_id, notification_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS notification_import (
+			source_id integer PRIMARY KEY,
+			notification_id integer NOT NULL UNIQUE REFERENCES notification (id) ON DELETE CASCADE,
+			source_active boolean NOT NULL,
+			imported_at timestamptz NOT NULL DEFAULT now()
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.

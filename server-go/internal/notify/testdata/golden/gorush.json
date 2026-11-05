@@ -1,0 +1,116 @@
+{
+ "provider": "gorush",
+ "variants": {
+  "default": {
+   "config": {
+    "gorushDeviceToken": "v-gorushDeviceToken",
+    "gorushPlatform": "v-gorushPlatform",
+    "gorushTitle": "v-gorushTitle",
+    "gorushPriority": "v-gorushPriority",
+    "gorushRetry": "v-gorushRetry",
+    "gorushTopic": "v-gorushTopic",
+    "gorushServerURL": "https://svc.example/gorushServerURL",
+    "type": "gorush"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/gorushServerURL/api/push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"notifications\":[{\"tokens\":[\"v-gorushDeviceToken\"],\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"title\":\"v-gorushTitle\",\"priority\":\"v-gorushPriority\",\"retry\":0,\"topic\":\"v-gorushTopic\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/gorushServerURL/api/push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"notifications\":[{\"tokens\":[\"v-gorushDeviceToken\"],\"message\":\"[Example Site] [✅ Up] 200 - OK\",\"title\":\"v-gorushTitle\",\"priority\":\"v-gorushPriority\",\"retry\":0,\"topic\":\"v-gorushTopic\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/gorushServerURL/api/push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"notifications\":[{\"tokens\":[\"v-gorushDeviceToken\"],\"message\":\"My Monitor Testing\",\"title\":\"v-gorushTitle\",\"priority\":\"v-gorushPriority\",\"retry\":0,\"topic\":\"v-gorushTopic\"}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "gorushDeviceToken": "v-gorushDeviceToken",
+    "gorushPlatform": "v-gorushPlatform",
+    "gorushTitle": "v-gorushTitle",
+    "gorushRetry": "v-gorushRetry",
+    "gorushTopic": "v-gorushTopic",
+    "gorushServerURL": "https://svc.example/gorushServerURL",
+    "type": "gorush"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/gorushServerURL/api/push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"notifications\":[{\"tokens\":[\"v-gorushDeviceToken\"],\"message\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"title\":\"v-gorushTitle\",\"retry\":0,\"topic\":\"v-gorushTopic\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/gorushServerURL/api/push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"notifications\":[{\"tokens\":[\"v-gorushDeviceToken\"],\"message\":\"[Example Site] [✅ Up] 200 - OK\",\"title\":\"v-gorushTitle\",\"retry\":0,\"topic\":\"v-gorushTopic\"}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/gorushServerURL/api/push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"notifications\":[{\"tokens\":[\"v-gorushDeviceToken\"],\"message\":\"My Monitor Testing\",\"title\":\"v-gorushTitle\",\"retry\":0,\"topic\":\"v-gorushTopic\"}]}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

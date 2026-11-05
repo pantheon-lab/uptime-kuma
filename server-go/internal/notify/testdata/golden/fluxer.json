@@ -1,0 +1,355 @@
+{
+ "provider": "fluxer",
+ "variants": {
+  "default": {
+   "config": {
+    "fluxerUsername": "v-fluxerUsername",
+    "fluxerWebhookUrl": "https://svc.example/fluxerWebhookUrl",
+    "fluxerMessageFormat": "v-fluxerMessageFormat",
+    "fluxerUseMessageTemplate": "v-fluxerUseMessageTemplate",
+    "fluxerMessageTemplate": "v-fluxerMessageTemplate",
+    "disableUrl": "https://svc.example/disableUrl",
+    "fluxerPrefixMessage": "v-fluxerPrefixMessage",
+    "type": "fluxer"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"embeds\":[{\"title\":\"❌ Your service Example Site went down. ❌\",\"color\":16711680,\"fields\":[{\"name\":\"Service Name\",\"value\":\"Example Site\"},{\"name\":\"Went Offline\",\"value\":\"<t:1767323045:F>\"},{\"name\":\"Time (Asia/Hong_Kong)\",\"value\":\"2026-01-02 11:04:05\"},{\"name\":\"Error\",\"value\":\"connect ECONNREFUSED\"}]}],\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"content\":\"v-fluxerPrefixMessage\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"embeds\":[{\"title\":\"✅ Your service Example Site is up! ✅\",\"color\":65280,\"fields\":[{\"name\":\"Service Name\",\"value\":\"Example Site\"},{\"name\":\"Went Offline\",\"value\":\"<t:1767319445:F>\"},{\"name\":\"Downtime Duration\",\"value\":\"1h\"},{\"name\":\"Time (Asia/Hong_Kong)\",\"value\":\"2026-01-02 11:04:05\"},{\"name\":\"Ping\",\"value\":\"123 ms\"}]}],\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\",\"content\":\"v-fluxerPrefixMessage\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"content\":\"My Monitor Testing\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "fluxerUsername": "v-fluxerUsername",
+    "fluxerWebhookUrl": "https://svc.example/fluxerWebhookUrl",
+    "fluxerMessageFormat": "v-fluxerMessageFormat",
+    "type": "fluxer"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"embeds\":[{\"title\":\"❌ Your service Example Site went down. ❌\",\"color\":16711680,\"fields\":[{\"name\":\"Service Name\",\"value\":\"Example Site\"},{\"name\":\"Service URL\",\"value\":\"https://site.example/health\"},{\"name\":\"Went Offline\",\"value\":\"<t:1767323045:F>\"},{\"name\":\"Time (Asia/Hong_Kong)\",\"value\":\"2026-01-02 11:04:05\"},{\"name\":\"Error\",\"value\":\"connect ECONNREFUSED\"}]}],\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"embeds\":[{\"title\":\"✅ Your service Example Site is up! ✅\",\"color\":65280,\"fields\":[{\"name\":\"Service Name\",\"value\":\"Example Site\"},{\"name\":\"Service URL\",\"value\":\"https://site.example/health\"},{\"name\":\"Went Offline\",\"value\":\"<t:1767319445:F>\"},{\"name\":\"Downtime Duration\",\"value\":\"1h\"},{\"name\":\"Time (Asia/Hong_Kong)\",\"value\":\"2026-01-02 11:04:05\"},{\"name\":\"Ping\",\"value\":\"123 ms\"}]}],\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"content\":\"My Monitor Testing\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "normal": {
+   "config": {
+    "fluxerUsername": "v-fluxerUsername",
+    "fluxerWebhookUrl": "https://svc.example/fluxerWebhookUrl",
+    "fluxerMessageFormat": "normal",
+    "fluxerUseMessageTemplate": "v-fluxerUseMessageTemplate",
+    "fluxerMessageTemplate": "v-fluxerMessageTemplate",
+    "disableUrl": false,
+    "type": "fluxer"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"embeds\":[{\"title\":\"❌ Your service Example Site went down. ❌\",\"color\":16711680,\"fields\":[{\"name\":\"Service Name\",\"value\":\"Example Site\"},{\"name\":\"Service URL\",\"value\":\"https://site.example/health\"},{\"name\":\"Went Offline\",\"value\":\"<t:1767323045:F>\"},{\"name\":\"Time (Asia/Hong_Kong)\",\"value\":\"2026-01-02 11:04:05\"},{\"name\":\"Error\",\"value\":\"connect ECONNREFUSED\"}]}],\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"embeds\":[{\"title\":\"✅ Your service Example Site is up! ✅\",\"color\":65280,\"fields\":[{\"name\":\"Service Name\",\"value\":\"Example Site\"},{\"name\":\"Service URL\",\"value\":\"https://site.example/health\"},{\"name\":\"Went Offline\",\"value\":\"<t:1767319445:F>\"},{\"name\":\"Downtime Duration\",\"value\":\"1h\"},{\"name\":\"Time (Asia/Hong_Kong)\",\"value\":\"2026-01-02 11:04:05\"},{\"name\":\"Ping\",\"value\":\"123 ms\"}]}],\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"content\":\"My Monitor Testing\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimalist": {
+   "config": {
+    "fluxerUsername": "v-fluxerUsername",
+    "fluxerWebhookUrl": "https://svc.example/fluxerWebhookUrl",
+    "fluxerMessageFormat": "minimalist",
+    "fluxerUseMessageTemplate": "v-fluxerUseMessageTemplate",
+    "fluxerMessageTemplate": "v-fluxerMessageTemplate",
+    "disableUrl": "https://svc.example/disableUrl",
+    "fluxerPrefixMessage": "v-fluxerPrefixMessage",
+    "type": "fluxer"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"content\":\"🔴 Example Site is down.\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"content\":\"🟢 Example Site is up.\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"content\":\"Test: My Monitor Testing\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "custom": {
+   "config": {
+    "fluxerUsername": "v-fluxerUsername",
+    "fluxerWebhookUrl": "https://svc.example/fluxerWebhookUrl",
+    "fluxerMessageFormat": "custom",
+    "fluxerUseMessageTemplate": "v-fluxerUseMessageTemplate",
+    "fluxerMessageTemplate": "{{ name }}!",
+    "disableUrl": "https://svc.example/disableUrl",
+    "fluxerPrefixMessage": "v-fluxerPrefixMessage",
+    "type": "fluxer"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"content\":\"Example Site!\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"content\":\"Example Site!\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "GET",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {}
+      },
+      {
+       "method": "POST",
+       "url": "https://svc.example/fluxerWebhookUrl",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"username\":\"v-fluxerUsername\",\"content\":\"Monitor Name not available!\",\"avatar_url\":\"https://github.com/louislam/uptime-kuma/raw/master/public/icon.png\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

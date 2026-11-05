@@ -6,9 +6,9 @@ percentiles and dashboard stats over REST, plus new beats over Server-Sent Event
 traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
 **Status:** this is now the only backend, because the Node.js server and MariaDB support have
-been removed. It isn't feature complete. Not built yet: login, notifications, maintenance
+been removed. It isn't feature complete. Not built yet: login, maintenance
 windows, status pages, tags, TLS certificate tracking, HTTP authentication options, proxies, all
-other monitor types, and any import of existing data. The web UI in `src/` can't connect to it yet.
+other monitor types. The web UI in `src/` can't connect to it yet.
 
 ## Run
 
@@ -28,6 +28,8 @@ docker compose up --build
 | `RETENTION_DAYS` | `365` | Raw beat retention, `0` keeps them forever. Aggregates are kept regardless |
 | `CHECK_CONCURRENCY` | `2000` | Maximum checks running at once |
 | `API_KEY_RATE_LIMIT` | `50` | Requests per second allowed per API key |
+| `KUMA_BASE_URL` | not set | Public address of the web UI, for links in notifications. Without it, alerts have no link |
+| `KUMA_TIMEZONE` | `UTC` | IANA timezone that notifications show, such as `Asia/Hong_Kong` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | not set | OTLP gRPC endpoint. Without it nothing is exported. Other standard `OTEL_*` variables apply too |
 | `KUMA_TRACE_SUCCESS_RATIO` | `0.01` | Share of successful traces to export. Failures are always exported |
 | `GRAFANA_DB_PASSWORD` | not set | Creates or updates the read-only `kuma_grafana` database role |
@@ -147,9 +149,51 @@ Beats are unique per monitor and time, so a retry can't double count them.
 Uptime is `up / (up + down)`, where pending counts as down and maintenance is excluded,
 matching the Node.js backend.
 
+### Notifications
+
+Alerts go out when a monitor goes down or recovers, following the same rules as Uptime Kuma. Adding a healthy
+monitor sends nothing, a retry sends nothing, and `resendInterval` on a monitor repeats the alert every that
+many DOWN beats. Sending happens in the background, so a slow provider can't hold up checks.
+
+```bash
+# What's supported
+curl -H "Authorization: Bearer $KEY" localhost:3002/api/v1/notifications/providers
+
+# Create one. Config uses the same field names as Uptime Kuma
+curl -H "Authorization: Bearer $KEY" localhost:3002/api/v1/notifications -d '{
+  "name": "Ops webhook", "type": "webhook", "isDefault": true, "applyToAllMonitors": true,
+  "config": {"webhookURL": "https://example.com/hook", "webhookContentType": "json"}
+}'
+
+# Send a real test message, which also shows the provider's error
+curl -X POST -H "Authorization: Bearer $KEY" localhost:3002/api/v1/notifications/1/test
+
+# Choose what a monitor uses
+curl -X PUT -H "Authorization: Bearer $KEY" localhost:3002/api/v1/monitors/1/notifications -d '{"notificationIds": [1]}'
+```
+
+`isDefault` attaches a notification to monitors created later, and `applyToAllMonitors` to every existing one.
+Keys need `notifications:read` or `notifications:write`. Config can hold credentials, so read-only keys see its
+field names but not their values. Config is stored unencrypted in the database, as it was in Uptime Kuma, and
+the read-only Grafana role can't read it.
+
+A failed send is tried up to three times if the failure could be temporary, then logged with the beat's trace ID
+and counted in the `kuma.notifications` metric, by `provider` and `outcome`. Alerts that are queued or being
+retried are lost if the service stops, and up to 1024 can queue per worker before new ones are dropped and
+counted. Beats sent to `POST /api/v1/beats` never alert. Monitor URLs in alerts have their query string and
+credentials hidden, unlike Uptime Kuma, because alerts go to third parties.
+
+Differences from Uptime Kuma:
+
+- `nostr` and `Webpush` aren't supported.
+- `apprise` runs the `apprise` command, which isn't in the container image.
+- `NOTIFICATION_PROXY` isn't supported.
+- `AlertNow`, `SIGNL4` and `SMSManager` fix bugs: a crash on recovery, an alert ID of `UptimeKuma-undefined`, and
+  `gateway=undefined`.
+
 ## Importing from MariaDB
 
-`kuma-import` copies monitors, groups and history from an Uptime Kuma MariaDB database. It only
+`kuma-import` copies monitors, groups, notifications and history from an Uptime Kuma MariaDB database. It only
 reads the source, inside a read-only transaction. Give it a user that can only read, too:
 
 ```sql
@@ -168,7 +212,7 @@ docker compose run --rm --no-deps -e SOURCE_MARIADB_DSN --entrypoint /kuma-impor
 # Import. Monitors arrive paused, so nothing checks twice
 docker compose run --rm --no-deps -e SOURCE_MARIADB_DSN --entrypoint /kuma-import analytics -apply
 
-# When ready to run both side by side: resume what was active in the source, then restart
+# At the cutover: resume what was active in the source, switch on its notifications, then restart
 docker compose run --rm --no-deps -e SOURCE_MARIADB_DSN --entrypoint /kuma-import analytics -apply -activate
 docker compose restart analytics
 ```
@@ -179,11 +223,17 @@ Check these parts of the report:
   because checking without them would show false results. Monitors with basic or bearer authentication are
   imported with an `Authorization` header.
 - `droppedSettings` counts settings that are lost but don't change whether a check passes.
-- `importedWithNotifications` counts monitors whose alerts don't exist here yet.
+- `notifications.skipped` lists notifications that weren't imported, and `notifications.monitorsLosingAlerts`
+  counts imported monitors that used one of them. Those monitors won't send that alert here.
 
 You can run it as often as you like. It duplicates nothing and picks up changes, except for monitors that have
-been resumed here, which are left alone because they produce their own data. Notifications, tags, status pages,
-maintenance windows and users aren't imported.
+been resumed here, which are left alone because they produce their own data. The same goes for notifications
+that have been switched on here. Tags, status pages, maintenance windows and users aren't imported. Nor is
+`primaryBaseURL`, so set `KUMA_BASE_URL` yourself.
+
+Imported notifications stay off until `-activate`, even for monitors you resume by hand, so that a parallel run
+doesn't send every alert twice. `-activate` is therefore also when alerts start, and should come when you stop
+Uptime Kuma's alerts. Check them with `POST /api/v1/notifications/{id}/test`, which works while they're off.
 
 Uptime before the last whole hour comes from the source's aggregates, and everything after comes from beats, so
 nothing counts twice. The same applies per day for daily figures. Dashboards and the API read the `uptime_hourly`

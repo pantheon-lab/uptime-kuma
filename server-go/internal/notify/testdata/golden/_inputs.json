@@ -1,0 +1,48 @@
+{
+ "now": 1767323045678,
+ "monitor": {
+  "id": 42,
+  "name": "Example Site",
+  "type": "http",
+  "url": "https://site.example/health",
+  "hostname": null,
+  "port": null,
+  "interval": 60,
+  "active": true,
+  "parent": null,
+  "pathName": "Team / Example Site",
+  "description": null,
+  "maxretries": 1,
+  "keyword": null,
+  "tags": []
+ },
+ "scenarios": {
+  "down": {
+   "monitorID": 42,
+   "status": 0,
+   "time": "2026-01-02 03:04:05.678",
+   "msg": "connect ECONNREFUSED",
+   "ping": null,
+   "important": true,
+   "duration": 60,
+   "retries": 0,
+   "timezone": "Asia/Hong_Kong",
+   "timezoneOffset": "+08:00",
+   "localDateTime": "2026-01-02 11:04:05"
+  },
+  "up": {
+   "monitorID": 42,
+   "status": 1,
+   "time": "2026-01-02 03:04:05.678",
+   "msg": "200 - OK",
+   "ping": 123,
+   "important": true,
+   "duration": 60,
+   "retries": 0,
+   "timezone": "Asia/Hong_Kong",
+   "timezoneOffset": "+08:00",
+   "localDateTime": "2026-01-02 11:04:05",
+   "lastDownTime": "2026-01-02 02:04:05.678"
+  }
+ }
+}

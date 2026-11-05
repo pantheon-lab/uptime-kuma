@@ -1,0 +1,117 @@
+{
+ "provider": "clicksendsms",
+ "variants": {
+  "default": {
+   "config": {
+    "clicksendsmsLogin": "v-clicksendsmsLogin",
+    "clicksendsmsPassword": "v-clicksendsmsPassword",
+    "clicksendsmsToNumber": "v-clicksendsmsToNumber",
+    "clicksendsmsSenderName": "v-clicksendsmsSenderName",
+    "type": "clicksendsms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://rest.clicksend.com/v3/sms/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1jbGlja3NlbmRzbXNMb2dpbjp2LWNsaWNrc2VuZHNtc1Bhc3N3b3Jk"
+       },
+       "body": "{\"messages\":[{\"body\":\"[Example Site] [ Down] connect ECONNREFUSED\",\"to\":\"v-clicksendsmsToNumber\",\"source\":\"uptime-kuma\",\"from\":\"v-clicksendsmsSenderName\"}]}"
+      }
+     ],
+     "error": "Cannot read properties of undefined (reading '0')"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://rest.clicksend.com/v3/sms/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1jbGlja3NlbmRzbXNMb2dpbjp2LWNsaWNrc2VuZHNtc1Bhc3N3b3Jk"
+       },
+       "body": "{\"messages\":[{\"body\":\"[Example Site] [ Up] 200 - OK\",\"to\":\"v-clicksendsmsToNumber\",\"source\":\"uptime-kuma\",\"from\":\"v-clicksendsmsSenderName\"}]}"
+      }
+     ],
+     "error": "Cannot read properties of undefined (reading '0')"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://rest.clicksend.com/v3/sms/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1jbGlja3NlbmRzbXNMb2dpbjp2LWNsaWNrc2VuZHNtc1Bhc3N3b3Jk"
+       },
+       "body": "{\"messages\":[{\"body\":\"My Monitor Testing\",\"to\":\"v-clicksendsmsToNumber\",\"source\":\"uptime-kuma\",\"from\":\"v-clicksendsmsSenderName\"}]}"
+      }
+     ],
+     "error": "Cannot read properties of undefined (reading '0')"
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "clicksendsmsLogin": "v-clicksendsmsLogin",
+    "clicksendsmsPassword": "v-clicksendsmsPassword",
+    "clicksendsmsToNumber": "v-clicksendsmsToNumber",
+    "clicksendsmsSenderName": "v-clicksendsmsSenderName",
+    "type": "clicksendsms"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://rest.clicksend.com/v3/sms/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1jbGlja3NlbmRzbXNMb2dpbjp2LWNsaWNrc2VuZHNtc1Bhc3N3b3Jk"
+       },
+       "body": "{\"messages\":[{\"body\":\"[Example Site] [ Down] connect ECONNREFUSED\",\"to\":\"v-clicksendsmsToNumber\",\"source\":\"uptime-kuma\",\"from\":\"v-clicksendsmsSenderName\"}]}"
+      }
+     ],
+     "error": "Cannot read properties of undefined (reading '0')"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://rest.clicksend.com/v3/sms/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1jbGlja3NlbmRzbXNMb2dpbjp2LWNsaWNrc2VuZHNtc1Bhc3N3b3Jk"
+       },
+       "body": "{\"messages\":[{\"body\":\"[Example Site] [ Up] 200 - OK\",\"to\":\"v-clicksendsmsToNumber\",\"source\":\"uptime-kuma\",\"from\":\"v-clicksendsmsSenderName\"}]}"
+      }
+     ],
+     "error": "Cannot read properties of undefined (reading '0')"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://rest.clicksend.com/v3/sms/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic di1jbGlja3NlbmRzbXNMb2dpbjp2LWNsaWNrc2VuZHNtc1Bhc3N3b3Jk"
+       },
+       "body": "{\"messages\":[{\"body\":\"My Monitor Testing\",\"to\":\"v-clicksendsmsToNumber\",\"source\":\"uptime-kuma\",\"from\":\"v-clicksendsmsSenderName\"}]}"
+      }
+     ],
+     "error": "Cannot read properties of undefined (reading '0')"
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,157 @@
+{
+ "provider": "WeCom",
+ "variants": {
+  "default": {
+   "config": {
+    "weComBotKey": "v-weComBotKey",
+    "weComMentionedMobileList": "v-weComMentionedMobileList",
+    "type": "WeCom"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=v-weComBotKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"text\",\"text\":{\"content\":\"UptimeKuma Monitor Down\\n[Example Site] [🔴 Down] connect ECONNREFUSED\",\"mentioned_mobile_list\":[\"v-weComMentionedMobileList\"]}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=v-weComBotKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"text\",\"text\":{\"content\":\"UptimeKuma Monitor Up\\n[Example Site] [✅ Up] 200 - OK\",\"mentioned_mobile_list\":[\"v-weComMentionedMobileList\"]}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=v-weComBotKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"text\",\"text\":{\"content\":\"UptimeKuma Message\\nMy Monitor Testing\",\"mentioned_mobile_list\":[\"v-weComMentionedMobileList\"]}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "weComBotKey": "v-weComBotKey",
+    "type": "WeCom"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=v-weComBotKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"text\",\"text\":{\"content\":\"UptimeKuma Monitor Down\\n[Example Site] [🔴 Down] connect ECONNREFUSED\"}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=v-weComBotKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"text\",\"text\":{\"content\":\"UptimeKuma Monitor Up\\n[Example Site] [✅ Up] 200 - OK\"}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=v-weComBotKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"text\",\"text\":{\"content\":\"UptimeKuma Message\\nMy Monitor Testing\"}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "mentions": {
+   "config": {
+    "weComBotKey": "v-weComBotKey",
+    "weComMentionedMobileList": "1, 2,",
+    "type": "WeCom"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=v-weComBotKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"text\",\"text\":{\"content\":\"UptimeKuma Monitor Down\\n[Example Site] [🔴 Down] connect ECONNREFUSED\",\"mentioned_mobile_list\":[\"1\",\"2\"]}}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=v-weComBotKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"text\",\"text\":{\"content\":\"UptimeKuma Monitor Up\\n[Example Site] [✅ Up] 200 - OK\",\"mentioned_mobile_list\":[\"1\",\"2\"]}}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=v-weComBotKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"msgtype\":\"text\",\"text\":{\"content\":\"UptimeKuma Message\\nMy Monitor Testing\",\"mentioned_mobile_list\":[\"1\",\"2\"]}}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

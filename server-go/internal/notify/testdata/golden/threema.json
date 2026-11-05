@@ -1,0 +1,190 @@
+{
+ "provider": "threema",
+ "variants": {
+  "default": {
+   "config": {
+    "threemaSenderIdentity": "v-threemaSenderIdentity",
+    "threemaSecret": "v-threemaSecret",
+    "threemaRecipientType": "identity",
+    "threemaRecipient": "ABCDEFGH",
+    "type": "threema"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://msgapi.threema.ch/send_simple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
+       },
+       "body": "from=v-threemaSenderIdentity&secret=v-threemaSecret&text=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&to=ABCDEFGH"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://msgapi.threema.ch/send_simple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
+       },
+       "body": "from=v-threemaSenderIdentity&secret=v-threemaSecret&text=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&to=ABCDEFGH"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://msgapi.threema.ch/send_simple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
+       },
+       "body": "from=v-threemaSenderIdentity&secret=v-threemaSecret&text=My+Monitor+Testing&to=ABCDEFGH"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "threemaSenderIdentity": "v-threemaSenderIdentity",
+    "threemaSecret": "v-threemaSecret",
+    "threemaRecipientType": "v-threemaRecipientType",
+    "threemaRecipient": "v-threemaRecipient",
+    "type": "threema"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [],
+     "error": "Unsupported recipient type: v-threemaRecipientType"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [],
+     "error": "Unsupported recipient type: v-threemaRecipientType"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [],
+     "error": "Unsupported recipient type: v-threemaRecipientType"
+    }
+   }
+  },
+  "email": {
+   "config": {
+    "threemaSenderIdentity": "v-threemaSenderIdentity",
+    "threemaSecret": "v-threemaSecret",
+    "threemaRecipientType": "email",
+    "threemaRecipient": "a@b.example",
+    "type": "threema"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://msgapi.threema.ch/send_simple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
+       },
+       "body": "from=v-threemaSenderIdentity&secret=v-threemaSecret&text=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&email=a%40b.example"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://msgapi.threema.ch/send_simple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
+       },
+       "body": "from=v-threemaSenderIdentity&secret=v-threemaSecret&text=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&email=a%40b.example"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://msgapi.threema.ch/send_simple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
+       },
+       "body": "from=v-threemaSenderIdentity&secret=v-threemaSecret&text=My+Monitor+Testing&email=a%40b.example"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "phone": {
+   "config": {
+    "threemaSenderIdentity": "v-threemaSenderIdentity",
+    "threemaSecret": "v-threemaSecret",
+    "threemaRecipientType": "phone",
+    "threemaRecipient": "+85212345678",
+    "type": "threema"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://msgapi.threema.ch/send_simple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
+       },
+       "body": "from=v-threemaSenderIdentity&secret=v-threemaSecret&text=%5BExample+Site%5D+%5B%F0%9F%94%B4+Down%5D+connect+ECONNREFUSED&phone=%2B85212345678"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://msgapi.threema.ch/send_simple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
+       },
+       "body": "from=v-threemaSenderIdentity&secret=v-threemaSecret&text=%5BExample+Site%5D+%5B%E2%9C%85+Up%5D+200+-+OK&phone=%2B85212345678"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://msgapi.threema.ch/send_simple",
+       "headers": {
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
+       },
+       "body": "from=v-threemaSenderIdentity&secret=v-threemaSecret&text=My+Monitor+Testing&phone=%2B85212345678"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

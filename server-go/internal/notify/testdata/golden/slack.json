@@ -1,0 +1,293 @@
+{
+ "provider": "slack",
+ "variants": {
+  "default": {
+   "config": {
+    "slackbutton": "v-slackbutton",
+    "slackchannelnotify": "v-slackchannelnotify",
+    "slackchannel": "v-slackchannel",
+    "slackusername": "v-slackusername",
+    "slackiconemo": "v-slackiconemo",
+    "slackwebhookURL": "https://svc.example/slackwebhookURL",
+    "slackUseTemplate": "v-slackUseTemplate",
+    "slackTemplate": "v-slackTemplate",
+    "slackIncludeGroupName": "v-slackIncludeGroupName",
+    "slackrichmessage": "v-slackrichmessage",
+    "type": "slack"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"v-slackTemplate\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\",\"icon_emoji\":\"v-slackiconemo\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"v-slackTemplate\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\",\"icon_emoji\":\"v-slackiconemo\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"My Monitor Testing <!channel>\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\",\"icon_emoji\":\"v-slackiconemo\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "slackchannel": "v-slackchannel",
+    "slackusername": "v-slackusername",
+    "slackwebhookURL": "https://svc.example/slackwebhookURL",
+    "type": "slack"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"Example Site\\n[Example Site] [🔴 Down] connect ECONNREFUSED\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\",\"attachments\":[]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"Example Site\\n[Example Site] [✅ Up] 200 - OK\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\",\"attachments\":[]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"My Monitor Testing\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "plain": {
+   "config": {
+    "slackbutton": "v-slackbutton",
+    "slackchannelnotify": false,
+    "slackchannel": "v-slackchannel",
+    "slackusername": "v-slackusername",
+    "slackiconemo": "v-slackiconemo",
+    "slackwebhookURL": "https://svc.example/slackwebhookURL",
+    "slackUseTemplate": false,
+    "slackTemplate": "v-slackTemplate",
+    "slackIncludeGroupName": "v-slackIncludeGroupName",
+    "slackrichmessage": false,
+    "type": "slack"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"Example Site\\n[Example Site] [🔴 Down] connect ECONNREFUSED\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\",\"icon_emoji\":\"v-slackiconemo\",\"attachments\":[]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"Example Site\\n[Example Site] [✅ Up] 200 - OK\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\",\"icon_emoji\":\"v-slackiconemo\",\"attachments\":[]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"My Monitor Testing\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\",\"icon_emoji\":\"v-slackiconemo\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "rich": {
+   "config": {
+    "slackbutton": "v-slackbutton",
+    "slackchannelnotify": "v-slackchannelnotify",
+    "slackchannel": "v-slackchannel",
+    "slackusername": "v-slackusername",
+    "slackiconemo": "v-slackiconemo",
+    "slackwebhookURL": "https://svc.example/slackwebhookURL",
+    "slackUseTemplate": false,
+    "slackTemplate": "v-slackTemplate",
+    "slackIncludeGroupName": "v-slackIncludeGroupName",
+    "slackrichmessage": true,
+    "type": "slack"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED <!channel>\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\",\"icon_emoji\":\"v-slackiconemo\",\"attachments\":[{\"color\":\"#e01e5a\",\"blocks\":[{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\"Example Site\"}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Message*\\n[Example Site] [🔴 Down] connect ECONNREFUSED <!channel>\"},{\"type\":\"mrkdwn\",\"text\":\"*Time (Asia/Hong_Kong)*\\n2026-01-02 11:04:05\"}]},{\"type\":\"actions\",\"elements\":[{\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"Visit Uptime Kuma\"},\"value\":\"Uptime-Kuma\",\"url\":\"https://kuma.example/dashboard/42\"},{\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"Visit site\"},\"value\":\"Site\",\"url\":\"https://site.example/health\"}]}]}]}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"[Example Site] [✅ Up] 200 - OK <!channel>\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\",\"icon_emoji\":\"v-slackiconemo\",\"attachments\":[{\"color\":\"#2eb886\",\"blocks\":[{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\"Example Site\"}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Message*\\n[Example Site] [✅ Up] 200 - OK <!channel>\"},{\"type\":\"mrkdwn\",\"text\":\"*Time (Asia/Hong_Kong)*\\n2026-01-02 11:04:05\"}]},{\"type\":\"actions\",\"elements\":[{\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"Visit Uptime Kuma\"},\"value\":\"Uptime-Kuma\",\"url\":\"https://kuma.example/dashboard/42\"},{\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"Visit site\"},\"value\":\"Site\",\"url\":\"https://site.example/health\"}]}]}]}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"My Monitor Testing <!channel>\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\",\"icon_emoji\":\"v-slackiconemo\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "template": {
+   "config": {
+    "slackbutton": "v-slackbutton",
+    "slackchannelnotify": "v-slackchannelnotify",
+    "slackchannel": "v-slackchannel",
+    "slackusername": "v-slackusername",
+    "slackiconemo": "v-slackiconemo",
+    "slackwebhookURL": "https://svc.example/slackwebhookURL",
+    "slackUseTemplate": true,
+    "slackTemplate": "{{ name }}",
+    "slackIncludeGroupName": "v-slackIncludeGroupName",
+    "slackrichmessage": "v-slackrichmessage",
+    "type": "slack"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"Example Site\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\",\"icon_emoji\":\"v-slackiconemo\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"Example Site\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\",\"icon_emoji\":\"v-slackiconemo\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/slackwebhookURL",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"text\":\"My Monitor Testing <!channel>\",\"channel\":\"v-slackchannel\",\"username\":\"v-slackusername\",\"icon_emoji\":\"v-slackiconemo\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

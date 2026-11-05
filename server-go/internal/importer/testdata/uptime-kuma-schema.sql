@@ -177,6 +177,16 @@ CREATE TABLE `stat_daily` (
   UNIQUE KEY `stat_daily_monitor_id_timestamp_unique` (`monitor_id`,`timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='This table contains the daily aggregate statistics for each monitor';
 
+CREATE TABLE `notification` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) DEFAULT NULL,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `user_id` int(10) unsigned DEFAULT NULL,
+  `is_default` tinyint(1) NOT NULL DEFAULT 0,
+  `config` longtext DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
 CREATE TABLE `monitor_notification` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `monitor_id` int(10) unsigned NOT NULL,

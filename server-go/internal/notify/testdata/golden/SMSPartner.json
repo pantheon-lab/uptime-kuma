@@ -1,0 +1,115 @@
+{
+ "provider": "SMSPartner",
+ "variants": {
+  "default": {
+   "config": {
+    "smspartnerApikey": "v-smspartnerApikey",
+    "smspartnerSenderName": "v-smspartnerSenderName",
+    "smspartnerPhoneNumber": "v-smspartnerPhoneNumber",
+    "type": "SMSPartner"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.smspartner.fr/v1/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"apiKey\":\"v-smspartnerApikey\",\"sender\":\"v-smspartne\",\"phoneNumbers\":\"v-smspartnerPhoneNumber\",\"message\":\"[Example Site] [ Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.smspartner.fr/v1/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"apiKey\":\"v-smspartnerApikey\",\"sender\":\"v-smspartne\",\"phoneNumbers\":\"v-smspartnerPhoneNumber\",\"message\":\"[Example Site] [ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.smspartner.fr/v1/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"apiKey\":\"v-smspartnerApikey\",\"sender\":\"v-smspartne\",\"phoneNumbers\":\"v-smspartnerPhoneNumber\",\"message\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "smspartnerApikey": "v-smspartnerApikey",
+    "smspartnerSenderName": "v-smspartnerSenderName",
+    "smspartnerPhoneNumber": "v-smspartnerPhoneNumber",
+    "type": "SMSPartner"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.smspartner.fr/v1/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"apiKey\":\"v-smspartnerApikey\",\"sender\":\"v-smspartne\",\"phoneNumbers\":\"v-smspartnerPhoneNumber\",\"message\":\"[Example Site] [ Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.smspartner.fr/v1/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"apiKey\":\"v-smspartnerApikey\",\"sender\":\"v-smspartne\",\"phoneNumbers\":\"v-smspartnerPhoneNumber\",\"message\":\"[Example Site] [ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://api.smspartner.fr/v1/send",
+       "headers": {
+        "Content-Type": "application/json",
+        "cache-control": "no-cache"
+       },
+       "body": "{\"apiKey\":\"v-smspartnerApikey\",\"sender\":\"v-smspartne\",\"phoneNumbers\":\"v-smspartnerPhoneNumber\",\"message\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

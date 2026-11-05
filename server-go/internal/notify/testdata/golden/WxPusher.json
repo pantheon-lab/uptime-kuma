@@ -1,0 +1,105 @@
+{
+ "provider": "WxPusher",
+ "variants": {
+  "default": {
+   "config": {
+    "wxpusherSPT": "v-wxpusherSPT",
+    "type": "WxPusher"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://wxpusher.zjiecode.com/api/send/message/simple-push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"summary\":\"UptimeKuma Monitor Down Example Site\",\"contentType\":1,\"sptList\":[\"v-wxpusherSPT\"]}"
+      }
+     ],
+     "error": "ok"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://wxpusher.zjiecode.com/api/send/message/simple-push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"content\":\"[Example Site] [✅ Up] 200 - OK\",\"summary\":\"UptimeKuma Monitor Up Example Site\",\"contentType\":1,\"sptList\":[\"v-wxpusherSPT\"]}"
+      }
+     ],
+     "error": "ok"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://wxpusher.zjiecode.com/api/send/message/simple-push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"content\":\"My Monitor Testing\",\"summary\":\"UptimeKuma Message\",\"contentType\":1,\"sptList\":[\"v-wxpusherSPT\"]}"
+      }
+     ],
+     "error": "ok"
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "wxpusherSPT": "v-wxpusherSPT",
+    "type": "WxPusher"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://wxpusher.zjiecode.com/api/send/message/simple-push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"content\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\",\"summary\":\"UptimeKuma Monitor Down Example Site\",\"contentType\":1,\"sptList\":[\"v-wxpusherSPT\"]}"
+      }
+     ],
+     "error": "ok"
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://wxpusher.zjiecode.com/api/send/message/simple-push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"content\":\"[Example Site] [✅ Up] 200 - OK\",\"summary\":\"UptimeKuma Monitor Up Example Site\",\"contentType\":1,\"sptList\":[\"v-wxpusherSPT\"]}"
+      }
+     ],
+     "error": "ok"
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://wxpusher.zjiecode.com/api/send/message/simple-push",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"content\":\"My Monitor Testing\",\"summary\":\"UptimeKuma Message\",\"contentType\":1,\"sptList\":[\"v-wxpusherSPT\"]}"
+      }
+     ],
+     "error": "ok"
+    }
+   }
+  }
+ }
+}

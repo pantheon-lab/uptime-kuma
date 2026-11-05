@@ -1,0 +1,105 @@
+{
+ "provider": "SpugPush",
+ "variants": {
+  "default": {
+   "config": {
+    "templateKey": "v-templateKey",
+    "type": "SpugPush"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.spug.cc/send/v-templateKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma 「Example Site」 is Down\",\"content\":\"[🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.spug.cc/send/v-templateKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma 「Example Site」 is Up\",\"content\":\"[✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.spug.cc/send/v-templateKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"Uptime Kuma Message\",\"content\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "templateKey": "v-templateKey",
+    "type": "SpugPush"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.spug.cc/send/v-templateKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma 「Example Site」 is Down\",\"content\":\"[🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.spug.cc/send/v-templateKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"UptimeKuma 「Example Site」 is Up\",\"content\":\"[✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://push.spug.cc/send/v-templateKey",
+       "headers": {
+        "Content-Type": "application/json"
+       },
+       "body": "{\"title\":\"Uptime Kuma Message\",\"content\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

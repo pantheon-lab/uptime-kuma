@@ -1,0 +1,115 @@
+{
+ "provider": "OneChat",
+ "variants": {
+  "default": {
+   "config": {
+    "accessToken": "v-accessToken",
+    "recieverId": "v-recieverId",
+    "botId": "v-botId",
+    "type": "OneChat"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://chat-api.one.th/message/api/v1/push_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"to\":\"v-recieverId\",\"bot_id\":\"v-botId\",\"type\":\"text\",\"message\":\"UptimeKuma Alert:\\n[🔴 Down]\\nName: Example Site\\nconnect ECONNREFUSED\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://chat-api.one.th/message/api/v1/push_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"to\":\"v-recieverId\",\"bot_id\":\"v-botId\",\"type\":\"text\",\"message\":\"UptimeKuma Alert:\\n[🟢 Up]\\nName: Example Site\\n200 - OK\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://chat-api.one.th/message/api/v1/push_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"to\":\"v-recieverId\",\"bot_id\":\"v-botId\",\"type\":\"text\",\"message\":\"Test Successful!\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "accessToken": "v-accessToken",
+    "recieverId": "v-recieverId",
+    "botId": "v-botId",
+    "type": "OneChat"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://chat-api.one.th/message/api/v1/push_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"to\":\"v-recieverId\",\"bot_id\":\"v-botId\",\"type\":\"text\",\"message\":\"UptimeKuma Alert:\\n[🔴 Down]\\nName: Example Site\\nconnect ECONNREFUSED\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://chat-api.one.th/message/api/v1/push_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"to\":\"v-recieverId\",\"bot_id\":\"v-botId\",\"type\":\"text\",\"message\":\"UptimeKuma Alert:\\n[🟢 Up]\\nName: Example Site\\n200 - OK\\nTime (Asia/Hong_Kong): 2026-01-02 11:04:05\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://chat-api.one.th/message/api/v1/push_message",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer v-accessToken"
+       },
+       "body": "{\"to\":\"v-recieverId\",\"bot_id\":\"v-botId\",\"type\":\"text\",\"message\":\"Test Successful!\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

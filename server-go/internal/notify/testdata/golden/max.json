@@ -1,0 +1,234 @@
+{
+ "provider": "max",
+ "variants": {
+  "default": {
+   "config": {
+    "maxApiUrl": "https://svc.example/maxApiUrl",
+    "maxChatID": "v-maxChatID",
+    "maxBotToken": "v-maxBotToken",
+    "maxUseTemplate": "v-maxUseTemplate",
+    "maxTemplate": "v-maxTemplate",
+    "maxTemplateFormat": "v-maxTemplateFormat",
+    "type": "max"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/maxApiUrl/messages?chat_id=v-maxChatID",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-maxBotToken"
+       },
+       "body": "{\"text\":\"v-maxTemplate\",\"format\":\"v-maxTemplateFormat\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/maxApiUrl/messages?chat_id=v-maxChatID",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-maxBotToken"
+       },
+       "body": "{\"text\":\"v-maxTemplate\",\"format\":\"v-maxTemplateFormat\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/maxApiUrl/messages?chat_id=v-maxChatID",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-maxBotToken"
+       },
+       "body": "{\"text\":\"v-maxTemplate\",\"format\":\"v-maxTemplateFormat\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "minimal": {
+   "config": {
+    "maxApiUrl": "https://svc.example/maxApiUrl",
+    "maxChatID": "v-maxChatID",
+    "maxBotToken": "v-maxBotToken",
+    "type": "max"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/maxApiUrl/messages?chat_id=v-maxChatID",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-maxBotToken"
+       },
+       "body": "{\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/maxApiUrl/messages?chat_id=v-maxChatID",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-maxBotToken"
+       },
+       "body": "{\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/maxApiUrl/messages?chat_id=v-maxChatID",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-maxBotToken"
+       },
+       "body": "{\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "md": {
+   "config": {
+    "maxApiUrl": "https://svc.example/maxApiUrl",
+    "maxChatID": "v-maxChatID",
+    "maxBotToken": "v-maxBotToken",
+    "maxUseTemplate": true,
+    "maxTemplate": "{{ name }}",
+    "maxTemplateFormat": "markdown",
+    "type": "max"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/maxApiUrl/messages?chat_id=v-maxChatID",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-maxBotToken"
+       },
+       "body": "{\"text\":\"Example Site\",\"format\":\"markdown\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/maxApiUrl/messages?chat_id=v-maxChatID",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-maxBotToken"
+       },
+       "body": "{\"text\":\"Example Site\",\"format\":\"markdown\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/maxApiUrl/messages?chat_id=v-maxChatID",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-maxBotToken"
+       },
+       "body": "{\"text\":\"Monitor Name not available\",\"format\":\"markdown\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  "plain": {
+   "config": {
+    "maxApiUrl": "https://svc.example/maxApiUrl",
+    "maxChatID": "v-maxChatID",
+    "maxBotToken": "v-maxBotToken",
+    "maxUseTemplate": false,
+    "maxTemplate": "v-maxTemplate",
+    "maxTemplateFormat": "v-maxTemplateFormat",
+    "type": "max"
+   },
+   "scenarios": {
+    "down": {
+     "msg": "[Example Site] [🔴 Down] connect ECONNREFUSED",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/maxApiUrl/messages?chat_id=v-maxChatID",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-maxBotToken"
+       },
+       "body": "{\"text\":\"[Example Site] [🔴 Down] connect ECONNREFUSED\"}"
+      }
+     ],
+     "error": null
+    },
+    "up": {
+     "msg": "[Example Site] [✅ Up] 200 - OK",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/maxApiUrl/messages?chat_id=v-maxChatID",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-maxBotToken"
+       },
+       "body": "{\"text\":\"[Example Site] [✅ Up] 200 - OK\"}"
+      }
+     ],
+     "error": null
+    },
+    "test": {
+     "msg": "My Monitor Testing",
+     "requests": [
+      {
+       "method": "POST",
+       "url": "https://svc.example/maxApiUrl/messages?chat_id=v-maxChatID",
+       "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "v-maxBotToken"
+       },
+       "body": "{\"text\":\"My Monitor Testing\"}"
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ }
+}

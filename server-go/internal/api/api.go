@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/notify"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 )
 
@@ -49,6 +50,14 @@ type Store interface {
 	RevokeAPIKey(ctx context.Context, id int64) error
 	FindAPIKey(ctx context.Context, hash []byte) (store.APIKey, error)
 	TouchAPIKey(ctx context.Context, id int64) error
+	ListNotifications(ctx context.Context) ([]store.Notification, error)
+	GetNotification(ctx context.Context, id int32) (store.Notification, error)
+	CreateNotification(ctx context.Context, n store.Notification, applyToAll bool) (store.Notification, error)
+	UpdateNotification(ctx context.Context, n store.Notification, applyToAll bool) (store.Notification, error)
+	DeleteNotification(ctx context.Context, id int32) error
+	MonitorNotificationIDs(ctx context.Context, monitorID int32) ([]int32, error)
+	SetMonitorNotifications(ctx context.Context, monitorID int32, ids []int32) error
+	LinkDefaultNotifications(ctx context.Context, monitorID int32) error
 	GetMonitor(ctx context.Context, id int32) (monitor.Monitor, error)
 	CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
 	UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
@@ -70,6 +79,7 @@ type Server struct {
 	log       *slog.Logger
 	now       func() time.Time
 	limiter   *keyLimiter
+	notifyEnv *notify.Env
 	lastTouch sync.Map // Key id to the time last_used_at was last written.
 	routes    []string
 }
@@ -84,8 +94,12 @@ func New(s Store, scheduler Scheduler, hub *Hub, token string, log *slog.Logger)
 		log:       log,
 		now:       time.Now,
 		limiter:   newKeyLimiter(defaultKeyRate, defaultKeyBurst),
+		notifyEnv: notify.DefaultEnv(""),
 	}
 }
+
+// SetNotifyEnv sets how test notifications are sent.
+func (s *Server) SetNotifyEnv(env *notify.Env) { s.notifyEnv = env }
 
 // SetKeyRateLimit sets the requests per second and burst allowed per API key.
 func (s *Server) SetKeyRateLimit(perSecond float64, burst int) {
@@ -120,6 +134,16 @@ func (s *Server) Handler() http.Handler {
 	handle("GET /api/v1/monitors/{id}/percentiles", ScopeBeatsRead, s.getPercentiles)
 	handle("GET /api/v1/stats", ScopeBeatsRead, s.getStats)
 	handle("POST /api/v1/beats", ScopeBeatsWrite, s.postBeats)
+
+	handle("GET /api/v1/monitors/{id}/notifications", ScopeNotificationsRead, s.getMonitorNotifications)
+	handle("PUT /api/v1/monitors/{id}/notifications", ScopeNotificationsWrite, s.setMonitorNotifications)
+	handle("GET /api/v1/notifications/providers", ScopeNotificationsRead, s.listNotificationProviders)
+	handle("GET /api/v1/notifications", ScopeNotificationsRead, s.listNotifications)
+	handle("POST /api/v1/notifications", ScopeNotificationsWrite, s.createNotification)
+	handle("GET /api/v1/notifications/{id}", ScopeNotificationsRead, s.getNotification)
+	handle("PUT /api/v1/notifications/{id}", ScopeNotificationsWrite, s.updateNotification)
+	handle("DELETE /api/v1/notifications/{id}", ScopeNotificationsWrite, s.deleteNotification)
+	handle("POST /api/v1/notifications/{id}/test", ScopeNotificationsWrite, s.testNotification)
 
 	handle("GET /api/v1/api-keys", scopeAdmin, s.listAPIKeys)
 	handle("POST /api/v1/api-keys", scopeAdmin, s.createAPIKey)
