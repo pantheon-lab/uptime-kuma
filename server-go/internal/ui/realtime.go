@@ -166,12 +166,7 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 		return rc.Flush()
 	}
 
-	open, _ := json.Marshal(map[string]string{"id": c.id})
-	w.WriteHeader(http.StatusOK)
-	if err := write(encodeFrame("open", open)); err != nil {
-		return
-	}
-
+	// Registered before the client hears of it, because its first send can follow at once.
 	s.mu.Lock()
 	s.conns[c.id] = c
 	s.mu.Unlock()
@@ -180,6 +175,12 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 		delete(s.conns, c.id)
 		s.mu.Unlock()
 	}()
+
+	open, _ := json.Marshal(map[string]string{"id": c.id})
+	w.WriteHeader(http.StatusOK)
+	if err := write(encodeFrame("open", open)); err != nil {
+		return
+	}
 
 	go s.process(c, login)
 
@@ -308,6 +309,15 @@ func (s *Server) dispatch(c *conn, m inMessage) {
 		payload, _ = json.Marshal([]any{*m.Ack, fail(errors.New("internal error"))})
 	}
 	c.push(encodeFrame("ack", payload))
+}
+
+// Close ends every stream, which graceful shutdown would otherwise wait for.
+func (s *Server) Close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, c := range s.conns {
+		c.close()
+	}
 }
 
 // broadcast sends a frame to every logged-in connection.

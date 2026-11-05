@@ -172,6 +172,7 @@ func run(log *slog.Logger) error {
 		IdleTimeout:       2 * time.Minute,
 	}
 	server.RegisterOnShutdown(hub.Close)
+	server.RegisterOnShutdown(uiServer.Close)
 
 	serveErr := make(chan error, 1)
 	go func() {

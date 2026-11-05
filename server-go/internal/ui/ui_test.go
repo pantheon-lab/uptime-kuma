@@ -710,3 +710,21 @@ func TestUserErrorsAreShown(t *testing.T) {
 		t.Fatal("userErr")
 	}
 }
+
+func TestCloseEndsStreams(t *testing.T) {
+	s, _, ts := newTestServer(t)
+	c := newClient(t)
+	_, stream, done := openStream(t, c, ts.URL)
+	defer done()
+	s.Close()
+	finished := make(chan error, 1)
+	go func() {
+		_, err := io.Copy(io.Discard, stream.r)
+		finished <- err
+	}()
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the stream stayed open")
+	}
+}
