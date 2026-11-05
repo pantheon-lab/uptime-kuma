@@ -325,3 +325,25 @@ func TestSpansDontCarrySecrets(t *testing.T) {
 		}
 	}
 }
+
+func TestHTTPSReportsTLS(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+	c := New(nil)
+	defer c.Close()
+	m := monitor.New()
+	m.Type, m.URL, m.IgnoreTLS, m.Interval = monitor.TypeHTTP, server.URL, true, 10
+	// A failed status still has a certificate to report.
+	result := c.Run(context.Background(), m)
+	if result.OK || result.TLS == nil || len(result.TLS.PeerCertificates) == 0 {
+		t.Fatalf("result: %+v", result)
+	}
+	plain := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer plain.Close()
+	m.URL = plain.URL
+	if result := c.Run(context.Background(), m); !result.OK || result.TLS != nil {
+		t.Fatalf("plain HTTP: %+v", result)
+	}
+}

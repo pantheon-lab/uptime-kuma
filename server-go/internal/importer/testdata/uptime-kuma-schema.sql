@@ -195,3 +195,21 @@ CREATE TABLE `monitor_notification` (
   KEY `monitor_notification_notification_id_foreign` (`notification_id`),
   KEY `monitor_notification_index` (`monitor_id`,`notification_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE `tag` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `color` varchar(255) NOT NULL,
+  `created_date` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE `monitor_tag` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `monitor_id` int(10) unsigned NOT NULL,
+  `tag_id` int(10) unsigned NOT NULL,
+  `value` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `monitor_tag_monitor_id_foreign` (`monitor_id`),
+  KEY `monitor_tag_tag_id_foreign` (`tag_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;

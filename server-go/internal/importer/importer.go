@@ -50,6 +50,8 @@ type Target interface {
 	ImportedNotifications(ctx context.Context) (map[int32]store.ImportedNotification, error)
 	ImportNotification(ctx context.Context, sourceID int32, n store.Notification, sourceActive bool) (int32, error)
 	SetMonitorNotifications(ctx context.Context, monitorID int32, ids []int32) error
+	ImportTag(ctx context.Context, name, color string) (int32, error)
+	AddMonitorTag(ctx context.Context, tagID, monitorID int32, value string) error
 	ActivateImportedNotifications(ctx context.Context) (int64, error)
 }
 
@@ -78,6 +80,8 @@ type Report struct {
 	Skipped         []Skipped          `json:"skipped"`
 	SkippedByReason map[string]int     `json:"skippedByReason"`
 	DroppedSettings map[string]int     `json:"droppedSettings"`
+	Tags            int                `json:"tags"`
+	TagLinks        int                `json:"tagLinks"`
 	WithAlerts      int                `json:"importedWithNotifications"`
 	Beats           int64              `json:"beats"`
 	NewBeats        int64              `json:"newBeats"`
@@ -211,6 +215,11 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 		return nil, err
 	}
 	log.Info("notifications done", "imported", report.Notifications.Imported, "skipped", len(report.Notifications.Skipped), "links", report.Notifications.Links)
+
+	if err := copyTags(ctx, conn, opts.Target, targets, report); err != nil {
+		return nil, err
+	}
+	log.Info("tags done", "tags", report.Tags, "links", report.TagLinks)
 
 	if err := copyStats(ctx, conn, opts.Target, false, targets, cutover, &report.HourlyStats); err != nil {
 		return nil, err
@@ -360,6 +369,7 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 	}
 	m.MaxRedirects = int32(intOf(row["maxredirects"]))
 	m.IgnoreTLS = boolOf(row["ignore_tls"])
+	m.ExpiryNotification = boolOf(row["expiry_notification"]) && !m.IgnoreTLS
 	if m.Type == monitor.TypeKeyword {
 		m.Keyword = row["keyword"].String
 		m.InvertKeyword = boolOf(row["invert_keyword"])
@@ -425,10 +435,6 @@ func droppedSettings(row map[string]sql.NullString) []string {
 	}
 	if boolOf(row["cache_bust"]) {
 		dropped = append(dropped, "cacheBust")
-	}
-	// This is on by default, but only means something for HTTPS monitors.
-	if boolOf(row["expiry_notification"]) && strings.HasPrefix(row["url"].String, "https://") {
-		dropped = append(dropped, "certificateExpiryNotification")
 	}
 	if boolOf(row["domain_expiry_notification"]) {
 		dropped = append(dropped, "domainExpiryNotification")
@@ -508,6 +514,49 @@ func copyNotifications(ctx context.Context, conn *sql.Conn, target Target, monit
 				return fmt.Errorf("monitor %d: %w", m.id, err)
 			}
 		}
+	}
+	return nil
+}
+
+// copyTags copies the tags of the monitors being imported. A dry run has no target ids, so it
+// counts what would be copied. Monitors already resumed here are left alone, like their settings.
+func copyTags(ctx context.Context, conn *sql.Conn, target Target, monitors map[int32]int32, report *Report) error {
+	rows, _, err := readRows(ctx, conn, "SELECT id, name, color FROM tag ORDER BY id")
+	if err != nil {
+		return fmt.Errorf("read tags: %w", err)
+	}
+	ids := make(map[int32]int32, len(rows))
+	for _, row := range rows {
+		sourceID := int32(intOf(row["id"]))
+		ids[sourceID] = sourceID
+		if target != nil {
+			id, err := target.ImportTag(ctx, row["name"].String, row["color"].String)
+			if err != nil {
+				return fmt.Errorf("tag %d: %w", sourceID, err)
+			}
+			ids[sourceID] = id
+		}
+		report.Tags++
+	}
+	rows, _, err = readRows(ctx, conn, "SELECT tag_id, monitor_id, value FROM monitor_tag ORDER BY id")
+	if err != nil {
+		return fmt.Errorf("read monitor tags: %w", err)
+	}
+	for _, row := range rows {
+		monitorID, ok := monitors[int32(intOf(row["monitor_id"]))]
+		if !ok {
+			continue
+		}
+		tagID, ok := ids[int32(intOf(row["tag_id"]))]
+		if !ok {
+			continue
+		}
+		if target != nil {
+			if err := target.AddMonitorTag(ctx, tagID, monitorID, row["value"].String); err != nil {
+				return fmt.Errorf("tag on monitor %d: %w", monitorID, err)
+			}
+		}
+		report.TagLinks++
 	}
 	return nil
 }

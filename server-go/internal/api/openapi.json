@@ -2375,6 +2375,11 @@
             "type": "boolean",
             "default": false
           },
+          "expiryNotification": {
+            "type": "boolean",
+            "default": false,
+            "description": "Alert before the TLS certificate expires, at the days set in the web UI. Has no effect with ignoreTls."
+          },
           "keyword": {
             "type": "string"
           },

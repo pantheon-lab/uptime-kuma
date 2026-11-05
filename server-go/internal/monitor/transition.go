@@ -1,6 +1,9 @@
 package monitor
 
-import "strings"
+import (
+	"crypto/tls"
+	"strings"
+)
 
 const maxMsgBytes = 4096
 
@@ -12,6 +15,8 @@ type Result struct {
 	// Pending reports PENDING directly, without using up a retry. Groups use it when they
 	// are empty or a child is pending.
 	Pending bool
+	// TLS is the connection's state, if the check made an HTTPS request.
+	TLS *tls.ConnectionState
 }
 
 // Previous is what the next beat needs from the last one. A nil *Previous means

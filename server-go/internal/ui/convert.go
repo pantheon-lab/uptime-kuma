@@ -87,6 +87,8 @@ type monitorTree struct {
 	notifications map[int32][]int32
 	// underMaintenance is set by the server. Nil means nothing is.
 	underMaintenance map[int32]bool
+	// tags is set by the server. Nil means no monitor has any.
+	tags map[int32][]store.MonitorTag
 }
 
 func newMonitorTree(monitors []monitor.Monitor, notifications map[int32][]int32) *monitorTree {
@@ -167,7 +169,13 @@ func (t *monitorTree) monitorJSON(m monitor.Monitor) map[string]any {
 	if url == "" {
 		url = "https://"
 	}
+	tags := t.tags[m.ID]
+	if tags == nil {
+		tags = []store.MonitorTag{}
+	}
 	maps.Copy(out, map[string]any{
+		"tags":                 tags,
+		"expiryNotification":   m.ExpiryNotification,
 		"id":                   m.ID,
 		"name":                 m.Name,
 		"type":                 m.Type,
@@ -286,6 +294,7 @@ type monitorInput struct {
 	Timeout             flexFloat       `json:"timeout"`
 	MaxRetries          flexInt         `json:"maxretries"`
 	UpsideDown          bool            `json:"upsideDown"`
+	ExpiryNotification  bool            `json:"expiryNotification"`
 	PropagateTrace      bool            `json:"propagateTrace"`
 	ProxyID             flexInt         `json:"proxyId"`
 	AuthMethod          *string         `json:"authMethod"`
@@ -363,6 +372,8 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 			m.MaxRedirects = int32(in.MaxRedirects.value)
 		}
 		m.IgnoreTLS = in.IgnoreTLS
+		// Without verification there's nothing to warn about, as the form also says.
+		m.ExpiryNotification = in.ExpiryNotification && !in.IgnoreTLS
 		if m.Type == monitor.TypeKeyword && in.Keyword != nil {
 			m.Keyword = *in.Keyword
 			m.InvertKeyword = in.InvertKeyword

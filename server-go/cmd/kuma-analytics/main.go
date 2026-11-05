@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/api"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/certs"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/holidays"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/maintenance"
@@ -151,6 +152,9 @@ func run(log *slog.Logger) error {
 		return fmt.Errorf("load maintenance: %w", err)
 	}
 	sched.SetMaintenance(maintenanceService)
+	certService := certs.NewService(db, dispatcher, log)
+	sched.SetCertificates(certService)
+	go certService.Run(ctx)
 	go maintenanceService.Run(ctx)
 	sched.Start(monitors, previous)
 	apiServer := api.New(db, sched, hub, token, log)
@@ -169,6 +173,7 @@ func run(log *slog.Logger) error {
 		Maintenance: maintenanceService,
 	})
 	go uiServer.Run(ctx, hub)
+	certService.OnChange(uiServer.BroadcastCertInfo)
 
 	// The REST API, and the web UI's own API. webui.Mount adds the UI's files.
 	routes := http.NewServeMux()

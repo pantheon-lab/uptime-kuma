@@ -115,3 +115,107 @@ func TestHolidayOverrides(t *testing.T) {
 		t.Fatalf("after delete: %v", got)
 	}
 }
+
+func TestTagsAndCertificates(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	m := monitor.New()
+	m.Name, m.Type, m.URL, m.ExpiryNotification = "a", monitor.TypeHTTP, "https://example.com", true
+	created, err := s.CreateMonitor(ctx, m)
+	if err != nil || !created.ExpiryNotification {
+		t.Fatalf("create: %+v %v", created, err)
+	}
+	created.ExpiryNotification = false
+	if updated, err := s.UpdateMonitor(ctx, created); err != nil || updated.ExpiryNotification {
+		t.Fatalf("update: %+v %v", updated, err)
+	}
+
+	tag, err := s.CreateTag(ctx, "prod", "#f00")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{"", "eu", "eu"} {
+		if err := s.AddMonitorTag(ctx, tag.ID, created.ID, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.AddMonitorTag(ctx, 999, created.ID, ""); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing tag: %v", err)
+	}
+	all, err := s.AllMonitorTags(ctx)
+	if err != nil || len(all[created.ID]) != 2 || all[created.ID][1].Value != "eu" || all[created.ID][0].Name != "prod" {
+		t.Fatalf("tags: %+v %v", all, err)
+	}
+	if err := s.UpdateMonitorTag(ctx, tag.ID, created.ID, "ap"); err != nil {
+		t.Fatal(err)
+	}
+	if all, _ := s.AllMonitorTags(ctx); len(all[created.ID]) != 1 || all[created.ID][0].Value != "ap" {
+		t.Fatalf("after edit: %+v", all)
+	}
+	if err := s.UpdateMonitorTag(ctx, 999, created.ID, "x"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("edit missing: %v", err)
+	}
+	if err := s.DeleteMonitorTag(ctx, tag.ID, created.ID, "ap"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpdateTag(ctx, Tag{ID: tag.ID, Name: "live", Color: "#0f0"}); err != nil {
+		t.Fatal(err)
+	}
+	first, err := s.ImportTag(ctx, "live", "#0f0")
+	if err != nil || first != tag.ID {
+		t.Fatalf("import existing: %d %v", first, err)
+	}
+	if second, err := s.ImportTag(ctx, "live", "#00f"); err != nil || second == tag.ID {
+		t.Fatalf("import another colour: %d %v", second, err)
+	}
+	if err := s.AddMonitorTag(ctx, tag.ID, created.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteTag(ctx, tag.ID); err != nil {
+		t.Fatal(err)
+	}
+	if all, _ := s.AllMonitorTags(ctx); len(all) != 0 {
+		t.Fatalf("deleted tag still on a monitor: %+v", all)
+	}
+	if err := s.DeleteTag(ctx, tag.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("delete twice: %v", err)
+	}
+
+	if f, err := s.TLSFingerprint(ctx, created.ID); err != nil || f != "" {
+		t.Fatalf("no certificate yet: %q %v", f, err)
+	}
+	for _, f := range []string{"one", "two"} {
+		if err := s.SaveTLSInfo(ctx, created.ID, []byte(`{"certInfo":"`+f+`"}`), f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if f, _ := s.TLSFingerprint(ctx, created.ID); f != "two" {
+		t.Fatalf("fingerprint: %q", f)
+	}
+	infos, err := s.AllTLSInfo(ctx)
+	if err != nil || infos[created.ID] != `{"certInfo":"two"}` {
+		t.Fatalf("info: %v %v", infos, err)
+	}
+	// A check that finishes after its monitor was deleted is ignored.
+	if err := s.SaveTLSInfo(ctx, 999, []byte(`{}`), "x"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordCertAlert(ctx, 999, 7); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.RecordCertAlert(ctx, created.ID, 7); err != nil {
+		t.Fatal(err)
+	}
+	for days, want := range map[int]bool{7: true, 14: true, 3: false} {
+		if got, err := s.CertAlertSent(ctx, created.ID, days); err != nil || got != want {
+			t.Errorf("sent at %d: %v %v", days, got, err)
+		}
+	}
+	if err := s.ClearCertAlerts(ctx, created.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.CertAlertSent(ctx, created.ID, 14); got {
+		t.Error("alert history wasn't cleared")
+	}
+}

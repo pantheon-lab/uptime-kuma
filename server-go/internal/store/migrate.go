@@ -254,6 +254,35 @@ var migrations = [][]string{
 			PRIMARY KEY (country, date)
 		)`,
 	},
+	{
+		`CREATE TABLE IF NOT EXISTS tag (
+			id serial PRIMARY KEY,
+			name text NOT NULL,
+			color text NOT NULL,
+			created_at timestamptz NOT NULL DEFAULT now()
+		)`,
+		// A monitor can carry one tag several times, with different values.
+		`CREATE TABLE IF NOT EXISTS monitor_tag (
+			monitor_id integer NOT NULL REFERENCES monitor (id) ON DELETE CASCADE,
+			tag_id integer NOT NULL REFERENCES tag (id) ON DELETE CASCADE,
+			value text NOT NULL DEFAULT '',
+			PRIMARY KEY (monitor_id, tag_id, value)
+		)`,
+		`CREATE INDEX IF NOT EXISTS monitor_tag_tag_idx ON monitor_tag (tag_id)`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS expiry_notification boolean NOT NULL DEFAULT false`,
+		`CREATE TABLE IF NOT EXISTS monitor_tls_info (
+			monitor_id integer PRIMARY KEY REFERENCES monitor (id) ON DELETE CASCADE,
+			info text NOT NULL,
+			fingerprint text NOT NULL,
+			updated_at timestamptz NOT NULL DEFAULT now()
+		)`,
+		// Which deadlines before a certificate's expiry have been alerted about.
+		`CREATE TABLE IF NOT EXISTS cert_alert_sent (
+			monitor_id integer NOT NULL REFERENCES monitor (id) ON DELETE CASCADE,
+			days integer NOT NULL,
+			PRIMARY KEY (monitor_id, days)
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.

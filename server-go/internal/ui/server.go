@@ -60,6 +60,16 @@ type Store interface {
 	SetMonitorNotifications(ctx context.Context, monitorID int32, ids []int32) error
 	AllMonitorNotificationIDs(ctx context.Context) (map[int32][]int32, error)
 
+	ListTags(ctx context.Context) ([]store.Tag, error)
+	CreateTag(ctx context.Context, name, color string) (store.Tag, error)
+	UpdateTag(ctx context.Context, tag store.Tag) error
+	DeleteTag(ctx context.Context, id int32) error
+	AddMonitorTag(ctx context.Context, tagID, monitorID int32, value string) error
+	UpdateMonitorTag(ctx context.Context, tagID, monitorID int32, value string) error
+	DeleteMonitorTag(ctx context.Context, tagID, monitorID int32, value string) error
+	AllMonitorTags(ctx context.Context) (map[int32][]store.MonitorTag, error)
+	AllTLSInfo(ctx context.Context) (map[int32]string, error)
+
 	ListMaintenances(ctx context.Context) ([]maintenance.Window, error)
 	GetMaintenance(ctx context.Context, id int32) (maintenance.Window, error)
 	CreateMaintenance(ctx context.Context, w maintenance.Window) (maintenance.Window, error)

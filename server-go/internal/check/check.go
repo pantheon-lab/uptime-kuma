@@ -204,15 +204,16 @@ func (c *Checker) runHTTP(ctx context.Context, m monitor.Monitor, timeout time.D
 	}
 	defer func() { _ = res.Body.Close() }()
 	span.SetAttributes(attribute.Int("http.response.status_code", res.StatusCode))
+	tlsState := res.TLS
 
 	data, err := io.ReadAll(io.LimitReader(res.Body, maxResponseBytes))
 	if err != nil {
-		return monitor.Result{Msg: requestError(err, timeout)}
+		return monitor.Result{Msg: requestError(err, timeout), TLS: tlsState}
 	}
 	ping := elapsedMs(start)
 
 	if !m.Accepts(res.StatusCode) {
-		return monitor.Result{Msg: fmt.Sprintf("Request failed with status code %d", res.StatusCode)}
+		return monitor.Result{TLS: tlsState, Msg: fmt.Sprintf("Request failed with status code %d", res.StatusCode)}
 	}
 
 	reason := strings.TrimSpace(strings.TrimPrefix(res.Status, strconv.Itoa(res.StatusCode)))
@@ -222,7 +223,7 @@ func (c *Checker) runHTTP(ctx context.Context, m monitor.Monitor, timeout time.D
 	msg := fmt.Sprintf("%d - %s", res.StatusCode, reason)
 
 	if m.Type == monitor.TypeHTTP {
-		return monitor.Result{OK: true, Ping: &ping, Msg: msg}
+		return monitor.Result{OK: true, TLS: tlsState, Ping: &ping, Msg: msg}
 	}
 
 	found := bytes.Contains(data, []byte(m.Keyword))
@@ -231,13 +232,13 @@ func (c *Checker) runHTTP(ctx context.Context, m monitor.Monitor, timeout time.D
 		if found {
 			state = "is"
 		}
-		return monitor.Result{OK: true, Ping: &ping, Msg: fmt.Sprintf("%s, keyword %s found", msg, state)}
+		return monitor.Result{OK: true, TLS: tlsState, Ping: &ping, Msg: fmt.Sprintf("%s, keyword %s found", msg, state)}
 	}
 	state := "not"
 	if found {
 		state = "present"
 	}
-	return monitor.Result{Msg: fmt.Sprintf("%s, but keyword is %s in [%s]", msg, state, snippet(data))}
+	return monitor.Result{TLS: tlsState, Msg: fmt.Sprintf("%s, but keyword is %s in [%s]", msg, state, snippet(data))}
 }
 
 func redirectPolicy(limit int32) func(*http.Request, []*http.Request) error {

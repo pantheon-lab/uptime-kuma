@@ -50,7 +50,6 @@ var errNotLoggedIn = errors.New("You are not logged in.")
 // emptyReplies answer events that the UI sends on its own when a page opens, for features
 // this service doesn't have yet. An error would show a toast on every page load.
 var emptyReplies = map[string]func() any{
-	"getTags":                  func() any { return ok("tags", []any{}) },
 	"getMaintenanceStatusPage": func() any { return ok("statusPages", []any{}) },
 	"getAPIKeyList":            func() any { return ok() },
 	"getDatabaseSize":          func() any { return ok("size", 0) },
@@ -160,6 +159,9 @@ func (s *Server) monitorTree(ctx context.Context) (*monitorTree, error) {
 		return nil, err
 	}
 	tree := newMonitorTree(monitors, links)
+	if tree.tags, err = s.store.AllMonitorTags(ctx); err != nil {
+		return nil, err
+	}
 	tree.underMaintenance = s.maintenance.UnderMaintenanceSet()
 	return tree, nil
 }
@@ -254,9 +256,23 @@ func (s *Server) sendDashboardLists(ctx context.Context, c *conn) {
 	stats, err := s.stats(ctx)
 	if err != nil {
 		s.log.Error("send stats", "error", err)
+	} else {
+		c.emit("stats", stats)
+	}
+	certificates, err := s.store.AllTLSInfo(ctx)
+	if err != nil {
+		s.log.Error("send certificates", "error", err)
 		return
 	}
-	c.emit("stats", stats)
+	for id, info := range certificates {
+		c.emit("certInfo", id, info)
+	}
+}
+
+// BroadcastCertInfo tells open pages about a monitor's new certificate information. The UI
+// expects it as JSON text.
+func (s *Server) BroadcastCertInfo(monitorID int32, info string) {
+	s.broadcast(encodeMessage("certInfo", monitorID, info))
 }
 
 // handle runs one event. hasReply is false for events this server doesn't know.
@@ -323,6 +339,20 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.deleteNotification(ctx, args)
 	case "testNotification":
 		r, err = s.testNotification(ctx, args)
+	case "getTags":
+		r, err = s.getTags(ctx)
+	case "addTag":
+		r, err = s.addTag(ctx, args)
+	case "editTag":
+		r, err = s.editTag(ctx, args)
+	case "deleteTag":
+		r, err = s.deleteTag(ctx, args)
+	case "addMonitorTag":
+		r, err = s.changeMonitorTag(ctx, args, s.store.AddMonitorTag, "successAdded")
+	case "editMonitorTag":
+		r, err = s.changeMonitorTag(ctx, args, s.store.UpdateMonitorTag, "successEdited")
+	case "deleteMonitorTag":
+		r, err = s.changeMonitorTag(ctx, args, s.store.DeleteMonitorTag, "successDeleted")
 	case "getMaintenanceList":
 		var list map[string]any
 		if list, err = s.maintenanceList(ctx); err == nil {

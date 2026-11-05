@@ -152,6 +152,30 @@ func (d *Dispatcher) sendWithRetry(n store.Notification, message Message, e even
 	d.log.Error("send notification", "notification", n.ID, "name", n.Name, "type", n.Type, "monitor", e.monitor.ID, "error", err, "trace_id", e.beat.TraceID)
 }
 
+// SendText sends a message that isn't about a beat, such as a certificate about to expire, to a
+// monitor's active notifications. It waits for the result, and reports whether any accepted it.
+func (d *Dispatcher) SendText(ctx context.Context, m monitor.Monitor, text string) bool {
+	notifications, err := d.store.ActiveNotificationsFor(ctx, m.ID)
+	if err != nil {
+		d.log.Error("read notifications", "monitor", m.ID, "error", err)
+		return false
+	}
+	sent := false
+	for _, n := range notifications {
+		sendCtx, cancel := context.WithTimeout(ctx, sendTimeout)
+		err := Send(sendCtx, d.env, n.Type, n.Config, Message{Text: text})
+		cancel()
+		if err != nil {
+			telemetry.Metrics().RecordNotification(n.Type, "failed")
+			d.log.Error("send notification", "notification", n.ID, "name", n.Name, "type", n.Type, "monitor", m.ID, "error", err)
+			continue
+		}
+		telemetry.Metrics().RecordNotification(n.Type, "sent")
+		sent = true
+	}
+	return sent
+}
+
 // retryable is true for failures that may pass by themselves. A rejected request wouldn't.
 func retryable(err error) bool {
 	var httpErr *HTTPError

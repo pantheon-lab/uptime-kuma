@@ -6,8 +6,10 @@ percentiles and dashboard stats over REST, plus new beats over Server-Sent Event
 traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
 **Status:** this is now the only backend, because the Node.js server and MariaDB support have
-been removed. It isn't feature complete. Not built yet: status pages, tags, TLS certificate tracking,
+been removed. It isn't feature complete. Not built yet: status pages, domain expiry tracking,
 proxies, two-factor login, more than one account, and all other monitor types.
+
+[PORTING.md](PORTING.md) records what has moved from the Node.js server, phase by phase, and what's left.
 
 ## Web UI
 
@@ -22,16 +24,16 @@ the window has passed. There's one account, and it can do everything.
 What works in the UI: logging in and out, changing the password, the dashboard with live beats, uptime and
 response times, the event list, adding, editing, pausing and deleting HTTP, keyword, TCP port and
 group monitors, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public
-holidays, and saving settings.
+holidays, tags, certificate details and expiry alerts, and saving settings.
 
 Everything else answers "This isn't supported by this server yet", or shows an empty list where a page asks
-on its own (tags, API keys). In particular:
+on its own (API keys). In particular:
 
 - Saving a monitor with another type, a proxy, conditions, or an authentication method other than basic or
   bearer is refused, so that a check never runs differently from what the form shows. Basic and bearer
   authentication are saved as an `Authorization` header, and show up under Headers when you edit again.
 - Form settings this service doesn't have, such as certificate expiry notifications, aren't saved.
-- Settings are stored, but the service doesn't act on them yet. The timezone comes from `KUMA_TIMEZONE`.
+- Settings are stored, but apart from the certificate expiry days the service doesn't act on them yet. The timezone comes from `KUMA_TIMEZONE`.
 - Changes made through the REST API reach open browsers only when they reload.
 
 Sessions are a random token in an `HttpOnly`, `SameSite=Lax` cookie, `Secure` behind HTTPS (the proxy must
@@ -39,6 +41,19 @@ send `X-Forwarded-Proto`). Only a SHA-256 hash of the token is stored. A remembe
 renewed while used, and changing the password ends every other login. Passwords are hashed with scrypt in
 better-auth's format, so accounts from the Node.js backend could be imported unchanged; the importer doesn't
 do that yet. Logins are limited to 10 a minute per username and 60 a minute overall.
+
+## Certificates
+
+HTTPS monitors record the certificate chain they see, which the UI shows on the monitor's page. It's stored only
+when something changes. A certificate that fails verification makes the check fail, so that shows as DOWN.
+
+With **Certificate Expiry Notification** on, the monitor alerts its notifications when a certificate in the chain
+is within the days set under **Settings > Notifications**, by default 7, 14 and 21. Each deadline alerts once per
+certificate, and replacing the certificate starts again. Roots in the system's trust store don't alert. The option
+does nothing with **Ignore TLS/SSL errors** on. Alerts are checked hourly and when the certificate changes, and a
+failed send is tried again at the next check.
+
+Unlike the Node.js backend, there's also an alert with 0 days left, and the order of the days setting doesn't matter.
 
 ## Maintenance windows
 
@@ -311,13 +326,14 @@ Check these parts of the report:
 - `skipped` lists monitors that weren't imported, and why. Unsupported types and settings are skipped
   because checking without them would show false results. Monitors with basic or bearer authentication are
   imported with an `Authorization` header.
+- `tags` and `tagLinks` count the tags copied and how many were put on monitors. Monitors that were already resumed here keep theirs.
 - `droppedSettings` counts settings that are lost but don't change whether a check passes.
 - `notifications.skipped` lists notifications that weren't imported, and `notifications.monitorsLosingAlerts`
   counts imported monitors that used one of them. Those monitors won't send that alert here.
 
 You can run it as often as you like. It duplicates nothing and picks up changes, except for monitors that have
 been resumed here, which are left alone because they produce their own data. The same goes for notifications
-that have been switched on here. Tags, status pages, maintenance windows and users aren't imported. Nor is
+that have been switched on here. Status pages, maintenance windows and users aren't imported. Nor is
 `primaryBaseURL`, so set `KUMA_BASE_URL` yourself.
 
 Imported notifications stay off until `-activate`, even for monitors you resume by hand, so that a parallel run

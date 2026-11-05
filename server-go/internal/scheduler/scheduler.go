@@ -3,6 +3,7 @@ package scheduler
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
@@ -54,6 +55,8 @@ type Scheduler struct {
 	notifier Notifier
 	// maintenance is optional, and set before Start.
 	maintenance Maintenance
+	// certificates is optional, and set before Start.
+	certificates Certificates
 
 	mu      sync.Mutex
 	stopped bool
@@ -92,6 +95,14 @@ type Maintenance interface {
 
 // SetMaintenance sets what decides maintenance. Call it before Start.
 func (s *Scheduler) SetMaintenance(m Maintenance) { s.maintenance = m }
+
+// Certificates takes the TLS connection of a check. It mustn't block.
+type Certificates interface {
+	Observe(m monitor.Monitor, state *tls.ConnectionState)
+}
+
+// SetCertificates sets what receives TLS connections. Call it before Start.
+func (s *Scheduler) SetCertificates(c Certificates) { s.certificates = c }
 
 // Start begins checking monitors, spreading first checks over each interval so a
 // restart doesn't check everything in the same second. previous holds the last
@@ -264,6 +275,10 @@ func (s *Scheduler) run(ctx context.Context, m monitor.Monitor, delay time.Durat
 			span.SetAttributes(attribute.Bool("monitor.check.cancelled", true))
 			span.End()
 			return state
+		}
+
+		if result.TLS != nil && s.certificates != nil {
+			s.certificates.Observe(m, result.TLS)
 		}
 
 		out := m.Next(state, result)
