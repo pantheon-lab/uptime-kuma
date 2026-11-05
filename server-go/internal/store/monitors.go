@@ -257,15 +257,18 @@ func (s *Store) DeleteMonitor(ctx context.Context, id int32) error {
 	return s.RefreshAggregates(refreshCtx)
 }
 
-// RefreshAggregates rebuilds every aggregate bucket that has changed.
+// RefreshAggregates rebuilds every finished aggregate bucket that has changed. It leaves out
+// the current bucket: a materialized bucket stops following new beats until the next scheduled
+// refresh that covers it, so an unfinished one would hide them.
 func (s *Store) RefreshAggregates(ctx context.Context) error {
-	for _, view := range []string{"stat_hourly", "stat_daily"} {
+	for _, view := range []struct{ name, unit string }{{"stat_hourly", "hour"}, {"stat_daily", "day"}} {
 		err := retryConcurrentRefresh(ctx, func() error {
-			_, err := s.pool.Exec(ctx, `CALL refresh_continuous_aggregate('`+view+`', NULL, NULL)`)
+			_, err := s.pool.Exec(ctx,
+				`CALL refresh_continuous_aggregate('`+view.name+`', NULL, date_trunc('`+view.unit+`', now(), 'UTC'))`)
 			return err
 		})
 		if err != nil {
-			return fmt.Errorf("refresh %s: %w", view, err)
+			return fmt.Errorf("refresh %s: %w", view.name, err)
 		}
 	}
 	return nil
