@@ -7,26 +7,29 @@ Update this file in the same pull request as each phase. Only mark a phase done 
 wasn't. The order of the planned phases is a proposal, and should follow what's actually in use: the dry run of
 `kuma-import` lists every monitor it can't bring over, and why.
 
-| Phase | Scope                                                               | Status |
-| ----- | ------------------------------------------------------------------- | ------ |
-| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done   |
-| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done   |
-| 2     | Push, Ping and DNS monitors                                         | Done   |
-| 3     | Status pages and badges                                             | Done   |
-| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done   |
-| 4b    | Other databases and messaging                                       | Done   |
-| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done   |
-| 4d    | Docker, system and remote browser monitors                          | Done   |
-| 4e    | HTTP options, proxies and domain expiry                             | Done   |
-| 4f    | Globalping, GameDig and Tailscale ping                              | Done   |
-| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done   |
-| 5b    | Settings that take effect, and the Monitor History page             | Done   |
-| 5c    | Importing accounts, status pages and maintenance windows            | Done   |
-| 6a    | The MCP server and the update check                                 | Done   |
-| 6b    | The `nostr` and `Webpush` notification providers                    | Done   |
-| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Done   |
-| 7a    | More than one account, with full and read-only roles                | Done   |
-| 7b    | Logging in with GitHub                                              | Next   |
+| Phase | Scope                                                               | Status  |
+| ----- | ------------------------------------------------------------------- | ------- |
+| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done    |
+| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done    |
+| 2     | Push, Ping and DNS monitors                                         | Done    |
+| 3     | Status pages and badges                                             | Done    |
+| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done    |
+| 4b    | Other databases and messaging                                       | Done    |
+| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done    |
+| 4d    | Docker, system and remote browser monitors                          | Done    |
+| 4e    | HTTP options, proxies and domain expiry                             | Done    |
+| 4f    | Globalping, GameDig and Tailscale ping                              | Done    |
+| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done    |
+| 5b    | Settings that take effect, and the Monitor History page             | Done    |
+| 5c    | Importing accounts, status pages and maintenance windows            | Done    |
+| 6a    | The MCP server and the update check                                 | Done    |
+| 6b    | The `nostr` and `Webpush` notification providers                    | Done    |
+| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Done    |
+| 7a    | More than one account, with full and read-only roles                | Done    |
+| 7b    | Logging in with GitHub                                              | Done    |
+| E1    | Managing accounts in the UI                                         | Planned |
+| E2    | The Security page for GitHub accounts                               | Planned |
+| E3    | Encrypting stored secrets                                           | Planned |
 
 ## Phase 0: Core (done)
 
@@ -630,3 +633,41 @@ Known limits:
 - Accounts can't be listed or removed in the UI. Someone who leaves the teams is logged out at their next use,
   within a day, and can't log in again.
 - The Security page's password and two-factor settings don't apply to GitHub accounts, which have neither.
+
+## Enhancements (planned)
+
+The port is complete. These go beyond what the Node.js server did, and came out of Phases 5 to 7.
+
+### E1: Managing accounts in the UI
+
+GitHub teams are the only control over accounts today, and an account that has left them stays in the database.
+
+- A Settings > Accounts page for admins: every account, with its role, whether it logs in with GitHub or a
+  password, when it last logged in, and its open sessions.
+- Ending an account's sessions, and removing an account. Removing a GitHub account only lasts until its next login
+  while it's still in the teams, so the page says so.
+- Changing a password account's role. A GitHub account's role follows its teams, so it can't be changed here.
+- The last admin who can log in can't be removed or made a viewer.
+- Recording logins and these changes, by whom, in the log.
+
+### E2: The Security page for GitHub accounts
+
+GitHub accounts have no password and leave two-factor login to GitHub, but the Security page offers both.
+
+- For a GitHub account, show that it logs in with GitHub, its organization and teams, and when they were last
+  checked, instead of the password and two-factor settings.
+- Refuse changing the password and turning on two-factor login for GitHub accounts on the server too.
+
+### E3: Encrypting stored secrets
+
+Authenticator keys, GitHub tokens, notification settings, monitor credentials and the VAPID private key are stored as
+they are, and protected only by the database's access control. Encrypting them with a key kept outside the database
+means a copy of the database, such as a backup, doesn't give them away.
+
+- `KUMA_SECRET_KEY`, from a file or a secret manager, never in the database. AES-256-GCM with the column and row as
+  associated data, so that a value can't be moved to another row.
+- A key version on each value, so that the key can be rotated: a command re-encrypts everything with the new key.
+- Existing plain values are encrypted at the first start with a key, and the server refuses to start with
+  encrypted values and no key.
+- Decide first which columns: the Grafana read-only role already can't read monitors' credentials, and encrypting
+  them stops the database from searching or checking them.
