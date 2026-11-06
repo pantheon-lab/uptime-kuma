@@ -20,6 +20,8 @@ type Result struct {
 	NoRetry bool
 	// TLS is the connection's state, if the check made an HTTPS request.
 	TLS *tls.ConnectionState
+	// Response is the body an HTTP monitor saves for notification templates, if it saves one.
+	Response *string
 }
 
 // Previous is what the next beat needs from the last one. A nil *Previous means

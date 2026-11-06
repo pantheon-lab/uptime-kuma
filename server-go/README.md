@@ -8,8 +8,8 @@ percentiles and dashboard stats over REST, plus new beats over Server-Sent Event
 status pages and badges, exports traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
 **Status:** this is now the only backend, because the Node.js server and MariaDB support have
-been removed. It isn't feature complete. Not built yet: domain expiry tracking, proxies,
-two-factor login, more than one account, and all other monitor types.
+been removed. It isn't feature complete. Not built yet: two-factor login, more than one account,
+and the Globalping, GameDig and Tailscale ping monitor types.
 
 [PORTING.md](PORTING.md) records what has moved from the Node.js server, phase by phase, and what's left.
 
@@ -135,6 +135,29 @@ password and station ids, and are UP on Access-Accept. Requests carry a Message-
 BlastRADIUS (CVE-2024-3596), such as FreeRADIUS 3.2.5 and later, require.
 
 **Steam** monitors ask the Steam Web API whether it lists the game server, and need a key under **Settings > General**.
+
+## HTTP options, proxies and domain expiry
+
+HTTP, keyword and JSON query monitors take every option of the form:
+
+- **Logins**: HTTP basic, bearer token, NTLM, mTLS with a client certificate and optionally the server's CA, and OAuth2
+  client credentials, whose token is kept until it expires and asked for again once if the server answers 401.
+  WebSocket monitors take all of them but NTLM. Headers the monitor sets replace the login's `Authorization` header.
+- **Proxies**, added under **Settings > Proxies**: HTTP, HTTPS, SOCKS5 and SOCKS4, with an optional login. `socks` and
+  `socks5h` resolve names on the proxy, and `socks5` and `socks4` here, as in Node.js. A proxy that's switched off isn't
+  used. Applying a proxy to existing monitors sets it on every HTTP, keyword and JSON query monitor.
+- **Cache busting** adds a random `uptime_kuma_cachebuster` parameter, and **IP family** connects only over IPv4 or
+  IPv6.
+- **Saved responses** keep the body of an unaccepted response, and optionally of accepted ones, for notification
+  templates, as `heartbeatJSON.response`, cut to the length set. They're used by that beat's notifications and not stored.
+- A JSON query monitor can be DOWN at once when its query fails, without retries.
+
+**Domain expiry**: monitors with the option on, of the types whose target has a host name, look up when their domain
+expires, at most once a day per domain, from the registry's RDAP server. IANA's list of RDAP servers is fetched once a
+week, with a built-in copy for when it can't be reached. Alerts go to the monitor's notifications on the days set under
+**Settings > Notifications**, 7, 14 and 21 by default, once per deadline until the domain is renewed. The monitor's page
+shows the expiry date. Domains under a suffix that ICANN doesn't manage, such as `github.io`, and IP addresses can't be
+tracked, which the form says.
 
 ## Docker, system and browser monitors
 
@@ -482,11 +505,12 @@ docker compose restart analytics
 Check these parts of the report:
 
 - `skipped` lists monitors that weren't imported, and why. Unsupported types and settings are skipped
-  because checking without them would show false results. Monitors with basic or bearer authentication are
-  imported with an `Authorization` header.
-- `dockerHosts` and `remoteBrowsers` count the Docker hosts and remote browsers copied. Monitors keep using them.
+  because checking without them would show false results.
+- `proxies`, `dockerHosts` and `remoteBrowsers` count the proxies, Docker hosts and remote browsers copied. Monitors
+  keep using them. An imported proxy isn't the default, so that the default chosen here stays.
 - `tags` and `tagLinks` count the tags copied and how many were put on monitors. Monitors that were already resumed here keep theirs.
-- `droppedSettings` counts settings that are lost but don't change whether a check passes.
+- `droppedSettings` would count settings that are lost but don't change whether a check passes. Every setting is
+  imported now, so it's empty.
 - `notifications.skipped` lists notifications that weren't imported, and `notifications.monitorsLosingAlerts`
   counts imported monitors that used one of them. Those monitors won't send that alert here.
 

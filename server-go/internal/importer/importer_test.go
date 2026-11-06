@@ -2,14 +2,20 @@ package importer
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"database/sql"
 	_ "embed"
-	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log/slog"
 	"math"
+	"math/big"
 	"net/url"
 	"os"
 	"strings"
@@ -209,10 +215,10 @@ func TestImportsMonitorsFaithfully(t *testing.T) {
 	}
 	for name, want := range map[string]string{
 		"Game": "unsupported monitor type: gamedig",
-		"Mtls": "unsupported setting: authentication method mtls", "Oauth": "unsupported setting: authentication method oauth2-cc",
-		"Ntlm": "unsupported setting: authentication method ntlm", "BadHeaders": "invalid setting: headers aren't a valid JSON object",
+		"Mtls": "invalid setting: an mTLS login needs tlsCert and tlsKey", "Oauth": "invalid setting: oauthTokenUrl must be an http or https URL",
+		"Ntlm": "invalid setting: an NTLM login needs basicAuthUser", "BadHeaders": "invalid setting: headers aren't a valid JSON object",
 		"BadUrl": "invalid setting: url must be a valid http or https URL", "BadBody": "invalid setting: body is not valid JSON",
-		"Proxied": "unsupported setting: proxy",
+		"Proxied": "invalid setting: the proxy doesn't exist",
 	} {
 		if reasons[name] != want {
 			t.Errorf("%s: %q, want %q", name, reasons[name], want)
@@ -221,7 +227,7 @@ func TestImportsMonitorsFaithfully(t *testing.T) {
 	if report.SkippedByReason["unsupported monitor type"] != 1 {
 		t.Errorf("by reason: %+v", report.SkippedByReason)
 	}
-	if report.DroppedSettings["cacheBust"] != 1 || report.DroppedSettings["resendInterval"] != 0 || report.DroppedSettings["certificateExpiryNotification"] != 0 || report.DroppedSettings["saveResponse"] != 0 || report.WithAlerts != 2 {
+	if len(report.DroppedSettings) != 0 || report.WithAlerts != 2 {
 		t.Errorf("reported losses: %+v, alerts %d", report.DroppedSettings, report.WithAlerts)
 	}
 
@@ -247,12 +253,14 @@ func TestImportsMonitorsFaithfully(t *testing.T) {
 	if p := get(2).ParentID; p == nil || *p != f.targetID(t, 1) {
 		t.Errorf("nested group's parent: %v", p)
 	}
-	want := "Basic " + base64.StdEncoding.EncodeToString([]byte("u:p:w"))
-	if got := get(4).Headers["Authorization"]; got != want {
-		t.Errorf("basic: %q", got)
+	if b := get(4); b.AuthMethod != "basic" || b.BasicAuthUser != "u" || b.BasicAuthPass != "p:w" || b.Headers["Authorization"] != "" {
+		t.Errorf("basic: %+v", b.Settings)
 	}
-	if h := get(5).Headers; h["Authorization"] != "Bearer tok" || h["X-A"] != "b" {
-		t.Errorf("bearer: %+v", h)
+	if b := get(5); b.AuthMethod != "bearer" || b.BearerToken != "tok" || b.Headers["X-A"] != "b" {
+		t.Errorf("bearer: %+v %+v", b.Headers, b.Settings)
+	}
+	if d := get(18); !d.CacheBust || d.Description != "x" {
+		t.Errorf("options: %+v", d.Settings)
 	}
 	if k := get(6); k.Type != "keyword" || k.Keyword != "ok" || !k.InvertKeyword {
 		t.Errorf("keyword: %+v", k)
@@ -742,4 +750,79 @@ func TestImportsPhase4dMonitors(t *testing.T) {
 	if hosts, _ := f.target.ListDockerHosts(ctx); len(hosts) != 1 {
 		t.Fatalf("hosts after a second import: %+v", hosts)
 	}
+}
+
+func TestImportsHTTPOptions(t *testing.T) {
+	f := newFixture(t)
+	f.exec(t, "INSERT INTO proxy (id, user_id, protocol, host, port, auth, username, password, active, `default`) VALUES (4, 1, 'socks5', 'proxy.internal', 1080, 1, 'u', 'p', 1, 1)")
+	cert, key := testCertificate(t)
+	f.monitor(t, 1, "Proxied", "http", map[string]any{"url": "https://example.com", "proxy_id": 4, "ip_family": "ipv4",
+		"save_response": 1, "save_error_response": 1, "response_max_length": 50, "domain_expiry_notification": 1})
+	f.monitor(t, 2, "Mtls", "keyword", map[string]any{"url": "https://example.com", "keyword": "ok", "auth_method": "mtls", "tls_cert": cert, "tls_key": key})
+	f.monitor(t, 3, "Oauth", "json-query", map[string]any{"url": "https://example.com", "json_path": "status", "expected_value": "ok",
+		"auth_method": "oauth2-cc", "oauth_token_url": "https://id.example.com/token", "oauth_client_id": "c", "oauth_client_secret": "s",
+		"oauth_auth_method": "client_secret_post", "oauth_scopes": "read", "oauth_audience": "api", "retry_only_on_status_code_failure": 1})
+	f.monitor(t, 4, "Ntlm", "http", map[string]any{"url": "https://example.com", "auth_method": "ntlm", "basic_auth_user": "u",
+		"basic_auth_pass": "p", "auth_domain": "CORP", "auth_workstation": "WS1"})
+	f.monitor(t, 5, "Ping", "ping", map[string]any{"hostname": "example.com", "domain_expiry_notification": 1, "description": "the gateway"})
+
+	report := f.run(t, true, false)
+	if report.Imported != 5 || report.Proxies != 1 || len(report.Skipped) != 0 {
+		t.Fatalf("report: %+v", report)
+	}
+	ctx := context.Background()
+	get := func(sourceID int) monitor.Monitor {
+		t.Helper()
+		m, err := f.target.GetMonitor(ctx, f.targetID(t, sourceID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	proxies, _ := f.target.ListProxies(ctx)
+	if len(proxies) != 1 || proxies[0].Protocol != "socks5" || proxies[0].Username != "u" || proxies[0].Default {
+		t.Fatalf("proxies: %+v", proxies)
+	}
+	if m := get(1); m.ProxyID != proxies[0].ID || m.IPFamily != "ipv4" || !m.SaveResponse || !m.SaveErrorResponse ||
+		m.ResponseMaxLength != 50 || !m.DomainExpiryNotification {
+		t.Errorf("proxied: %+v", m.Settings)
+	}
+	if m := get(2); m.AuthMethod != "mtls" || m.TLSCert != cert || m.TLSKey != key {
+		t.Errorf("mtls: %+v", m.Settings)
+	}
+	if m := get(3); m.AuthMethod != "oauth2-cc" || m.OAuthAuthMethod != "client_secret_post" || m.OAuthAudience != "api" ||
+		!m.RetryOnlyOnStatusCodeFailure {
+		t.Errorf("oauth: %+v", m.Settings)
+	}
+	if m := get(4); m.AuthMethod != "ntlm" || m.AuthDomain != "CORP" || m.AuthWorkstation != "WS1" {
+		t.Errorf("ntlm: %+v", m.Settings)
+	}
+	if m := get(5); !m.DomainExpiryNotification || m.Description != "the gateway" {
+		t.Errorf("ping: %+v", m.Settings)
+	}
+	f.run(t, true, false)
+	if proxies, _ := f.target.ListProxies(ctx); len(proxies) != 1 {
+		t.Fatalf("proxies after a second import: %+v", proxies)
+	}
+}
+
+// testCertificate makes a self-signed certificate and its key, as PEM.
+func testCertificate(t *testing.T) (string, string) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "kuma"},
+		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour)}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})),
+		string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}))
 }

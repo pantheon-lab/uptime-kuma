@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/domains"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/holidays"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/maintenance"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
@@ -47,6 +48,7 @@ type fakeStore struct {
 	dockerHosts    []check.DockerHost
 	remoteBrowsers []check.RemoteBrowser
 	screenshots    map[int32][]byte
+	proxies        []check.Proxy
 }
 
 func newFakeStore() *fakeStore {
@@ -806,19 +808,20 @@ func TestParseMonitor(t *testing.T) {
 		!m.InvertKeyword || m.BodyEncoding != "json" || m.MaxRedirects != 3 || len(m.AcceptedStatusCodes) != 2 {
 		t.Fatalf("monitor: %+v", m)
 	}
-	if m.Headers["X-A"] != "1" || m.Headers["X-N"] != "2" || m.Headers["Authorization"] != "Basic dTpw" {
-		t.Fatalf("headers: %v", m.Headers)
+	if m.Headers["X-A"] != "1" || m.Headers["X-N"] != "2" || m.Headers["Authorization"] != "" ||
+		m.AuthMethod != "basic" || m.BasicAuthUser != "u" || m.BasicAuthPass != "p" || !m.DomainExpiryNotification {
+		t.Fatalf("headers: %v %+v", m.Headers, m.Settings)
 	}
 	if len(ids) != 2 || ids[0] != 1 || ids[1] != 3 {
 		t.Fatalf("notifications: %v", ids)
 	}
-	if note == "" {
-		t.Fatal("no note about the Authorization header")
+	if note != "" {
+		t.Fatalf("note: %s", note)
 	}
 
 	for name, raw := range map[string]string{
 		"type":       `{"type": "ping", "name": "x"}`,
-		"proxy":      `{"type": "http", "name": "x", "url": "https://a.b", "proxyId": 1}`,
+		"ip family":  `{"type": "http", "name": "x", "url": "https://a.b", "ipFamily": "ipv5"}`,
 		"conditions": `{"type": "dns", "name": "x", "hostname": "a.b", "dns_resolve_server": "1.1.1.1", "conditions": [{"type": "expression", "variable": "x", "operator": "equals", "value": "1"}]}`,
 		"auth":       `{"type": "http", "name": "x", "url": "https://a.b", "authMethod": "ntlm"}`,
 		"headers":    `{"type": "http", "name": "x", "url": "https://a.b", "headers": "not json"}`,
@@ -1369,7 +1372,7 @@ func TestParsePhase4aMonitors(t *testing.T) {
 	m, _, note, err := parseMonitor(json.RawMessage(`{"type": "websocket-upgrade", "name": "WS", "url": "wss://a.b/ws",
 		"wsSubprotocol": "chat", "wsIgnoreSecWebsocketAcceptHeader": true, "accepted_statuscodes": ["1000"],
 		"authMethod": "bearer", "bearer_token": "t"}`))
-	if err != nil || m.WSSubprotocol != "chat" || !m.WSIgnoreAcceptHeader || m.Headers["Authorization"] != "Bearer t" || note == "" {
+	if err != nil || m.WSSubprotocol != "chat" || !m.WSIgnoreAcceptHeader || m.AuthMethod != "bearer" || m.BearerToken != "t" || note != "" {
 		t.Fatalf("websocket: %+v %v", m, err)
 	}
 	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "manual", "name": "M", "manual_status": 0}`))
@@ -1676,5 +1679,181 @@ func TestResourceEvents(t *testing.T) {
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("anonymous screenshot: %d", res.StatusCode)
+	}
+}
+
+func (f *fakeStore) ListProxies(context.Context) ([]check.Proxy, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.proxies), nil
+}
+
+func (f *fakeStore) SaveProxy(_ context.Context, p check.Proxy, applyExisting bool) (check.Proxy, []int32, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if p.Default {
+		for i := range f.proxies {
+			f.proxies[i].Default = false
+		}
+	}
+	if p.ID == 0 {
+		p.ID = int32(len(f.proxies) + 1)
+		f.proxies = append(f.proxies, p)
+	} else {
+		found := false
+		for i := range f.proxies {
+			if f.proxies[i].ID == p.ID {
+				f.proxies[i], found = p, true
+			}
+		}
+		if !found {
+			return p, nil, store.ErrNotFound
+		}
+	}
+	var changed []int32
+	if applyExisting {
+		for id, m := range f.monitors {
+			if m.Type == monitor.TypeHTTP && m.ProxyID != p.ID {
+				m.ProxyID = p.ID
+				f.monitors[id] = m
+				changed = append(changed, id)
+			}
+		}
+	}
+	return p, changed, nil
+}
+
+func (f *fakeStore) DeleteProxy(_ context.Context, id int32) ([]int32, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i, p := range f.proxies {
+		if p.ID == id {
+			f.proxies = slices.Delete(f.proxies, i, i+1)
+			var changed []int32
+			for mid, m := range f.monitors {
+				if m.ProxyID == id {
+					m.ProxyID = 0
+					f.monitors[mid] = m
+					changed = append(changed, mid)
+				}
+			}
+			return changed, nil
+		}
+	}
+	return nil, store.ErrNotFound
+}
+
+func TestParsePhase4eOptions(t *testing.T) {
+	m, _, _, err := parseMonitor(json.RawMessage(`{"type": "json-query", "name": "J", "url": "https://example.com",
+		"jsonPath": "status", "expectedValue": "ok", "description": " the API ", "cacheBust": true, "ipFamily": "ipv6",
+		"retryOnlyOnStatusCodeFailure": true, "saveResponse": true, "saveErrorResponse": true, "responseMaxLength": "64",
+		"authMethod": "oauth2-cc", "oauth_auth_method": "client_secret_post", "oauth_token_url": "https://id.example.com/t",
+		"oauth_client_id": "c", "oauth_client_secret": "s", "oauth_scopes": "read", "oauth_audience": "api",
+		"basic_auth_pass": "not kept", "proxyId": 3, "domainExpiryNotification": true}`))
+	if err != nil || m.Description != "the API" || !m.CacheBust || m.IPFamily != "ipv6" || !m.RetryOnlyOnStatusCodeFailure ||
+		!m.SaveResponse || m.ResponseMaxLength != 64 || m.OAuthClientSecret != "s" || m.BasicAuthPass != "" || m.ProxyID != 3 ||
+		!m.DomainExpiryNotification {
+		t.Fatalf("json query: %+v %v", m.Settings, err)
+	}
+	out := newMonitorTree([]monitor.Monitor{m}, nil).monitorJSON(m)
+	if out["authMethod"] != "oauth2-cc" || out["proxyId"] != int32(3) || out["ipFamily"] != "ipv6" || out["oauth_client_secret"] != "s" ||
+		out["description"] != "the API" || out["responseMaxLength"] != int32(64) {
+		t.Fatalf("json query JSON: %v", out)
+	}
+	if r := m.Redacted(); r.OAuthClientSecret != "***" {
+		t.Fatalf("redacted: %+v", r.Settings)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "http", "name": "N", "url": "https://example.com", "authMethod": "ntlm",
+		"basic_auth_user": "u", "basic_auth_pass": "p", "authDomain": "CORP", "authWorkstation": "WS"}`))
+	if err != nil || m.AuthDomain != "CORP" || m.BasicAuthPass != "p" {
+		t.Fatalf("ntlm: %+v %v", m.Settings, err)
+	}
+	if out := newMonitorTree([]monitor.Monitor{m}, nil).monitorJSON(m); out["basic_auth_user"] != "u" || out["basic_auth_pass"] != "p" {
+		t.Fatalf("ntlm JSON: %v", out)
+	}
+	if _, _, _, err := parseMonitor(json.RawMessage(`{"type": "http", "name": "M", "url": "https://example.com", "authMethod": "mtls",
+		"tlsCert": "not a certificate", "tlsKey": "x"}`)); err == nil {
+		t.Fatal("an invalid client certificate was accepted")
+	}
+	if _, _, _, err := parseMonitor(json.RawMessage(`{"type": "websocket-upgrade", "name": "W", "url": "wss://a.b", "authMethod": "ntlm",
+		"basic_auth_user": "u", "accepted_statuscodes": ["1000"]}`)); err == nil {
+		t.Fatal("a WebSocket monitor with NTLM was accepted")
+	}
+	// A push monitor can't track a domain, whatever the form sends.
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "push", "name": "P", "domainExpiryNotification": true}`))
+	if err != nil || m.DomainExpiryNotification {
+		t.Fatalf("push: %+v %v", m.Settings, err)
+	}
+}
+
+type fakeDomains struct{}
+
+func (fakeDomains) Check(_ context.Context, kind, target string) (string, string, error) {
+	return domains.Domain(kind, target)
+}
+
+func (fakeDomains) Expiry(context.Context, string, string) (*time.Time, error) {
+	at := time.Now().Add(30 * 24 * time.Hour)
+	return &at, nil
+}
+
+func TestProxyAndDomainEvents(t *testing.T) {
+	s, fs, _ := newTestServer(t)
+	s.opts.Domains = fakeDomains{}
+	ctx := context.Background()
+	c := &conn{userID: 1, out: make(chan []byte, 256), done: make(chan struct{})}
+	s.mu.Lock()
+	s.conns["test"] = c
+	s.mu.Unlock()
+	call := func(event string, args ...any) reply {
+		t.Helper()
+		raws := make([]json.RawMessage, len(args))
+		for i, a := range args {
+			raws[i], _ = json.Marshal(a)
+		}
+		r, known := s.handle(ctx, c, event, raws)
+		if !known {
+			t.Fatalf("%s: unknown event", event)
+		}
+		return r.(reply)
+	}
+	m := monitor.New()
+	m.Name, m.Type, m.URL = "Site", monitor.TypeHTTP, "https://a.b"
+	m, _ = fs.CreateMonitor(ctx, m)
+
+	r := call("addProxy", map[string]any{"protocol": "socks5", "host": " proxy ", "port": "1080", "auth": false,
+		"username": "dropped", "active": true, "default": true, "applyExisting": true}, nil)
+	if r["ok"] != true || fs.proxies[0].Host != "proxy" || fs.proxies[0].Port != 1080 || fs.proxies[0].Username != "" ||
+		fs.monitors[m.ID].ProxyID != 1 {
+		t.Fatalf("add proxy: %v %+v %+v", r, fs.proxies, fs.monitors[m.ID].Settings)
+	}
+	if r := call("addProxy", map[string]any{"protocol": "ftp", "host": "p", "port": 21}, nil); r["ok"] != false {
+		t.Fatalf("an ftp proxy: %v", r)
+	}
+	if r := call("deleteProxy", 1); r["ok"] != true || fs.monitors[m.ID].ProxyID != 0 {
+		t.Fatalf("delete proxy: %v", r)
+	}
+
+	if r := call("checkDomain", map[string]any{"type": "http", "url": "https://www.example.com/x"}); r["ok"] != true || r["domain"] != "example.com" {
+		t.Fatalf("check domain: %v", r)
+	}
+	r = call("checkDomain", map[string]any{"type": "ping", "hostname": "10.0.0.1"})
+	if r["ok"] != false || r["msgi18n"] != true || r["msg"] != "domain_expiry_unsupported_is_icann" {
+		t.Fatalf("an IP address: %v", r)
+	}
+
+	// The dashboard gets the expiry of monitors that track their domain.
+	m.DomainExpiryNotification = true
+	fs.monitors[m.ID] = m
+	for len(c.out) > 0 {
+		<-c.out
+	}
+	s.sendDashboardLists(ctx, c)
+	found := false
+	for len(c.out) > 0 {
+		found = found || strings.Contains(string(<-c.out), `"domainInfo"`)
+	}
+	if !found {
+		t.Fatal("no domainInfo")
 	}
 }

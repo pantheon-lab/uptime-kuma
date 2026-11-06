@@ -10,7 +10,6 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +23,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/domains"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/notify"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
@@ -59,6 +59,7 @@ type Target interface {
 	ActivateImportedNotifications(ctx context.Context) (int64, error)
 	ImportDockerHost(ctx context.Context, h check.DockerHost) (int32, error)
 	ImportRemoteBrowser(ctx context.Context, b check.RemoteBrowser) (int32, error)
+	ImportProxy(ctx context.Context, p check.Proxy) (int32, error)
 }
 
 // Options controls an import. A nil Target means a dry run, which writes nothing.
@@ -86,6 +87,7 @@ type Report struct {
 	Skipped         []Skipped          `json:"skipped"`
 	SkippedByReason map[string]int     `json:"skippedByReason"`
 	DroppedSettings map[string]int     `json:"droppedSettings"`
+	Proxies         int                `json:"proxies"`
 	DockerHosts     int                `json:"dockerHosts"`
 	RemoteBrowsers  int                `json:"remoteBrowsers"`
 	Tags            int                `json:"tags"`
@@ -329,9 +331,6 @@ func readMonitors(ctx context.Context, conn *sql.Conn, report *Report, resources
 			report.SkippedByReason[skipCategory(reason)]++
 			continue
 		}
-		for _, setting := range droppedSettings(row) {
-			report.DroppedSettings[setting]++
-		}
 		if m.PushToken != "" {
 			if pushTokens[m.PushToken] {
 				reason := "invalid setting: another monitor has the same push token"
@@ -355,6 +354,7 @@ func readMonitors(ctx context.Context, conn *sql.Conn, report *Report, resources
 type resourceIDs struct {
 	dockerHosts    map[int32]int32
 	remoteBrowsers map[int32]int32
+	proxies        map[int32]int32
 }
 
 // remap points a monitor at the target's copy of its Docker host or remote browser.
@@ -365,6 +365,13 @@ func (r resourceIDs) remap(m *monitor.Monitor) string {
 			return "invalid setting: the Docker host doesn't exist"
 		}
 		m.DockerHostID = id
+	}
+	if m.ProxyID != 0 {
+		id, found := r.proxies[m.ProxyID]
+		if !found {
+			return "invalid setting: the proxy doesn't exist"
+		}
+		m.ProxyID = id
 	}
 	if m.RemoteBrowserID != 0 {
 		id, found := r.remoteBrowsers[m.RemoteBrowserID]
@@ -379,7 +386,23 @@ func (r resourceIDs) remap(m *monitor.Monitor) string {
 // copyResources copies every Docker host and remote browser. A copy that's there already is used
 // again. In a dry run, ids stay the same.
 func copyResources(ctx context.Context, conn *sql.Conn, target Target, report *Report) (resourceIDs, error) {
-	ids := resourceIDs{dockerHosts: map[int32]int32{}, remoteBrowsers: map[int32]int32{}}
+	ids := resourceIDs{dockerHosts: map[int32]int32{}, remoteBrowsers: map[int32]int32{}, proxies: map[int32]int32{}}
+	proxies, err := optionalTable(ctx, conn, "SELECT id, protocol, host, port, auth, username, password, active FROM proxy ORDER BY id")
+	if err != nil {
+		return ids, fmt.Errorf("read proxies: %w", err)
+	}
+	for _, row := range proxies {
+		sourceID := int32(intOf(row["id"]))
+		ids.proxies[sourceID] = sourceID
+		p := check.Proxy{Protocol: row["protocol"].String, Host: row["host"].String, Port: int32(intOf(row["port"])),
+			Auth: boolOf(row["auth"]), Username: row["username"].String, Password: row["password"].String, Active: boolOf(row["active"])}
+		if target != nil {
+			if ids.proxies[sourceID], err = target.ImportProxy(ctx, p); err != nil {
+				return ids, fmt.Errorf("proxy %d: %w", sourceID, err)
+			}
+		}
+		report.Proxies++
+	}
 	hosts, err := optionalTable(ctx, conn, "SELECT id, name, docker_type, docker_daemon FROM docker_host ORDER BY id")
 	if err != nil {
 		return ids, fmt.Errorf("read docker hosts: %w", err)
@@ -440,6 +463,8 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 	m.MaxRetries = int32(intOf(row["maxretries"]))
 	m.UpsideDown = boolOf(row["upside_down"])
 	m.ResendInterval = int32(max(intOf(row["resend_interval"]), 0))
+	m.Description = strings.TrimSpace(row["description"].String)
+	m.DomainExpiryNotification = boolOf(row["domain_expiry_notification"]) && domains.Supports(m.Type)
 
 	switch m.Type {
 	case monitor.TypeGroup:
@@ -613,9 +638,7 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 		m.InvertKeyword = boolOf(row["invert_keyword"])
 		return checked(m)
 	case monitor.TypeRealBrowser:
-		if row["proxy_id"].Valid {
-			return m, "unsupported setting: proxy"
-		}
+		// The Node.js backend's browser didn't use the proxy, so neither does this one.
 		m.URL = strings.TrimSpace(row["url"].String)
 		m.RemoteBrowserID = int32(intOf(row["remote_browser"]))
 		m.ScreenshotDelay = int32(intOf(row["screenshot_delay"]))
@@ -625,9 +648,6 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 		return m, "unsupported monitor type: " + m.Type
 	}
 
-	if row["proxy_id"].Valid {
-		return m, "unsupported setting: proxy"
-	}
 	m.URL = row["url"].String
 	if method := strings.ToUpper(strings.TrimSpace(row["method"].String)); method != "" {
 		m.Method = method
@@ -666,15 +686,39 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 	}
 	m.Headers = headers
 
+	m.IPFamily = row["ip_family"].String
+	if m.IPFamily == "null" {
+		m.IPFamily = ""
+	}
 	switch authMethod := row["auth_method"].String; authMethod {
 	case "", "null":
-	case "basic":
-		value := row["basic_auth_user"].String + ":" + row["basic_auth_pass"].String
-		m.Headers["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte(value))
+	case "basic", "ntlm":
+		m.AuthMethod, m.BasicAuthUser, m.BasicAuthPass = authMethod, row["basic_auth_user"].String, row["basic_auth_pass"].String
+		if authMethod == "ntlm" {
+			m.AuthDomain, m.AuthWorkstation = row["auth_domain"].String, row["auth_workstation"].String
+		}
 	case "bearer":
-		m.Headers["Authorization"] = "Bearer " + row["bearer_token"].String
+		m.AuthMethod, m.BearerToken = authMethod, row["bearer_token"].String
+	case "mtls":
+		m.AuthMethod, m.TLSCert, m.TLSKey, m.TLSCA = authMethod, row["tls_cert"].String, row["tls_key"].String, row["tls_ca"].String
+	case "oauth2-cc":
+		m.AuthMethod = authMethod
+		m.OAuthAuthMethod = cmp.Or(row["oauth_auth_method"].String, "client_secret_basic")
+		m.OAuthTokenURL, m.OAuthClientID = row["oauth_token_url"].String, row["oauth_client_id"].String
+		m.OAuthClientSecret, m.OAuthScopes = row["oauth_client_secret"].String, row["oauth_scopes"].String
+		m.OAuthAudience = row["oauth_audience"].String
 	default:
 		return m, "unsupported setting: authentication method " + authMethod
+	}
+	if m.Type == monitor.TypeWebSocket {
+		return checked(m)
+	}
+	m.ProxyID = int32(intOf(row["proxy_id"]))
+	m.CacheBust = boolOf(row["cache_bust"])
+	m.SaveResponse, m.SaveErrorResponse = boolOf(row["save_response"]), boolOf(row["save_error_response"])
+	m.ResponseMaxLength = int32(intOf(row["response_max_length"]))
+	if m.Type == monitor.TypeJSONQuery {
+		m.RetryOnlyOnStatusCodeFailure = boolOf(row["retry_only_on_status_code_failure"])
 	}
 	return checked(m)
 }
@@ -721,31 +765,6 @@ func convertHeaders(raw string) (map[string]string, string) {
 		}
 	}
 	return headers, ""
-}
-
-// droppedSettings lists settings that this service doesn't have yet but that don't change
-// whether a check passes. They're reported, not silently lost.
-func droppedSettings(row map[string]sql.NullString) []string {
-	var dropped []string
-	if row["type"].String != monitor.TypeHTTP && row["type"].String != monitor.TypeKeyword {
-		return dropped
-	}
-	if boolOf(row["cache_bust"]) {
-		dropped = append(dropped, "cacheBust")
-	}
-	if boolOf(row["domain_expiry_notification"]) {
-		dropped = append(dropped, "domainExpiryNotification")
-	}
-	if v := row["ip_family"].String; v != "" && v != "null" {
-		dropped = append(dropped, "ipFamily")
-	}
-	if boolOf(row["save_response"]) {
-		dropped = append(dropped, "saveResponse")
-	}
-	if row["description"].String != "" {
-		dropped = append(dropped, "description")
-	}
-	return dropped
 }
 
 // copyNotifications imports notification settings, switched off, and the links of the monitors

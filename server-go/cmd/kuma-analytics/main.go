@@ -20,6 +20,7 @@ import (
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/api"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/certs"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/domains"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/holidays"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/maintenance"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/notify"
@@ -146,6 +147,7 @@ func run(log *slog.Logger) error {
 	})
 	checker.SetDockerHosts(db)
 	checker.SetBrowsers(db)
+	checker.SetProxies(db)
 	defer checker.Close()
 	defer check.StopBrowser()
 	if err := check.PingAllowed(); err != nil {
@@ -173,6 +175,9 @@ func run(log *slog.Logger) error {
 	certService := certs.NewService(db, dispatcher, log)
 	sched.SetCertificates(certService)
 	go certService.Run(ctx)
+	domainService := domains.NewService(db, dispatcher, log)
+	sched.SetDomains(domainService)
+	go domainService.Run(ctx)
 	go maintenanceService.Run(ctx)
 	sched.Start(monitors, previous)
 	apiServer := api.New(db, sched, hub, token, log)
@@ -191,9 +196,11 @@ func run(log *slog.Logger) error {
 		Maintenance: maintenanceService,
 		StatusPages: db,
 		IndexHTML:   webui.IndexHTML(),
+		Domains:     domainService,
 	})
 	go uiServer.Run(ctx, hub)
 	certService.OnChange(uiServer.BroadcastCertInfo)
+	domainService.OnChange(uiServer.BroadcastDomainInfo)
 
 	// The REST API, and the web UI's own API. webui.Mount adds the UI's files.
 	routes := http.NewServeMux()

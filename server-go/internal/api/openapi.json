@@ -2773,6 +2773,125 @@
             "type": "integer",
             "minimum": 0,
             "description": "real-browser: milliseconds to wait before the screenshot, less than half the interval"
+          },
+          "description": {
+            "type": "string",
+            "description": "Shown under the monitor's name"
+          },
+          "cacheBust": {
+            "type": "boolean",
+            "default": false,
+            "description": "http, keyword, json-query: adds a random uptime_kuma_cachebuster parameter to each request"
+          },
+          "ipFamily": {
+            "type": "string",
+            "enum": [
+              "",
+              "ipv4",
+              "ipv6"
+            ],
+            "description": "HTTP and WebSocket: connect only over IPv4 or IPv6. Empty uses either"
+          },
+          "retryOnlyOnStatusCodeFailure": {
+            "type": "boolean",
+            "default": false,
+            "description": "json-query: a query that fails is DOWN at once, without retries"
+          },
+          "saveErrorResponse": {
+            "type": "boolean",
+            "default": false,
+            "description": "http, keyword, json-query: keeps the body of a response with an unaccepted status for notification templates, as heartbeatJSON.response"
+          },
+          "saveResponse": {
+            "type": "boolean",
+            "default": false,
+            "description": "With saveErrorResponse, also keeps the body of accepted responses"
+          },
+          "responseMaxLength": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1048576,
+            "default": 1024,
+            "description": "Characters of a saved response to keep. 0 means 1024"
+          },
+          "authMethod": {
+            "type": "string",
+            "enum": [
+              "",
+              "basic",
+              "bearer",
+              "ntlm",
+              "mtls",
+              "oauth2-cc"
+            ],
+            "description": "HTTP and WebSocket login. WebSocket monitors can't use ntlm"
+          },
+          "basicAuthUser": {
+            "type": "string",
+            "description": "basic and ntlm"
+          },
+          "basicAuthPass": {
+            "type": "string",
+            "description": "basic and ntlm. Redacted for keys without monitors:write."
+          },
+          "bearerToken": {
+            "type": "string",
+            "description": "bearer. Redacted for keys without monitors:write."
+          },
+          "authDomain": {
+            "type": "string",
+            "description": "ntlm"
+          },
+          "authWorkstation": {
+            "type": "string",
+            "description": "ntlm. Stored, but not sent"
+          },
+          "tlsCert": {
+            "type": "string",
+            "description": "mtls: the client certificate, PEM"
+          },
+          "tlsKey": {
+            "type": "string",
+            "description": "mtls: the client certificate's key, PEM. Redacted for keys without monitors:write."
+          },
+          "tlsCa": {
+            "type": "string",
+            "description": "mtls: the CA that the server's certificate must come from, PEM. Empty uses the system's"
+          },
+          "oauthAuthMethod": {
+            "type": "string",
+            "enum": [
+              "client_secret_basic",
+              "client_secret_post"
+            ],
+            "default": "client_secret_basic"
+          },
+          "oauthTokenUrl": {
+            "type": "string",
+            "description": "oauth2-cc: the token endpoint"
+          },
+          "oauthClientId": {
+            "type": "string"
+          },
+          "oauthClientSecret": {
+            "type": "string",
+            "description": "Redacted for keys without monitors:write."
+          },
+          "oauthScopes": {
+            "type": "string",
+            "description": "Separated by spaces or commas"
+          },
+          "oauthAudience": {
+            "type": "string"
+          },
+          "proxyId": {
+            "type": "integer",
+            "description": "http, keyword, json-query: the id of a proxy, which is added in the web UI"
+          },
+          "domainExpiryNotification": {
+            "type": "boolean",
+            "default": false,
+            "description": "Alerts before the domain of the monitor's target expires, on the days set under Settings > Notifications"
           }
         }
       },

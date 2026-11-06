@@ -3,8 +3,12 @@ module github.com/pantheon-lab/uptime-kuma/server-go
 go 1.26.6
 
 require (
+	github.com/Azure/go-ntlmssp v0.1.1
 	github.com/adhocore/gronx v1.20.6
 	github.com/blues/jsonata-go v1.5.4
+	github.com/bufbuild/protocompile v0.14.1
+	github.com/chromedp/cdproto v0.159.2
+	github.com/chromedp/chromedp v0.23.0
 	github.com/coder/websocket v1.8.15
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/emersion/go-msgauth v0.7.0
@@ -12,11 +16,13 @@ require (
 	github.com/emersion/go-smtp v0.25.0
 	github.com/exaring/otelpgx v0.13.0
 	github.com/go-sql-driver/mysql v1.10.1
+	github.com/godbus/dbus/v5 v5.2.4
 	github.com/gosnmp/gosnmp v1.47.0
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/microsoft/go-mssqldb v1.11.2
 	github.com/miekg/dns v1.1.73
 	github.com/osteele/liquid v1.9.2
+	github.com/pkg/sftp v1.13.12
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/twmb/franz-go v1.22.2
@@ -33,23 +39,22 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/net v0.62.0
+	golang.org/x/oauth2 v0.37.0
 	golang.org/x/text v0.43.0
 	golang.org/x/time v0.16.0
+	google.golang.org/grpc v1.85.0
+	google.golang.org/protobuf v1.36.12
 	layeh.com/radius v0.0.0-20231213012653-1006025d24f8
 )
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
-	github.com/bufbuild/protocompile v0.14.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/chromedp/cdproto v0.159.2 // indirect
-	github.com/chromedp/chromedp v0.23.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/go-json-experiment/json v0.0.0-20260213210345-44df1a37e875 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/godbus/dbus/v5 v5.2.4 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -63,7 +68,6 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/osteele/tuesday v1.1.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.33 // indirect
-	github.com/pkg/sftp v1.13.12 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.15.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
@@ -81,7 +85,5 @@ require (
 	golang.org/x/tools v0.51.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
-	google.golang.org/grpc v1.85.0 // indirect
-	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

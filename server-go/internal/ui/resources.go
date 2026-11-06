@@ -22,6 +22,9 @@ type ResourceStore interface {
 	SaveRemoteBrowser(ctx context.Context, b check.RemoteBrowser) (check.RemoteBrowser, error)
 	DeleteRemoteBrowser(ctx context.Context, id int32) ([]int32, error)
 	Screenshot(ctx context.Context, monitorID int32) ([]byte, time.Time, error)
+	ListProxies(ctx context.Context) ([]check.Proxy, error)
+	SaveProxy(ctx context.Context, p check.Proxy, applyExisting bool) (check.Proxy, []int32, error)
+	DeleteProxy(ctx context.Context, id int32) ([]int32, error)
 }
 
 // The tests replace these, so that they don't need Docker, Chrome or PM2.
@@ -258,4 +261,63 @@ func (s *Server) screenshot(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-cache")
 	w.Header().Set("Last-Modified", taken.UTC().Format(http.TimeFormat))
 	_, _ = w.Write(png)
+}
+
+func (s *Server) sendProxyList(ctx context.Context, c *conn) {
+	proxies, err := s.store.ListProxies(ctx)
+	if err != nil {
+		s.log.Error("send proxy list", "error", err)
+		return
+	}
+	frame := encodeMessage("proxyList", orEmpty(proxies))
+	if c != nil {
+		c.push(frame)
+		return
+	}
+	s.broadcast(frame)
+}
+
+func (s *Server) addProxy(ctx context.Context, args []json.RawMessage) (reply, error) {
+	var in struct {
+		check.Proxy
+		Port          flexInt `json:"port"`
+		ApplyExisting bool    `json:"applyExisting"`
+	}
+	if err := arg(args, 0, &in); err != nil {
+		return nil, userErr(err)
+	}
+	p := in.Proxy
+	p.Port = int32(in.Port.value)
+	p.Host, p.Protocol = strings.TrimSpace(p.Host), strings.TrimSpace(p.Protocol)
+	if !p.Auth {
+		p.Username, p.Password = "", ""
+	}
+	var err error
+	if p.ID, err = optionalID(args, 1); err != nil {
+		return nil, userErr(err)
+	}
+	if err := check.ValidateProxy(p); err != nil {
+		return nil, userErr(err)
+	}
+	saved, changed, err := s.store.SaveProxy(ctx, p, in.ApplyExisting)
+	if err != nil {
+		return nil, err
+	}
+	s.refreshMonitors(ctx, changed)
+	s.sendProxyList(ctx, nil)
+	return okI18n("Saved.", "id", saved.ID), nil
+}
+
+func (s *Server) deleteProxy(ctx context.Context, args []json.RawMessage) (reply, error) {
+	id, err := idArg(args, 0)
+	if err != nil {
+		return nil, userErr(err)
+	}
+	changed, err := s.store.DeleteProxy(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	s.refreshMonitors(ctx, changed)
+	s.sendProxyList(ctx, nil)
+	return okI18n("successDeleted"), nil
 }

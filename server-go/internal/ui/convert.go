@@ -3,7 +3,6 @@ package ui
 import (
 	"bytes"
 	"cmp"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/domains"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 )
@@ -244,8 +244,8 @@ func (t *monitorTree) monitorJSON(m monitor.Monitor) map[string]any {
 		"ntpStratumThreshold":                 cmp.Or(m.NTPStratumThreshold, 5),
 		"ntpTimeOffsetThreshold":              cmp.Or(m.NTPTimeOffsetThreshold, 1000),
 		"ntpRootDispersionThreshold":          cmp.Or(m.NTPRootDispersionThreshold, 500),
-		"basic_auth_user":                     m.DatabaseUsername,
-		"basic_auth_pass":                     oraclePassword(m),
+		"basic_auth_user":                     basicAuthUser(m),
+		"basic_auth_pass":                     basicAuthPass(m),
 		"mqttTopic":                           m.MQTTTopic,
 		"mqttUsername":                        m.MQTTUsername,
 		"mqttPassword":                        m.MQTTPassword,
@@ -280,6 +280,29 @@ func (t *monitorTree) monitorJSON(m monitor.Monitor) map[string]any {
 		"grpcEnableTls":    m.GRPCEnableTLS,
 		"remote_browser":   nilIfZero(m.RemoteBrowserID),
 		"screenshot_delay": m.ScreenshotDelay,
+
+		"description":                  m.Description,
+		"cacheBust":                    m.CacheBust,
+		"ipFamily":                     nilIfEmpty(m.IPFamily),
+		"retryOnlyOnStatusCodeFailure": m.RetryOnlyOnStatusCodeFailure,
+		"saveResponse":                 m.SaveResponse,
+		"saveErrorResponse":            m.SaveErrorResponse,
+		"responseMaxLength":            cmp.Or(m.ResponseMaxLength, monitor.DefaultResponseMaxLength),
+		"authMethod":                   nilIfEmpty(m.AuthMethod),
+		"bearer_token":                 m.BearerToken,
+		"authDomain":                   m.AuthDomain,
+		"authWorkstation":              m.AuthWorkstation,
+		"tlsCert":                      m.TLSCert,
+		"tlsKey":                       m.TLSKey,
+		"tlsCa":                        m.TLSCA,
+		"oauth_auth_method":            cmp.Or(m.OAuthAuthMethod, "client_secret_basic"),
+		"oauth_token_url":              m.OAuthTokenURL,
+		"oauth_client_id":              m.OAuthClientID,
+		"oauth_client_secret":          m.OAuthClientSecret,
+		"oauth_scopes":                 m.OAuthScopes,
+		"oauth_audience":               m.OAuthAudience,
+		"proxyId":                      nilIfZero(m.ProxyID),
+		"domainExpiryNotification":     m.DomainExpiryNotification,
 	})
 	if m.Type == monitor.TypeRealBrowser {
 		out["screenshot"] = fmt.Sprintf("/screenshots/%d.png", m.ID)
@@ -453,6 +476,26 @@ type monitorInput struct {
 	GRPCEnableTLS   bool    `json:"grpcEnableTls"`
 	RemoteBrowser   flexInt `json:"remote_browser"`
 	ScreenshotDelay flexInt `json:"screenshot_delay"`
+
+	Description                  *string `json:"description"`
+	CacheBust                    bool    `json:"cacheBust"`
+	IPFamily                     *string `json:"ipFamily"`
+	RetryOnlyOnStatusCodeFailure bool    `json:"retryOnlyOnStatusCodeFailure"`
+	SaveResponse                 bool    `json:"saveResponse"`
+	SaveErrorResponse            bool    `json:"saveErrorResponse"`
+	ResponseMaxLength            flexInt `json:"responseMaxLength"`
+	AuthDomain                   *string `json:"authDomain"`
+	AuthWorkstation              *string `json:"authWorkstation"`
+	TLSCert                      *string `json:"tlsCert"`
+	TLSKey                       *string `json:"tlsKey"`
+	TLSCA                        *string `json:"tlsCa"`
+	OAuthAuthMethod              *string `json:"oauth_auth_method"`
+	OAuthTokenURL                *string `json:"oauth_token_url"`
+	OAuthClientID                *string `json:"oauth_client_id"`
+	OAuthClientSecret            *string `json:"oauth_client_secret"`
+	OAuthScopes                  *string `json:"oauth_scopes"`
+	OAuthAudience                *string `json:"oauth_audience"`
+	DomainExpiryNotification     bool    `json:"domainExpiryNotification"`
 }
 
 // parseMonitor converts the UI's form to a monitor, and returns the notifications to link.
@@ -465,9 +508,6 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 	}
 	if !supportedTypes[in.Type] {
 		return m, nil, "", fmt.Errorf("monitor type %q isn't supported yet. Supported types: %s", in.Type, strings.Join(monitor.Types, ", "))
-	}
-	if in.ProxyID.set {
-		return m, nil, "", errors.New("proxies aren't supported yet")
 	}
 	// The form keeps conditions while the type changes, so only the types that use them keep them.
 	conditionsRaw := json.RawMessage(`[]`)
@@ -495,6 +535,10 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 	m.MaxRetries = int32(in.MaxRetries.value)
 	m.UpsideDown = in.UpsideDown
 	m.PropagateTrace = in.PropagateTrace
+	m.Description = strings.TrimSpace(text(in.Description))
+	if domains.Supports(m.Type) {
+		m.DomainExpiryNotification = in.DomainExpiryNotification
+	}
 	// The UI sends a retry interval equal to the interval by default, which means the same here.
 	if m.RetryInterval == m.Interval {
 		m.RetryInterval = 0
@@ -674,10 +718,7 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 			return m, nil, "", err
 		}
 		m.Headers = headers
-		note, err = applyAuth(&m, in)
-		if err != nil {
-			return m, nil, "", err
-		}
+		applyRequestOptions(&m, in)
 	case monitor.TypeHTTP, monitor.TypeKeyword, monitor.TypeJSONQuery:
 		m.URL = strings.TrimSpace(in.URL)
 		if m.Type == monitor.TypeJSONQuery {
@@ -714,10 +755,7 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 			return m, nil, "", err
 		}
 		m.Headers = headers
-		note, err = applyAuth(&m, in)
-		if err != nil {
-			return m, nil, "", err
-		}
+		applyRequestOptions(&m, in)
 	}
 
 	m.Conditions = conditionsRaw
@@ -767,11 +805,20 @@ func orEmpty[T any](list []T) []T {
 }
 
 // oraclePassword is shown in the Oracle form's password field, which is basic_auth_pass.
-func oraclePassword(m monitor.Monitor) string {
+// basicAuthUser and basicAuthPass are the form's basic_auth fields, which hold an Oracle
+// monitor's database login, and the login of other types.
+func basicAuthUser(m monitor.Monitor) string {
+	if m.Type == monitor.TypeOracle {
+		return m.DatabaseUsername
+	}
+	return m.BasicAuthUser
+}
+
+func basicAuthPass(m monitor.Monitor) string {
 	if m.Type == monitor.TypeOracle {
 		return m.DatabasePassword
 	}
-	return ""
+	return m.BasicAuthPass
 }
 
 func kafkaSASLJSON(s *monitor.KafkaSASL) any {
@@ -835,25 +882,50 @@ func parseHeaders(raw json.RawMessage) (map[string]string, error) {
 	return headers, nil
 }
 
-// applyAuth turns basic and bearer authentication into an Authorization header, as the importer
-// does, because this service has no separate authentication settings.
-func applyAuth(m *monitor.Monitor, in monitorInput) (string, error) {
-	method := ""
-	if in.AuthMethod != nil {
-		method = *in.AuthMethod
+// applyRequestOptions reads what HTTP and WebSocket monitors share: the login, IP family and
+// proxy, and for HTTP, cache busting and saved responses.
+func applyRequestOptions(m *monitor.Monitor, in monitorInput) {
+	m.AuthMethod = strings.TrimSpace(text(in.AuthMethod))
+	if m.AuthMethod == "null" || m.AuthMethod == "none" {
+		m.AuthMethod = ""
 	}
-	switch method {
-	case "", "null", "none":
-		return "", nil
-	case "basic":
-		value := in.BasicAuthUser + ":" + in.BasicAuthPass
-		m.Headers["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte(value))
+	// Only the chosen login's settings are kept, so that secrets of another aren't stored.
+	switch m.AuthMethod {
+	case "basic", "ntlm":
+		m.BasicAuthUser, m.BasicAuthPass = in.BasicAuthUser, in.BasicAuthPass
+		if m.AuthMethod == "ntlm" {
+			m.AuthDomain = strings.TrimSpace(text(in.AuthDomain))
+			m.AuthWorkstation = strings.TrimSpace(text(in.AuthWorkstation))
+		}
 	case "bearer":
-		m.Headers["Authorization"] = "Bearer " + in.BearerToken
-	default:
-		return "", fmt.Errorf("authentication method %q isn't supported yet. Basic authentication and Authorization headers are", method)
+		m.BearerToken = in.BearerToken
+	case "mtls":
+		m.TLSCert, m.TLSKey, m.TLSCA = text(in.TLSCert), text(in.TLSKey), text(in.TLSCA)
+	case "oauth2-cc":
+		m.OAuthAuthMethod = strings.TrimSpace(text(in.OAuthAuthMethod))
+		m.OAuthTokenURL = strings.TrimSpace(text(in.OAuthTokenURL))
+		m.OAuthClientID = strings.TrimSpace(text(in.OAuthClientID))
+		m.OAuthClientSecret = text(in.OAuthClientSecret)
+		m.OAuthScopes = strings.TrimSpace(text(in.OAuthScopes))
+		m.OAuthAudience = strings.TrimSpace(text(in.OAuthAudience))
 	}
-	return "Authentication was saved as an Authorization header.", nil
+	if family := text(in.IPFamily); family == "ipv4" || family == "ipv6" {
+		m.IPFamily = family
+	} else if family != "" && family != "null" {
+		m.IPFamily = family // Validate refuses it.
+	}
+	if m.Type == monitor.TypeWebSocket {
+		return
+	}
+	m.ProxyID = int32(in.ProxyID.value)
+	m.CacheBust = in.CacheBust
+	m.SaveResponse, m.SaveErrorResponse = in.SaveResponse, in.SaveErrorResponse
+	if m.SaveResponse || m.SaveErrorResponse {
+		m.ResponseMaxLength = int32(in.ResponseMaxLength.value)
+	}
+	if m.Type == monitor.TypeJSONQuery {
+		m.RetryOnlyOnStatusCodeFailure = in.RetryOnlyOnStatusCodeFailure
+	}
 }
 
 // notificationJSON is a notification as the UI's list and dialog read it: config holds the

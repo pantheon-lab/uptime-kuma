@@ -29,7 +29,15 @@ var wsCloseNames = map[int]string{
 // of the accepted codes, 1000 by default, as in the Node.js backend.
 func (c *Checker) runWebSocket(ctx context.Context, m monitor.Monitor) monitor.Result {
 	trace.SpanFromContext(ctx).SetAttributes(attribute.String("server.address", hostOf(m.URL)))
-	header := http.Header{}
+	// The login's header goes first, so that the monitor's own headers replace it, as in Node.js.
+	login, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://login.invalid", nil)
+	if err != nil {
+		return monitor.Result{Msg: err.Error()}
+	}
+	if err := c.authorize(ctx, login, m, false); err != nil {
+		return monitor.Result{Msg: err.Error()}
+	}
+	header := login.Header
 	for name, value := range m.Headers {
 		header.Set(name, value)
 	}
@@ -39,10 +47,11 @@ func (c *Checker) runWebSocket(ctx context.Context, m monitor.Monitor) monitor.R
 			protocols = append(protocols, p)
 		}
 	}
-	transport := c.verified.Clone()
-	if m.IgnoreTLS {
-		transport = c.insecure.Clone()
+	shared, err := c.transportFor(ctx, m)
+	if err != nil {
+		return monitor.Result{Msg: err.Error()}
 	}
+	transport := shared.Clone()
 	// The handshake needs HTTP/1.1.
 	transport.ForceAttemptHTTP2 = false
 	transport.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
