@@ -24,7 +24,7 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | 5c    | Importing accounts, status pages and maintenance windows            | Done    |
 | 6a    | The MCP server and the update check                                 | Done    |
 | 6b    | The `nostr` and `Webpush` notification providers                    | Done    |
-| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Next    |
+| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Done    |
 | 7     | Logging in with GitHub                                              | Planned |
 
 ## Phase 0: Core (done)
@@ -511,9 +511,36 @@ Known limits and differences from Node.js:
   caught: the others are still tried, and the error names each relay that failed.
 - The VAPID subject is this fork's repository rather than upstream's.
 
-### Phase 6c: apprise in the image, and the Cloudflare tunnel (next)
+### Phase 6c: apprise in an image, and the Cloudflare tunnel (done)
 
-Both add programs to an image that is now `FROM scratch`: `apprise` is Python, and the tunnel runs `cloudflared`.
+The image is `FROM scratch`, with only the two programs, so both were decided with the team:
+
+- **apprise** is in a second image, the Dockerfile's `apprise` target on `python:3.14-alpine3.24` with apprise
+  2.1.0, published with an `-apprise` suffix on every tag, about 120 MB larger. The chart's `image.apprise` picks it.
+  The default image is as before, and a test there says the command isn't installed.
+- **The Cloudflare tunnel** runs Cloudflare's `cloudflared` beside the service, rather than the service starting it
+  as Node.js did: a `tunnel` profile in `compose.yaml`, and `cloudflared.enabled` in the Helm chart, with the token in
+  a secret. Settings > Reverse Proxy explains this instead of its start and stop buttons, and the UI no longer asks
+  for `cloudflared_*` events.
+
+Tested: both targets built. In the apprise image, `apprise` 2.1.0 runs as `nobody`. Against both images
+(`internal/e2e/browser/apprise-tunnel-6c.mjs`), 2 of 2 steps passed on each, with no page errors:
+
+- an apprise notification tested through the REST API: from the apprise image, it reached a listener through
+  `json://`; from the default image, it reported that the command isn't installed
+- the Reverse Proxy page showed the instructions, and its Trust Proxy setting still saved
+
+`compose.yaml` was checked with and without the profile, and the chart was linted and rendered with the tunnel, with
+an existing secret, without a token (refused), and with `image.apprise`. The release workflow builds both targets in
+a matrix.
+
+Not tested: a real Cloudflare Tunnel, which needs a Cloudflare account, and the release workflow itself, which runs
+when this reaches `main`.
+
+Known limits and differences from Node.js:
+
+- The tunnel can't be started or stopped from the UI.
+- Other apprise versions need a rebuilt image.
 
 ## Phase 7: Logging in with GitHub (planned)
 

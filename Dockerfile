@@ -26,7 +26,19 @@ ENV CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH
 RUN go build -trimpath -ldflags="-s -w -X main.version=$(cat /VERSION)" -o /kuma-analytics ./cmd/kuma-analytics
 RUN go build -trimpath -ldflags='-s -w' -o /kuma-import ./cmd/kuma-import
 
-FROM scratch
+# The same programs, plus the apprise command that the apprise notification provider runs.
+# Python makes this image much larger, so it's a separate one, published with an -apprise tag
+# suffix: docker build --target apprise -t uptime-kuma:apprise .
+FROM python:3.14-alpine3.24 AS apprise
+RUN pip install --no-cache-dir apprise==2.1.0 \
+    && apprise --version
+COPY --from=backend /kuma-analytics /kuma-analytics
+COPY --from=backend /kuma-import /kuma-import
+USER 65534:65534
+ENTRYPOINT ["/kuma-analytics"]
+
+# The default image, the last stage: only the two programs and CA certificates.
+FROM scratch AS default
 COPY --from=backend /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=backend /kuma-analytics /kuma-analytics
 COPY --from=backend /kuma-import /kuma-import

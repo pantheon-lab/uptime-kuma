@@ -6,6 +6,9 @@ image:
   # Defaults to the chart's appVersion, published from the git tag v<appVersion>. Use "main"
   # (with pullPolicy Always) or "sha-<commit>" for builds of the main branch.
   tag: ""
+  # The variant with the apprise command, for the apprise notification provider. It's published
+  # with an -apprise suffix on every tag, and is larger, as it's built on Python.
+  apprise: false
   pullPolicy: IfNotPresent
 imagePullSecrets: []
 
@@ -180,3 +183,26 @@ import:
   # [] is a dry run. ["-apply"] imports, ["-apply", "-activate"] is the cutover; restart the
   # analytics deployment afterwards.
   args: []
+
+# Cloudflare Tunnel: runs Cloudflare's cloudflared beside the service, so that it's reachable
+# through Cloudflare without an ingress. Create the tunnel in Cloudflare's dashboard, and point its
+# public hostname at http://<release>-uptime-kuma-analytics:<service.port> (the analytics Service).
+# The token goes in a secret.
+cloudflared:
+  enabled: false
+  image:
+    repository: cloudflare/cloudflared
+    tag: "2026.10.7"
+    pullPolicy: IfNotPresent
+  # A secret with the tunnel token, under tokenKey. Created by the chart from token when empty.
+  existingSecret: ""
+  tokenKey: TUNNEL_TOKEN
+  token: ""
+  replicas: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 256Mi
+

@@ -26,6 +26,9 @@ share one copy. Helm follows it; package with `helm package` if a tool can't.
 The chart's default tag is its `appVersion`, so a release needs the matching `v<appVersion>` git tag. Pre-release
 versions such as `3.0.0-beta.0` get only their exact tag, not `latest`.
 
+Each tag also has an `-apprise` variant, such as `1.2.3-apprise`, with the `apprise` command that the apprise
+notification provider runs. It's built on Python and larger; set `image.apprise=true` to use it.
+
 It also pushes to Docker Hub when the repository variable `DOCKERHUB_IMAGE` (such as `pantheonlab/uptime-kuma`)
 and the secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` are set.
 
@@ -82,3 +85,14 @@ helm upgrade ... --reuse-values --set import.enabled=false
 ```
 
 Each combination of args and image gets its own Job, which is deleted a day after it finishes.
+
+## Cloudflare Tunnel
+
+`cloudflared.enabled=true` runs Cloudflare's `cloudflared` beside the service, so that it's reachable through a
+Cloudflare Tunnel without an ingress. Create the tunnel in Cloudflare's dashboard, point its public hostname at
+`http://<release>-uptime-kuma-analytics:3002`, and give its token as `cloudflared.token`, or in a secret named by
+`cloudflared.existingSecret` under `cloudflared.tokenKey` (`TUNNEL_TOKEN`).
+
+```bash
+helm upgrade --install kuma ./charts/uptime-kuma --set cloudflared.enabled=true --set cloudflared.token="$TUNNEL_TOKEN"
+```

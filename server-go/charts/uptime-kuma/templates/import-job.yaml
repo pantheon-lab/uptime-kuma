@@ -33,7 +33,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: import
-          image: {{ printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) }}
+          image: {{ include "uptime-kuma.appImage" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/kuma-import"]
           {{- with .Values.import.args }}

@@ -1,0 +1,75 @@
+{{- if .Values.cloudflared.enabled }}
+{{- $name := include "uptime-kuma.component" (dict "root" . "name" "cloudflared") -}}
+{{- $secret := default $name .Values.cloudflared.existingSecret -}}
+{{- if not .Values.cloudflared.existingSecret }}
+{{- if not .Values.cloudflared.token }}
+{{- fail "Set cloudflared.token or cloudflared.existingSecret when cloudflared.enabled" }}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secret }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "cloudflared") | nindent 4 }}
+type: Opaque
+stringData:
+  {{ .Values.cloudflared.tokenKey }}: {{ .Values.cloudflared.token | quote }}
+---
+{{- end }}
+# Cloudflare's own connector, beside the service rather than inside its image, as Cloudflare
+# recommends for containers. The tunnel's routes are set in Cloudflare's dashboard.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "cloudflared") | nindent 4 }}
+spec:
+  replicas: {{ .Values.cloudflared.replicas }}
+  selector:
+    matchLabels:
+      {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "cloudflared") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "uptime-kuma.selectorLabels" (dict "root" . "name" "cloudflared") | nindent 8 }}
+      {{- if not .Values.cloudflared.existingSecret }}
+      annotations:
+        checksum/token: {{ .Values.cloudflared.token | sha256sum }}
+      {{- end }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cloudflared
+          image: {{ printf "%s:%s" .Values.cloudflared.image.repository .Values.cloudflared.image.tag }}
+          imagePullPolicy: {{ .Values.cloudflared.image.pullPolicy }}
+          args: ["tunnel", "--no-autoupdate", "--metrics", "0.0.0.0:2000", "run"]
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: {{ .Values.cloudflared.tokenKey }}
+          ports:
+            - name: metrics
+              containerPort: 2000
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.cloudflared.resources | nindent 12 }}
+{{- end }}

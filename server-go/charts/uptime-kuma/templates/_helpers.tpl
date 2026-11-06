@@ -52,3 +52,10 @@ random one. Call with (dict "root" $ "key" "ENV_NAME" "value" .Values.x "length"
 storageClassName: {{ . | quote }}
 {{- end }}
 {{- end -}}
+
+{{/* The service's image: the -apprise variant when image.apprise is set. */}}
+{{- define "uptime-kuma.appImage" -}}
+{{- $tag := default .Chart.AppVersion .Values.image.tag -}}
+{{- if .Values.image.apprise -}}{{- $tag = printf "%s-apprise" $tag -}}{{- end -}}
+{{- printf "%s:%s" .Values.image.repository $tag -}}
+{{- end -}}
