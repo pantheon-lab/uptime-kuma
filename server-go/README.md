@@ -630,8 +630,8 @@ Differences from Uptime Kuma:
 
 ## Importing from MariaDB
 
-`kuma-import` copies monitors, groups, notifications, history, the account, status pages and maintenance windows
-from an Uptime Kuma MariaDB database. It only
+`kuma-import` copies monitors, groups, notifications, history, the account, status pages, maintenance windows,
+settings, API keys and alert state from an Uptime Kuma MariaDB database, and `-verify` checks the result. It only
 reads the source, inside a read-only transaction. Give it a user that can only read, too:
 
 ```sql
@@ -669,8 +669,26 @@ Check these parts of the report:
 
 You can run it as often as you like. It duplicates nothing and picks up changes, except for monitors that have
 been resumed here, which are left alone because they produce their own data. The same goes for notifications
-that have been switched on here. Other settings aren't imported, such as `primaryBaseURL`, so set `KUMA_BASE_URL`
-yourself.
+that have been switched on here.
+
+**Settings** that take effect here are copied: `primaryBaseURL`, the entry page, search engine visibility, trusting
+a proxy, the certificate and domain expiry days, the retention, the Steam key, the Globalping token, the Chrome
+executable, and the update check's. One changed here since is left alone: the server records whether each value is
+a default, the import's, or the UI's. `settings` in the report lists each with `copied`, `same`, `kept` and why, or
+`not set in the source`, and never a value. A new retention applies at the next restart.
+
+**API keys** keep working, so that scripts using them needn't change. better-auth's keys are stored as the SHA-256
+of the key, as this service's are, and the older `uk<id>_…` keys with their bcrypt hash, which is checked once per
+key and process. They get every scope, since Uptime Kuma gave them none, and keep their names, expiry and whether
+they're on. A key revoked here stays revoked. They're used as `Authorization: Bearer <key>`, as Uptime Kuma took
+them.
+
+**Alert state** comes along, so that alerts aren't sent again: the certificate expiry alerts already sent, the
+certificates last seen, which the monitor pages then show before the first check, and the domains' expiry and last
+alert, unless checked here since.
+
+**Skipped monitors' history** (their beats and statistics) is kept apart, by their id in the source, and given to
+the monitor when a later version can import it, even after Uptime Kuma has pruned it. `skippedHistory` counts it.
 
 **The account** is copied with its password, when there's no account here yet, so it can't take over a server
 that's been set up. Logging in works as before, with the same password and authenticator app. If two-factor login
@@ -701,6 +719,41 @@ Uptime Kuma's alerts. Check them with `POST /api/v1/notifications/{id}/test`, wh
 Uptime before the last whole hour comes from the source's aggregates, and everything after comes from beats, so
 nothing counts twice. The same applies per day for daily figures. Dashboards and the API read the `uptime_hourly`
 and `uptime_daily` views, which join the two.
+
+### Checking the move
+
+`-verify` compares each imported monitor with the source, and imports nothing: the number of beats over the
+source's range, the newest beat, and the uptime over the last 24 whole hours, 30 whole days and 365 whole days
+before the source's newest beat, from the source's statistics and this service's views. Uptime may differ by
+0.01 percentage points. It prints a JSON report that lists every monitor that differs and how, and exits with 3 if
+any does, 1 if it couldn't check, and 0 otherwise.
+
+```bash
+docker compose run --rm --no-deps -e SOURCE_MARIADB_DSN --entrypoint /kuma-import analytics -verify
+```
+
+Run it right after an import: while Uptime Kuma keeps checking, the source moves ahead of what was imported.
+
+### Cutover runbook
+
+1. **Dry run.** Read the report: skipped monitors, notifications and API keys, and settings that would be kept.
+   Fix what you can in Uptime Kuma, or accept it.
+2. **Import while both run.** `-apply`. Monitors arrive paused and notifications off, so nothing checks or alerts
+   twice. Set `KUMA_SECRET_KEY` first if secrets are to be encrypted. Look around the UI, and test notifications
+   with `POST /api/v1/notifications/{id}/test`.
+3. **Verify.** `-apply` again, then `-verify` straight after. It should exit 0; read any differences.
+4. **Stop Uptime Kuma**, so that its beats, statistics and alerts stop, and nothing changes in the source.
+5. **Last import.** `-apply -activate`: it copies the last beats, then resumes the monitors that were active and
+   switches on their notifications.
+6. **Restart** this service (`docker compose restart analytics`), which starts the monitors and applies an
+   imported retention.
+7. **Verify again.** `-verify` must exit 0, since the source no longer changes.
+8. **Point traffic here**: DNS, the reverse proxy, push monitors' URLs, and status page domains.
+
+**Going back**, if something's wrong before step 8: start Uptime Kuma again, which still has everything, since the
+import only reads it. Then pause the monitors here, with `POST /api/v1/monitors/{id}/pause` or the UI, so that
+they don't alert alongside it. After step 8, point traffic back first. Beats recorded here in between stay here,
+and aren't copied back.
 
 ## Observability
 

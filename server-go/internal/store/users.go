@@ -254,9 +254,12 @@ func (s *Store) Settings(ctx context.Context) (map[string]json.RawMessage, error
 func (s *Store) SaveSettings(ctx context.Context, settings map[string]json.RawMessage) error {
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		for key, value := range settings {
+			// A value that changes is the UI's from then on, so that an import leaves it.
 			if _, err := tx.Exec(ctx, `
-				INSERT INTO app_setting (key, value) VALUES ($1, $2)
-				ON CONFLICT (key) DO UPDATE SET value = excluded.value`, key, []byte(value)); err != nil {
+				INSERT INTO app_setting (key, value, source) VALUES ($1, $2, 'ui')
+				ON CONFLICT (key) DO UPDATE SET value = excluded.value,
+					source = CASE WHEN app_setting.value IS DISTINCT FROM excluded.value THEN 'ui' ELSE app_setting.source END`,
+				key, []byte(value)); err != nil {
 				return fmt.Errorf("save setting %s: %w", key, err)
 			}
 		}

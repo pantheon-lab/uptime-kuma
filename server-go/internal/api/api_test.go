@@ -22,10 +22,12 @@ import (
 const testToken = "0123456789abcdef0123456789abcdef"
 
 type fakeStore struct {
-	insertErr  error
-	inserted   []store.Beat
-	created    []monitor.Monitor
-	keys       map[string]store.APIKey
+	insertErr error
+	inserted  []store.Beat
+	created   []monitor.Monitor
+	keys      map[string]store.APIKey
+	// legacy are keys imported from Uptime Kuma's older table, with their bcrypt hash.
+	legacy     map[int32]legacyKeyEntry
 	findKeyErr error
 
 	notifications  map[int32]store.Notification
@@ -78,6 +80,19 @@ func (f *fakeStore) FindAPIKey(_ context.Context, hash []byte) (store.APIKey, er
 	}
 	return store.APIKey{}, store.ErrNotFound
 }
+
+type legacyKeyEntry struct {
+	key  store.APIKey
+	hash string
+}
+
+func (f *fakeStore) FindLegacyAPIKey(_ context.Context, id int32) (store.APIKey, string, error) {
+	if e, ok := f.legacy[id]; ok {
+		return e.key, e.hash, nil
+	}
+	return store.APIKey{}, "", store.ErrNotFound
+}
+
 func (f *fakeStore) TouchAPIKey(context.Context, int64) error { return nil }
 func (f *fakeStore) ListNotifications(context.Context) ([]store.Notification, error) {
 	list := []store.Notification{}

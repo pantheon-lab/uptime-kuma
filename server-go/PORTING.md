@@ -7,30 +7,30 @@ Update this file in the same pull request as each phase. Only mark a phase done 
 wasn't. The order of the planned phases is a proposal, and should follow what's actually in use: the dry run of
 `kuma-import` lists every monitor it can't bring over, and why.
 
-| Phase | Scope                                                               | Status  |
-| ----- | ------------------------------------------------------------------- | ------- |
-| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done    |
-| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done    |
-| 2     | Push, Ping and DNS monitors                                         | Done    |
-| 3     | Status pages and badges                                             | Done    |
-| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done    |
-| 4b    | Other databases and messaging                                       | Done    |
-| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done    |
-| 4d    | Docker, system and remote browser monitors                          | Done    |
-| 4e    | HTTP options, proxies and domain expiry                             | Done    |
-| 4f    | Globalping, GameDig and Tailscale ping                              | Done    |
-| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done    |
-| 5b    | Settings that take effect, and the Monitor History page             | Done    |
-| 5c    | Importing accounts, status pages and maintenance windows            | Done    |
-| 6a    | The MCP server and the update check                                 | Done    |
-| 6b    | The `nostr` and `Webpush` notification providers                    | Done    |
-| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Done    |
-| 7a    | More than one account, with full and read-only roles                | Done    |
-| 7b    | Logging in with GitHub                                              | Done    |
-| E1    | Managing accounts in the UI                                         | Done    |
-| E2    | The Security page for GitHub accounts                               | Done    |
-| E3    | Encrypting stored secrets                                           | Done    |
-| E4    | Completing the migration from MariaDB                               | Planned |
+| Phase | Scope                                                               | Status |
+| ----- | ------------------------------------------------------------------- | ------ |
+| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done   |
+| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done   |
+| 2     | Push, Ping and DNS monitors                                         | Done   |
+| 3     | Status pages and badges                                             | Done   |
+| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done   |
+| 4b    | Other databases and messaging                                       | Done   |
+| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done   |
+| 4d    | Docker, system and remote browser monitors                          | Done   |
+| 4e    | HTTP options, proxies and domain expiry                             | Done   |
+| 4f    | Globalping, GameDig and Tailscale ping                              | Done   |
+| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done   |
+| 5b    | Settings that take effect, and the Monitor History page             | Done   |
+| 5c    | Importing accounts, status pages and maintenance windows            | Done   |
+| 6a    | The MCP server and the update check                                 | Done   |
+| 6b    | The `nostr` and `Webpush` notification providers                    | Done   |
+| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Done   |
+| 7a    | More than one account, with full and read-only roles                | Done   |
+| 7b    | Logging in with GitHub                                              | Done   |
+| E1    | Managing accounts in the UI                                         | Done   |
+| E2    | The Security page for GitHub accounts                               | Done   |
+| E3    | Encrypting stored secrets                                           | Done   |
+| E4    | Completing the migration from MariaDB                               | Done   |
 
 ## Phase 0: Core (done)
 
@@ -636,7 +636,7 @@ Known limits:
 - The Security page's password and two-factor settings didn't apply to GitHub accounts, which have neither. E2
   replaced them for those accounts.
 
-## Enhancements (planned)
+## Enhancements (done)
 
 The port is complete. These go beyond what the Node.js server did, and came out of Phases 5 to 7.
 
@@ -721,26 +721,53 @@ Known limits:
 - Turning encryption off isn't supported: nothing decrypts the values back.
 - Losing the key loses those values. The README says to back it up apart from the database.
 
-### E4: Completing the migration from MariaDB
+### E4: Completing the migration from MariaDB (done)
 
-`kuma-import` copies monitors, every raw beat, the hourly and daily statistics, notifications, tags, proxies, Docker
-hosts, remote browsers, the account, status pages and maintenance windows from Uptime Kuma's MariaDB into
-TimescaleDB. This finishes the move, so that nothing has to be set up again by hand, and the move can be checked.
+`kuma-import` copied monitors, every raw beat, the hourly and daily statistics, notifications, tags, proxies, Docker
+hosts, remote browsers, the account, status pages and maintenance windows. This finishes the move, so that nothing
+has to be set up again by hand, and the move can be checked.
 
-- **Settings:** the ones that take effect here, such as `primaryBaseURL`, the entry page, search engine visibility,
-  trusting a proxy, the certificate and domain expiry days, the retention, the Steam key, the Globalping token, the
-  Chrome executable, and the update check's. A setting changed here since isn't overwritten, and the report lists
-  each one copied and each one left, and why.
-- **API keys:** better-auth's keys (`better_auth_apikey`) and the older table's, with their names, expiry and
-  whether they're on, so that scripts using them keep working. Only their hashes exist, so they keep their format and
-  this service learns to check it. Their permissions become scopes, or all scopes where there were none.
-- **Alert state:** which certificate and domain expiry alerts were sent (`notification_sent_history`), so that they
-  aren't sent again, and the certificates last seen (`monitor_tls_info`), so that the pages show them before the
-  first check.
-- **Monitors that were skipped:** their beats and statistics, kept apart until the monitor can be imported, so that
-  a later version that supports their type or setting brings their history with them.
-- **Checking the move:** `kuma-import -verify` compares the source with what's here, monitor by monitor: beats,
-  uptime over 24 hours, 30 days and a year, and the newest beat. It reports any that differ beyond rounding, and
-  exits non-zero if any do, so that a cutover can be scripted.
-- **A cutover runbook** in the README: a dry run, an import while both run, `-verify`, then stopping Uptime Kuma,
-  a last import, `-activate`, a restart and a last `-verify`, with how to go back if something's wrong.
+- **Settings:** `primaryBaseURL`, the entry page, search engine visibility, trusting a proxy, the certificate and
+  domain expiry days, the retention, the Steam key, the Globalping token, the Chrome executable, and the update
+  check's. `app_setting` now records where each value came from (`default`, `ui` or `import`): the import replaces
+  only defaults and its own values, and the report lists each setting as copied, same, kept with why, or not in the
+  source, never with its value. Values from before this version have no source, and are kept.
+- **API keys:** better-auth's (`better_auth_apikey`), whose stored hash is the base64url of the key's SHA-256, the
+  same digest this service stores, so they're looked up as its own keys are; and the older table's `uk<id>_<secret>`
+  keys, with their bcrypt hash, which the REST API now checks (remembering a match, but looking the key up each
+  time, so that revoking works at once). Names, creation and expiry dates and whether they're on come along; a key
+  revoked here stays revoked. Uptime Kuma gave keys no permissions, so they get every scope. Keys without this
+  service's prefix are only looked up when they're at least 32 characters.
+- **Alert state:** certificate alerts sent (`notification_sent_history`) into `cert_alert_sent`, the certificates
+  last seen (`monitor_tls_info`), unless one was seen here, and `domain_expiry`, with the last alert sent, unless
+  checked here since.
+- **Skipped monitors:** their beats and statistics are kept in `skipped_heartbeat` and `skipped_stat`, by source id,
+  and a monitor imported later gets them (beats and statistics that aren't here already), even after Uptime Kuma
+  pruned them.
+- **`kuma-import -verify`** compares each imported monitor with the source: beats over the source's range, the
+  newest beat, and uptime over the 24 whole hours, 30 and 365 whole days before the source's newest beat, from the
+  source's statistics and the `uptime_hourly` and `uptime_daily` views, within 0.01 percentage points. It exits 3
+  when one differs, 1 when it couldn't check.
+- **A cutover runbook** in the README, with going back.
+
+Tested with the race detector against MariaDB and TimescaleDB (`internal/importer/rest_test.go`): settings copied,
+kept when changed here, replaced when the import wrote them, and absent from the report; both kinds of key, a
+damaged one skipped, one off, and one revoked here staying revoked; alert state, and a domain checked here since
+left alone; a skipped monitor's history kept, then adopted after Uptime Kuma pruned it; and `-verify` matching, then
+reporting a lost beat and a changed daily figure. The REST API takes both kinds of key, refuses wrong ones, and
+stops taking a revoked one at once. The importer's existing tests pass with the five new source tables, which were
+written from the knex migrations rather than taken from a boot.
+
+Against the built image (`internal/e2e/cutover-e4.sh`, with `kuma-import` from the image and a MariaDB source),
+14 of 14 steps of the runbook passed: the dry run's report without values and writing nothing; the import with
+settings, the retention default replaced, the skipped monitor's 288 beats kept, and the alert state; both kinds of
+key working on the REST API and wrong ones refused; `-verify` exiting 0; `-apply -activate` and a restart with the
+imported retention; `-verify` exiting 0 again; and exiting 3 once a beat was deleted here.
+
+Not tested: a real Uptime Kuma database, and imported keys in the API Keys page, which lists them as it lists any.
+
+Known limits:
+
+- `-verify` compares the source's statistics with this service's views. Hours and days before the cutover come
+  from the imported statistics on both sides, so it checks the copy there; after it, it checks the beats.
+- Monitors' own settings aren't compared, only their history.

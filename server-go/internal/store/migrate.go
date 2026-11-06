@@ -476,6 +476,51 @@ var migrations = [][]string{
 		// The organization's teams a GitHub account was in at its last check, for the Security page.
 		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS github_teams text[]`,
 	},
+	{
+		// Where a setting's value came from: 'default' (made at start), 'ui' (saved in the UI) or
+		// 'import' (kuma-import). An import replaces only defaults and what it wrote before.
+		`ALTER TABLE app_setting ADD COLUMN IF NOT EXISTS source text`,
+		// API keys from Uptime Kuma. better-auth's keep their hash, the SHA-256 that this service
+		// uses too. The older table's are "uk<id>_<secret>" with a bcrypt hash of the secret.
+		`ALTER TABLE api_key ALTER COLUMN key_hash DROP NOT NULL`,
+		`ALTER TABLE api_key ADD COLUMN IF NOT EXISTS legacy_id integer UNIQUE`,
+		`ALTER TABLE api_key ADD COLUMN IF NOT EXISTS legacy_hash text`,
+		`ALTER TABLE api_key ADD COLUMN IF NOT EXISTS import_source text UNIQUE`,
+		`ALTER TABLE api_key ADD CONSTRAINT api_key_hash_check
+			CHECK (key_hash IS NOT NULL OR (legacy_id IS NOT NULL AND legacy_hash IS NOT NULL))`,
+		// History of monitors that kuma-import skipped, kept apart until a version that can
+		// import them does, by their id in the source.
+		`CREATE TABLE IF NOT EXISTS skipped_monitor (
+			source_id integer PRIMARY KEY,
+			name text NOT NULL,
+			reason text NOT NULL,
+			kept_at timestamptz NOT NULL DEFAULT now()
+		)`,
+		`CREATE TABLE IF NOT EXISTS skipped_heartbeat (
+			source_id integer NOT NULL REFERENCES skipped_monitor (source_id) ON DELETE CASCADE,
+			time timestamptz NOT NULL,
+			status smallint NOT NULL,
+			ping double precision,
+			msg text NOT NULL DEFAULT '',
+			important boolean NOT NULL DEFAULT false,
+			duration integer NOT NULL DEFAULT 0,
+			retries integer NOT NULL DEFAULT 0,
+			PRIMARY KEY (source_id, time)
+		)`,
+		`CREATE TABLE IF NOT EXISTS skipped_stat (
+			source_id integer NOT NULL REFERENCES skipped_monitor (source_id) ON DELETE CASCADE,
+			daily boolean NOT NULL,
+			bucket timestamptz NOT NULL,
+			up bigint NOT NULL,
+			down bigint NOT NULL,
+			maintenance bigint NOT NULL,
+			ping_sum double precision NOT NULL,
+			ping_count bigint NOT NULL,
+			min_ping double precision,
+			max_ping double precision,
+			PRIMARY KEY (source_id, daily, bucket)
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.
