@@ -46,10 +46,7 @@
                                             {{ $t("Docker Container") }}
                                         </option>
                                         <option
-                                            v-if="
-                                                ['linux', 'win32'].includes($root.info.runtime.platform) &&
-                                                !$root.info.isContainer
-                                            "
+                                            v-if="['linux', 'win32'].includes($root.info.runtime.platform)"
                                             value="system-service"
                                         >
                                             {{ $t("systemService") }}
@@ -88,9 +85,7 @@
                                         <option value="mqtt">MQTT</option>
                                         <option value="ntp">NTP</option>
                                         <option value="rabbitmq">RabbitMQ</option>
-                                        <option v-if="!$root.info.isContainer" value="sip-options">
-                                            SIP Options Ping
-                                        </option>
+                                        <option value="sip-options">SIP Options Ping</option>
                                         <option value="smtp">SMTP</option>
                                         <option value="snmp">SNMP</option>
                                         <option v-if="!$root.info.isContainer" value="tailscale-ping">

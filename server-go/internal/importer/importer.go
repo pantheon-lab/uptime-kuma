@@ -21,6 +21,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
+
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/notify"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
@@ -54,6 +57,8 @@ type Target interface {
 	ImportTag(ctx context.Context, name, color string) (int32, error)
 	AddMonitorTag(ctx context.Context, tagID, monitorID int32, value string) error
 	ActivateImportedNotifications(ctx context.Context) (int64, error)
+	ImportDockerHost(ctx context.Context, h check.DockerHost) (int32, error)
+	ImportRemoteBrowser(ctx context.Context, b check.RemoteBrowser) (int32, error)
 }
 
 // Options controls an import. A nil Target means a dry run, which writes nothing.
@@ -81,6 +86,8 @@ type Report struct {
 	Skipped         []Skipped          `json:"skipped"`
 	SkippedByReason map[string]int     `json:"skippedByReason"`
 	DroppedSettings map[string]int     `json:"droppedSettings"`
+	DockerHosts     int                `json:"dockerHosts"`
+	RemoteBrowsers  int                `json:"remoteBrowsers"`
 	Tags            int                `json:"tags"`
 	TagLinks        int                `json:"tagLinks"`
 	WithAlerts      int                `json:"importedWithNotifications"`
@@ -151,7 +158,11 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 	}
 	defer func() { _, _ = conn.ExecContext(context.WithoutCancel(ctx), "ROLLBACK") }()
 
-	monitors, err := readMonitors(ctx, conn, report)
+	resources, err := copyResources(ctx, conn, opts.Target, report)
+	if err != nil {
+		return nil, err
+	}
+	monitors, err := readMonitors(ctx, conn, report, resources)
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +303,7 @@ func readRows(ctx context.Context, conn *sql.Conn, query string, args ...any) ([
 	return result, columns, rows.Err()
 }
 
-func readMonitors(ctx context.Context, conn *sql.Conn, report *Report) ([]*sourceMonitor, error) {
+func readMonitors(ctx context.Context, conn *sql.Conn, report *Report, resources resourceIDs) ([]*sourceMonitor, error) {
 	rows, columns, err := readRows(ctx, conn, "SELECT * FROM monitor ORDER BY id")
 	if err != nil {
 		return nil, fmt.Errorf("read monitors: %w", err)
@@ -310,6 +321,9 @@ func readMonitors(ctx context.Context, conn *sql.Conn, report *Report) ([]*sourc
 		id := int32(intOf(row["id"]))
 		name := row["name"].String
 		m, reason := convertMonitor(row)
+		if reason == "" {
+			reason = resources.remap(&m)
+		}
 		if reason != "" {
 			report.Skipped = append(report.Skipped, Skipped{SourceID: id, Name: name, Reason: reason})
 			report.SkippedByReason[skipCategory(reason)]++
@@ -335,6 +349,78 @@ func readMonitors(ctx context.Context, conn *sql.Conn, report *Report) ([]*sourc
 		result = append(result, source)
 	}
 	return result, nil
+}
+
+// resourceIDs map the ids of the source's Docker hosts and remote browsers to the target's.
+type resourceIDs struct {
+	dockerHosts    map[int32]int32
+	remoteBrowsers map[int32]int32
+}
+
+// remap points a monitor at the target's copy of its Docker host or remote browser.
+func (r resourceIDs) remap(m *monitor.Monitor) string {
+	if m.DockerHostID != 0 {
+		id, found := r.dockerHosts[m.DockerHostID]
+		if !found {
+			return "invalid setting: the Docker host doesn't exist"
+		}
+		m.DockerHostID = id
+	}
+	if m.RemoteBrowserID != 0 {
+		id, found := r.remoteBrowsers[m.RemoteBrowserID]
+		if !found {
+			return "invalid setting: the remote browser doesn't exist"
+		}
+		m.RemoteBrowserID = id
+	}
+	return ""
+}
+
+// copyResources copies every Docker host and remote browser. A copy that's there already is used
+// again. In a dry run, ids stay the same.
+func copyResources(ctx context.Context, conn *sql.Conn, target Target, report *Report) (resourceIDs, error) {
+	ids := resourceIDs{dockerHosts: map[int32]int32{}, remoteBrowsers: map[int32]int32{}}
+	hosts, err := optionalTable(ctx, conn, "SELECT id, name, docker_type, docker_daemon FROM docker_host ORDER BY id")
+	if err != nil {
+		return ids, fmt.Errorf("read docker hosts: %w", err)
+	}
+	for _, row := range hosts {
+		sourceID := int32(intOf(row["id"]))
+		ids.dockerHosts[sourceID] = sourceID
+		host := check.DockerHost{Name: row["name"].String, Type: row["docker_type"].String, Daemon: row["docker_daemon"].String}
+		if target != nil {
+			if ids.dockerHosts[sourceID], err = target.ImportDockerHost(ctx, host); err != nil {
+				return ids, fmt.Errorf("docker host %d: %w", sourceID, err)
+			}
+		}
+		report.DockerHosts++
+	}
+	browsers, err := optionalTable(ctx, conn, "SELECT id, name, url FROM remote_browser ORDER BY id")
+	if err != nil {
+		return ids, fmt.Errorf("read remote browsers: %w", err)
+	}
+	for _, row := range browsers {
+		sourceID := int32(intOf(row["id"]))
+		ids.remoteBrowsers[sourceID] = sourceID
+		browser := check.RemoteBrowser{Name: row["name"].String, URL: row["url"].String}
+		if target != nil {
+			if ids.remoteBrowsers[sourceID], err = target.ImportRemoteBrowser(ctx, browser); err != nil {
+				return ids, fmt.Errorf("remote browser %d: %w", sourceID, err)
+			}
+		}
+		report.RemoteBrowsers++
+	}
+	return ids, nil
+}
+
+// optionalTable reads a table that older installations don't have, as no rows.
+func optionalTable(ctx context.Context, conn *sql.Conn, query string) ([]map[string]sql.NullString, error) {
+	rows, _, err := readRows(ctx, conn, query)
+	var mysqlErr *mysql.MySQLError
+	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1146 { // ER_NO_SUCH_TABLE
+		return nil, nil
+	}
+	return rows, err
 }
 
 func skipCategory(reason string) string {
@@ -489,6 +575,50 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 			m.RadiusCalledStationID = row["radius_called_station_id"].String
 			m.RadiusCallingStationID = row["radius_calling_station_id"].String
 		}
+		return checked(m)
+	case monitor.TypeDocker:
+		m.DockerContainer = strings.TrimSpace(row["docker_container"].String)
+		m.DockerHostID = int32(intOf(row["docker_host"]))
+		return checked(m)
+	case monitor.TypeSystemService, monitor.TypePM2:
+		var config struct {
+			SystemServiceName string `json:"systemServiceName"`
+		}
+		_ = json.Unmarshal([]byte(row["config"].String), &config)
+		// Before the config column, the name had a column of its own.
+		m.SystemServiceName = strings.TrimSpace(cmp.Or(config.SystemServiceName, row["system_service_name"].String))
+		return checked(m)
+	case monitor.TypeSFTP:
+		m.Hostname = strings.TrimSpace(row["hostname"].String)
+		m.Port = int32(intOf(row["port"]))
+		m.SSHAuthMethod = cmp.Or(row["ssh_auth_method"].String, "password")
+		m.SSHUsername = row["ssh_username"].String
+		if m.SSHAuthMethod == "privateKey" {
+			m.SSHPrivateKey = row["ssh_private_key"].String
+			m.SSHPassphrase = row["ssh_passphrase"].String
+		} else {
+			m.SSHPassword = row["ssh_password"].String
+		}
+		m.SFTPPath = strings.TrimSpace(row["sftp_path"].String)
+		return checked(m)
+	case monitor.TypeGRPC:
+		m.GRPCURL = strings.TrimSpace(row["grpc_url"].String)
+		m.GRPCProtobuf = row["grpc_protobuf"].String
+		m.GRPCServiceName = strings.TrimSpace(row["grpc_service_name"].String)
+		m.GRPCMethod = strings.TrimSpace(row["grpc_method"].String)
+		m.GRPCBody = row["grpc_body"].String
+		m.GRPCMetadata = row["grpc_metadata"].String
+		m.GRPCEnableTLS = boolOf(row["grpc_enable_tls"])
+		m.Keyword = row["keyword"].String
+		m.InvertKeyword = boolOf(row["invert_keyword"])
+		return checked(m)
+	case monitor.TypeRealBrowser:
+		if row["proxy_id"].Valid {
+			return m, "unsupported setting: proxy"
+		}
+		m.URL = strings.TrimSpace(row["url"].String)
+		m.RemoteBrowserID = int32(intOf(row["remote_browser"]))
+		m.ScreenshotDelay = int32(intOf(row["screenshot_delay"]))
 		return checked(m)
 	case monitor.TypeHTTP, monitor.TypeKeyword, monitor.TypeJSONQuery, monitor.TypeWebSocket:
 	default:

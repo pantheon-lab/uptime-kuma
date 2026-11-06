@@ -113,8 +113,8 @@ func (s *Server) afterLogin(ctx context.Context, c *conn) {
 		s.log.Error("send notification list", "error", err)
 	}
 	c.emit("proxyList", []any{})
-	c.emit("dockerHostList", []any{})
-	c.emit("remoteBrowserList", []any{})
+	s.sendDockerHostList(ctx, c)
+	s.sendRemoteBrowserList(ctx, c)
 	c.emit("monitorTypeList", monitorTypeList())
 	if s.pages == nil {
 		c.emit("statusPageList", map[string]any{})
@@ -417,6 +417,22 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.removeHoliday(ctx, args)
 	case "restoreHoliday":
 		r, err = s.restoreHoliday(ctx, args)
+	case "addDockerHost":
+		r, err = s.addDockerHost(ctx, args)
+	case "deleteDockerHost":
+		r, err = s.deleteDockerHost(ctx, args)
+	case "testDockerHost":
+		r, err = s.testDockerHostEvent(ctx, args)
+	case "addRemoteBrowser":
+		r, err = s.addRemoteBrowser(ctx, args)
+	case "deleteRemoteBrowser":
+		r, err = s.deleteRemoteBrowser(ctx, args)
+	case "testRemoteBrowser":
+		r, err = s.testRemoteBrowserEvent(ctx, args)
+	case "testChrome":
+		r, err = s.testChromeEvent(ctx, args)
+	case "getPM2ProcessList":
+		r, err = s.getPM2ProcessList(ctx)
 	default:
 		if s.pages == nil {
 			return nil, false
