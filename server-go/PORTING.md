@@ -7,24 +7,25 @@ Update this file in the same pull request as each phase. Only mark a phase done 
 wasn't. The order of the planned phases is a proposal, and should follow what's actually in use: the dry run of
 `kuma-import` lists every monitor it can't bring over, and why.
 
-| Phase | Scope                                                               | Status |
-| ----- | ------------------------------------------------------------------- | ------ |
-| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done   |
-| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done   |
-| 2     | Push, Ping and DNS monitors                                         | Done   |
-| 3     | Status pages and badges                                             | Done   |
-| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done   |
-| 4b    | Other databases and messaging                                       | Done   |
-| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done   |
-| 4d    | Docker, system and remote browser monitors                          | Done   |
-| 4e    | HTTP options, proxies and domain expiry                             | Done   |
-| 4f    | Globalping, GameDig and Tailscale ping                              | Done   |
-| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done   |
-| 5b    | Settings that take effect, and the Monitor History page             | Done   |
-| 5c    | Importing accounts, status pages and maintenance windows            | Done   |
-| 6a    | The MCP server and the update check                                 | Done   |
-| 6b    | The `nostr` and `Webpush` notification providers                    | Done   |
-| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Next   |
+| Phase | Scope                                                               | Status  |
+| ----- | ------------------------------------------------------------------- | ------- |
+| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done    |
+| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done    |
+| 2     | Push, Ping and DNS monitors                                         | Done    |
+| 3     | Status pages and badges                                             | Done    |
+| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done    |
+| 4b    | Other databases and messaging                                       | Done    |
+| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done    |
+| 4d    | Docker, system and remote browser monitors                          | Done    |
+| 4e    | HTTP options, proxies and domain expiry                             | Done    |
+| 4f    | Globalping, GameDig and Tailscale ping                              | Done    |
+| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done    |
+| 5b    | Settings that take effect, and the Monitor History page             | Done    |
+| 5c    | Importing accounts, status pages and maintenance windows            | Done    |
+| 6a    | The MCP server and the update check                                 | Done    |
+| 6b    | The `nostr` and `Webpush` notification providers                    | Done    |
+| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Next    |
+| 7     | Logging in with GitHub                                              | Planned |
 
 ## Phase 0: Core (done)
 
@@ -513,3 +514,29 @@ Known limits and differences from Node.js:
 ### Phase 6c: apprise in the image, and the Cloudflare tunnel (next)
 
 Both add programs to an image that is now `FROM scratch`: `apprise` is Python, and the tunnel runs `cloudflared`.
+
+## Phase 7: Logging in with GitHub (planned)
+
+Not in the Node.js server, which only had a password and an authenticator app. Pantheon Lab's team signs in to
+GitHub already, so this lets them log in to Uptime Kuma the same way, and lets access follow GitHub: leaving the
+organization ends it.
+
+- **OAuth with a GitHub App or OAuth App**, configured with `KUMA_GITHUB_CLIENT_ID` and `KUMA_GITHUB_CLIENT_SECRET`.
+  The login page shows "Log in with GitHub" when it's set. The authorization code flow with `state` and PKCE, and a
+  session cookie as with a password.
+- **Who may log in:** members of a GitHub organization, optionally only of some teams, such as
+  `KUMA_GITHUB_ORG=pantheon-lab` and `KUMA_GITHUB_TEAMS=sre,platform`, checked at every login and again when a
+  session is renewed, so that someone removed from the organization is logged out within a day.
+- **Accounts:** this needs more than one account, which Phase 5 left out. The likely design is an account per GitHub
+  user, made at their first login, with the same rights as the password account, since the UI has no roles. Logins
+  and changes would then record who made them.
+- **The password account stays**, as a way in when GitHub is down, and it can be turned off with
+  `KUMA_PASSWORD_LOGIN=false` once GitHub login works.
+- `kuma-import` and the REST API aren't affected. API keys stay as they are.
+
+To decide before it's built:
+
+- Whether everyone who may log in can change everything, or whether some teams only read, which the UI would need
+  read-only views for.
+- Whether two-factor login is left to GitHub, which can require it for the organization.
+- A GitHub App or an OAuth App: an App can be limited to reading organization membership.
