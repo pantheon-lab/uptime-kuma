@@ -1670,5 +1670,8 @@
     "No holidays for this year": "No holidays for this year",
     "Removed": "Removed",
     "Restore": "Restore",
-    "holidayDataSource": "Bundled data: {source}. For countries with regions, only national holidays are included. Governments can announce changes after this data was made, so check important dates."
+    "holidayDataSource": "Bundled data: {source}. For countries with regions, only national holidays are included. Governments can announce changes after this data was made, so check important dates.",
+    "serverTimezoneFromEnv": "Set with {0} on the server.",
+    "databaseSize": "Database size: {0}",
+    "databaseSizeDescriptionPostgres": "PostgreSQL frees space on its own: monitor history older than the days above is dropped a day at a time, and clearing statistics frees their space at once."
 }

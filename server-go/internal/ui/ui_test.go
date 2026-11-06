@@ -54,6 +54,9 @@ type fakeStore struct {
 	totpFailures map[int32]int
 	challenges   map[string]store.TwoFactorChallenge
 	apiKeys      []store.APIKey
+
+	cleared   []int32
+	retention []int
 }
 
 func newFakeStore() *fakeStore {

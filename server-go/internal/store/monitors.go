@@ -308,11 +308,30 @@ func (s *Store) DeleteMonitor(ctx context.Context, id int32) error {
 // RefreshAggregates rebuilds every finished aggregate bucket that has changed. It leaves out
 // the current bucket: a materialized bucket stops following new beats until the next scheduled
 // refresh that covers it, so an unfinished one would hide them.
+//
+// The hourly aggregate is refreshed only from the oldest beats kept. A refresh recomputes the
+// buckets it covers from beats, so one over the days that retention has dropped would delete
+// their statistics. Retention drops whole chunks, so the oldest chunk's buckets are complete.
+// The daily aggregate is built on the hourly one, which keeps everything.
 func (s *Store) RefreshAggregates(ctx context.Context) error {
-	for _, view := range []struct{ name, unit string }{{"stat_hourly", "hour"}, {"stat_daily", "day"}} {
+	var oldest *time.Time
+	if err := s.pool.QueryRow(ctx, `
+		SELECT min(range_start) FROM timescaledb_information.chunks
+		WHERE hypertable_schema = current_schema() AND hypertable_name = 'heartbeat'`).Scan(&oldest); err != nil {
+		return fmt.Errorf("find the oldest beats: %w", err)
+	}
+	views := []struct {
+		name, unit string
+		from       *time.Time
+	}{{"stat_hourly", "hour", oldest}, {"stat_daily", "day", nil}}
+	for _, view := range views {
+		if view.name == "stat_hourly" && oldest == nil {
+			continue // No beats are kept, so there's nothing to recompute.
+		}
 		err := retryConcurrentRefresh(ctx, func() error {
 			_, err := s.pool.Exec(ctx,
-				`CALL refresh_continuous_aggregate('`+view.name+`', NULL, date_trunc('`+view.unit+`', now(), 'UTC'))`)
+				`CALL refresh_continuous_aggregate('`+view.name+`', $1::timestamptz, date_trunc('`+view.unit+`', now(), 'UTC'))`,
+				view.from)
 			return err
 		})
 		if err != nil {

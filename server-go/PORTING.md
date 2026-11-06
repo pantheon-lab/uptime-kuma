@@ -20,8 +20,8 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | 4e    | HTTP options, proxies and domain expiry                             | Done    |
 | 4f    | Globalping, GameDig and Tailscale ping                              | Done    |
 | 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done    |
-| 5b    | Settings that take effect, and the Monitor History page             | Next    |
-| 5c    | Importing accounts, status pages and maintenance windows            | Planned |
+| 5b    | Settings that take effect, and the Monitor History page             | Done    |
+| 5c    | Importing accounts, status pages and maintenance windows            | Next    |
 | 6     | Integrations                                                        | Planned |
 
 ## Phase 0: Core (done)
@@ -337,12 +337,59 @@ Known limits and differences from Node.js:
 - Keys made by the Node.js server, by better-auth or in its older table, aren't imported, and Prometheus's
   `/metrics`, which they unlocked, is replaced by OpenTelemetry.
 
-### Phase 5b: Settings and the Monitor History page (next)
+### Phase 5b: Settings and the Monitor History page (done)
 
-- Settings that take effect, such as the data retention setting, which `RETENTION_DAYS` decides today
-- The Monitor History page: clearing heartbeats and statistics, shrinking the database, and the database size
+- **Retention** comes from Settings > Monitor History, as `keepDataPeriodDays` did in Node.js, and saving it changes
+  TimescaleDB's retention policy straight away. `RETENTION_DAYS` is only its first value: at start, a setting that
+  was never saved, or isn't valid, is saved from it, so that the page shows the days that apply, and saving any
+  settings page doesn't put the UI's default in their place. When both are set and differ, the start-up log says
+  that `RETENTION_DAYS` is ignored.
+- **Clearing data:** `clearHeartbeats` for one monitor and `clearStatistics` for all of them delete the beats, the
+  hourly and daily statistics, including those older than the beats that retention kept, and the statistics
+  imported from Node.js. The monitors are stopped first, so that queued beats aren't written after, and started
+  again, so that they start a new history as Node.js's restart did.
+- **The database size** (`getDatabaseSize`), now shown for PostgreSQL too.
+- **Search Engine Visibility** answers `/robots.txt`, as Node.js did.
+- Settings that can't take effect are gone from Settings > General: the DNS cache (nscd), Prometheus and "API and
+  MCP" switches. The server timezone is shown, but can't be changed there, as it comes from `KUMA_TIMEZONE`.
 
-### Phase 5c: Importing accounts, status pages and maintenance windows (planned)
+The other settings already took effect: the entry page, the primary base URL, trusting a proxy, the Steam key, the
+Globalping token, the Chrome executable, and the certificate and domain expiry days.
+
+**A fix for data loss:** rebuilding the aggregates, which deleting a monitor does, refreshed them from the
+beginning of time, which recomputes each bucket from beats. Once retention had dropped beats, that deleted every
+monitor's hourly and daily statistics from before the beats kept. The hourly aggregate is now refreshed only from
+the oldest chunk of beats kept. The daily one is built on the hourly one, which keeps everything, so it's refreshed
+as before.
+
+Tested with the race detector: the events against an in-memory store, and the store against TimescaleDB, where two
+monitors had 40 days of beats and retention dropped all but 10 of them. Clearing one left the other's 40 days of
+statistics, and so did deleting a monitor afterwards, which lost 30 of them before the fix. Clearing everything left
+nothing, and new beats counted afterwards. In headless Chromium against the built image
+(`internal/e2e/browser/history-5b.mjs`), 7 of 7 steps passed with no page errors:
+
+- the page showed the 365 days that applied, and the database size, and no Shrink Database button
+- saving 30, 0 and 45 days changed the policy each time
+- a monitor with 20 days of statistics lost them all through Clear Data > Heartbeats, and kept checking
+- Clear all Statistics left no beats or statistics, and kept the retention
+- `/robots.txt` followed Search Engine Visibility
+- Settings > General no longer showed the removed switches
+
+Restarting the image with `RETENTION_DAYS=10` kept the saved 45 days and logged why, and on a new database it saved 10.
+
+Not tested: a database large enough for clearing to take long. Clearing stops the monitors one at a time, and
+runs within one realtime event, so other events from that browser wait until it's done, up to 5 minutes.
+
+Known limits and differences from Node.js:
+
+- There's no Shrink Database. PostgreSQL's autovacuum does what a `VACUUM` would, and dropped or cleared beats free
+  their space at once. Node.js offered it for SQLite only.
+- Node.js deleted daily statistics older than the retention too. Here they're kept, as they were before this phase,
+  so that uptime over longer periods still works.
+- Beats are dropped a whole day at a time, so up to a day more than the setting is kept.
+- `apiEnabled` doesn't turn the REST API off, as existing keys would stop working. The keys guard it instead.
+
+### Phase 5c: Importing accounts, status pages and maintenance windows (next)
 
 - The account from MariaDB, with its password hash and two-factor key, and status pages and maintenance windows
 
