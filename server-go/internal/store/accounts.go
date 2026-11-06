@@ -48,8 +48,10 @@ func (s *Store) ListAccounts(ctx context.Context) ([]Account, error) {
 	}
 	accounts, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Account, error) {
 		var a Account
-		err := row.Scan(append(a.fields(), &a.LastLoginAt)...)
-		return a, err
+		if err := row.Scan(append(a.fields(), &a.LastLoginAt)...); err != nil {
+			return a, err
+		}
+		return a, s.openUser(&a.User)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list accounts: %w", err)
@@ -107,7 +109,7 @@ func (s *Store) DeleteUser(ctx context.Context, userID int32, methods LoginMetho
 		if err != nil {
 			return err
 		}
-		user, err = scanUser(tx.QueryRow(ctx, `SELECT `+userColumns+` FROM app_user WHERE id = $1 FOR UPDATE`, userID))
+		user, err = s.scanUser(tx.QueryRow(ctx, `SELECT `+userColumns+` FROM app_user WHERE id = $1 FOR UPDATE`, userID))
 		if err != nil {
 			return err
 		}
@@ -138,7 +140,7 @@ func (s *Store) SetUserRole(ctx context.Context, userID int32, role string, meth
 		if err != nil {
 			return err
 		}
-		user, err = scanUser(tx.QueryRow(ctx, `SELECT `+userColumns+` FROM app_user WHERE id = $1 FOR UPDATE`, userID))
+		user, err = s.scanUser(tx.QueryRow(ctx, `SELECT `+userColumns+` FROM app_user WHERE id = $1 FOR UPDATE`, userID))
 		if err != nil {
 			return err
 		}

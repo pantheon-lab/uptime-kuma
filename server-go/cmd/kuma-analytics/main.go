@@ -29,6 +29,7 @@ import (
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/mcp"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/notify"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/scheduler"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/secrets"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/telemetry"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/ui"
@@ -44,10 +45,69 @@ var version = "dev"
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	if len(os.Args) > 1 && os.Args[1] == "rekey" {
+		if err := rekey(log); err != nil {
+			log.Error("fatal", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(log); err != nil {
 		log.Error("fatal", "error", err)
 		os.Exit(1)
 	}
+}
+
+// openSecrets gives the store KUMA_SECRET_KEY, and checks the stored secrets: plain ones are
+// encrypted when there's a key, and with rekey, those encrypted with an older key are encrypted
+// again with the current one. It fails when one is encrypted and the key to open it is missing.
+func openSecrets(ctx context.Context, db *store.Store, rekey bool, log *slog.Logger) error {
+	keys, err := secrets.FromEnv()
+	if err != nil {
+		return err
+	}
+	if rekey && !keys.Enabled() {
+		return errors.New("rekey needs KUMA_SECRET_KEY, the new key, and KUMA_SECRET_KEY_OLD, the old ones")
+	}
+	db.SetKeyring(keys)
+	report, err := db.SealSecrets(ctx, rekey)
+	if err != nil {
+		return fmt.Errorf("stored secrets: %w", err)
+	}
+	for what, n := range report.Sealed {
+		log.Info("encrypted stored secrets", "what", what, "count", n, "key", keys.CurrentID())
+	}
+	for what, n := range report.Resealed {
+		log.Info("encrypted stored secrets again with the current key", "what", what, "count", n, "key", keys.CurrentID())
+	}
+	if !keys.Enabled() {
+		log.Warn("stored secrets aren't encrypted: set KUMA_SECRET_KEY to encrypt them")
+	}
+	return nil
+}
+
+// rekey encrypts every stored secret with KUMA_SECRET_KEY, opening those encrypted with an older
+// key with KUMA_SECRET_KEY_OLD. Afterwards the old key isn't needed.
+func rekey(log *slog.Logger) error {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return errors.New("DATABASE_URL is required")
+	}
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	db, err := store.Open(ctx, databaseURL)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	if err := db.Migrate(ctx); err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+	if err := openSecrets(ctx, db, true, log); err != nil {
+		return err
+	}
+	log.Info("every stored secret is encrypted with the current key; KUMA_SECRET_KEY_OLD can be removed")
+	return nil
 }
 
 // loadLocation returns the timezone that alerts show, from KUMA_TIMEZONE.
@@ -116,6 +176,9 @@ func run(log *slog.Logger) error {
 	defer db.Close()
 	if err := db.Migrate(ctx); err != nil {
 		return fmt.Errorf("migrate: %w", err)
+	}
+	if err := openSecrets(ctx, db, false, log); err != nil {
+		return err
 	}
 	// Settings > Monitor History decides the retention. RETENTION_DAYS is only its first value.
 	days, saved, err := db.RetentionDays(ctx, retentionDays)

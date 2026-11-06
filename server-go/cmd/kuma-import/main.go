@@ -20,6 +20,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/importer"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/secrets"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 )
 
@@ -64,6 +65,15 @@ func run(apply, activate bool, log *slog.Logger) error {
 		defer db.Close()
 		if err := db.Migrate(ctx); err != nil {
 			return fmt.Errorf("migrate: %w", err)
+		}
+		// The same key as the service's, so that what's imported is encrypted as it would be.
+		keys, err := secrets.FromEnv()
+		if err != nil {
+			return err
+		}
+		db.SetKeyring(keys)
+		if _, err := db.SealSecrets(ctx, false); err != nil {
+			return fmt.Errorf("stored secrets: %w", err)
 		}
 		options.Target = db
 	} else {

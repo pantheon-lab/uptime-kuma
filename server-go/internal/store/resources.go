@@ -207,14 +207,22 @@ func (s *Store) ImportRemoteBrowser(ctx context.Context, b check.RemoteBrowser) 
 
 const proxyColumns = `id, protocol, host, port, auth, username, password, active, is_default`
 
-func scanProxy(row pgx.Row) (check.Proxy, error) {
+func (s *Store) scanProxy(row pgx.Row) (check.Proxy, error) {
 	var p check.Proxy
 	err := row.Scan(&p.ID, &p.Protocol, &p.Host, &p.Port, &p.Auth, &p.Username, &p.Password, &p.Active, &p.Default)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return p, ErrNotFound
 	}
-	return p, err
+	if err != nil {
+		return p, err
+	}
+	if p.Password, err = s.openText(p.Password, proxyAAD(p.ID)); err != nil {
+		return p, fmt.Errorf("proxy %d: %w", p.ID, err)
+	}
+	return p, nil
 }
+
+func proxyAAD(id int32) string { return secretAAD("proxy", "password", id) }
 
 // ListProxies returns the proxies by id.
 func (s *Store) ListProxies(ctx context.Context) ([]check.Proxy, error) {
@@ -222,12 +230,12 @@ func (s *Store) ListProxies(ctx context.Context) ([]check.Proxy, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list proxies: %w", err)
 	}
-	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (check.Proxy, error) { return scanProxy(r) })
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (check.Proxy, error) { return s.scanProxy(r) })
 }
 
 // Proxy returns one proxy or ErrNotFound.
 func (s *Store) Proxy(ctx context.Context, id int32) (check.Proxy, error) {
-	return scanProxy(s.pool.QueryRow(ctx, `SELECT `+proxyColumns+` FROM proxy WHERE id = $1`, id))
+	return s.scanProxy(s.pool.QueryRow(ctx, `SELECT `+proxyColumns+` FROM proxy WHERE id = $1`, id))
 }
 
 // SaveProxy adds a proxy, or replaces the one with p.ID if it isn't zero. A default proxy stops
@@ -243,14 +251,27 @@ func (s *Store) SaveProxy(ctx context.Context, p check.Proxy, applyExisting bool
 			return p, nil, fmt.Errorf("clear default proxy: %w", err)
 		}
 	}
-	if p.ID == 0 {
-		p, err = scanProxy(tx.QueryRow(ctx, `INSERT INTO proxy (protocol, host, port, auth, username, password, active, is_default)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING `+proxyColumns,
-			p.Protocol, p.Host, p.Port, p.Auth, p.Username, p.Password, p.Active, p.Default))
+	insert := p.ID == 0
+	if insert {
+		// The id comes first, so that the password is sealed for the new row.
+		if err := tx.QueryRow(ctx, `SELECT nextval(pg_get_serial_sequence('proxy', 'id'))::int`).Scan(&p.ID); err != nil {
+			return p, nil, fmt.Errorf("save proxy: %w", err)
+		}
+	}
+	password := p.Password
+	if password != "" {
+		if password, err = s.sealText(p.Password, proxyAAD(p.ID)); err != nil {
+			return p, nil, err
+		}
+	}
+	if insert {
+		p, err = s.scanProxy(tx.QueryRow(ctx, `INSERT INTO proxy (id, protocol, host, port, auth, username, password, active, is_default)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING `+proxyColumns,
+			p.ID, p.Protocol, p.Host, p.Port, p.Auth, p.Username, password, p.Active, p.Default))
 	} else {
-		p, err = scanProxy(tx.QueryRow(ctx, `UPDATE proxy SET protocol = $2, host = $3, port = $4, auth = $5, username = $6,
+		p, err = s.scanProxy(tx.QueryRow(ctx, `UPDATE proxy SET protocol = $2, host = $3, port = $4, auth = $5, username = $6,
 			password = $7, active = $8, is_default = $9 WHERE id = $1 RETURNING `+proxyColumns,
-			p.ID, p.Protocol, p.Host, p.Port, p.Auth, p.Username, p.Password, p.Active, p.Default))
+			p.ID, p.Protocol, p.Host, p.Port, p.Auth, p.Username, password, p.Active, p.Default))
 	}
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -284,14 +305,20 @@ func (s *Store) DeleteProxy(ctx context.Context, id int32) ([]int32, error) {
 // ImportProxy returns the id of a proxy with the same settings, and adds one if there's none.
 // An imported proxy is never the default, so that the one chosen here stays.
 func (s *Store) ImportProxy(ctx context.Context, p check.Proxy) (int32, error) {
-	var id int32
-	err := s.pool.QueryRow(ctx, `SELECT id FROM proxy WHERE protocol = $1 AND host = $2 AND port = $3 AND auth = $4
-		AND username = $5 AND password = $6 ORDER BY id LIMIT 1`, p.Protocol, p.Host, p.Port, p.Auth, p.Username, p.Password).Scan(&id)
-	if err == nil {
-		return id, nil
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
+	// Passwords are sealed, so they're compared once opened.
+	rows, err := s.pool.Query(ctx, `SELECT `+proxyColumns+` FROM proxy WHERE protocol = $1 AND host = $2 AND port = $3
+		AND auth = $4 AND username = $5 ORDER BY id`, p.Protocol, p.Host, p.Port, p.Auth, p.Username)
+	if err != nil {
 		return 0, fmt.Errorf("find proxy: %w", err)
+	}
+	same, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (check.Proxy, error) { return s.scanProxy(r) })
+	if err != nil {
+		return 0, fmt.Errorf("find proxy: %w", err)
+	}
+	for _, existing := range same {
+		if existing.Password == p.Password {
+			return existing.ID, nil
+		}
 	}
 	p.ID, p.Default = 0, false
 	saved, _, err := s.SaveProxy(ctx, p, false)

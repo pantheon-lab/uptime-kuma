@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/secrets"
 )
 
 // newTestStore creates a throwaway database. It needs TEST_DATABASE_URL to point
@@ -51,6 +52,15 @@ func newTestStore(t *testing.T) *Store {
 	})
 	if err := s.Migrate(ctx); err != nil {
 		t.Fatal(err)
+	}
+	// TEST_SECRET_KEY runs the tests with stored secrets encrypted.
+	if text := os.Getenv("TEST_SECRET_KEY"); text != "" {
+		key, err := secrets.ParseKey(text)
+		if err != nil {
+			t.Fatal(err)
+		}
+		keys, _ := secrets.New(key)
+		s.SetKeyring(keys)
 	}
 	return s
 }

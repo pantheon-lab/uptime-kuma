@@ -97,6 +97,17 @@ Cloudflare Tunnel without an ingress. Create the tunnel in Cloudflare's dashboar
 helm upgrade --install kuma ./charts/uptime-kuma --set cloudflared.enabled=true --set cloudflared.token="$TUNNEL_TOKEN"
 ```
 
+## Encrypting stored secrets
+
+Give the key from a Kubernetes secret. The README of `server-go` explains it, and how to rotate it.
+
+```yaml
+analytics:
+  extraEnv:
+    - name: KUMA_SECRET_KEY
+      valueFrom: { secretKeyRef: { name: kuma-secret-key, key: key } }
+```
+
 ## Logging in with GitHub
 
 Set the variables in `analytics.extraEnv`, with the secret from a Kubernetes secret. The README of `server-go`

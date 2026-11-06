@@ -28,10 +28,28 @@ type ImportedNotification struct {
 
 const notificationColumns = `id, name, type, config, active, is_default`
 
-func scanNotification(row pgx.Row) (Notification, error) {
+func (s *Store) scanNotification(row pgx.Row) (Notification, error) {
 	var n Notification
-	err := row.Scan(&n.ID, &n.Name, &n.Type, &n.Config, &n.Active, &n.IsDefault)
-	return n, err
+	var config []byte
+	if err := row.Scan(&n.ID, &n.Name, &n.Type, &config, &n.Active, &n.IsDefault); err != nil {
+		return n, err
+	}
+	if err := s.openJSON(config, notificationAAD(n.ID), &n.Config); err != nil {
+		return n, fmt.Errorf("notification %d: %w", n.ID, err)
+	}
+	return n, nil
+}
+
+func notificationAAD(id int32) string { return secretAAD("notification", "config", id) }
+
+// nextNotificationID takes the id a new notification will have, so that its settings can be
+// sealed for its row before it's inserted.
+func nextNotificationID(ctx context.Context, q interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}) (int32, error) {
+	var id int32
+	err := q.QueryRow(ctx, `SELECT nextval(pg_get_serial_sequence('notification', 'id'))::int`).Scan(&id)
+	return id, err
 }
 
 func notificationResult(err error) error {
@@ -44,8 +62,8 @@ func notificationResult(err error) error {
 	return nil
 }
 
-func collectNotifications(rows pgx.Rows) ([]Notification, error) {
-	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (Notification, error) { return scanNotification(r) })
+func (s *Store) collectNotifications(rows pgx.Rows) ([]Notification, error) {
+	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (Notification, error) { return s.scanNotification(r) })
 	if err != nil {
 		return nil, fmt.Errorf("read notifications: %w", err)
 	}
@@ -58,20 +76,28 @@ func (s *Store) ListNotifications(ctx context.Context) ([]Notification, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list notifications: %w", err)
 	}
-	return collectNotifications(rows)
+	return s.collectNotifications(rows)
 }
 
 // GetNotification returns one notification or ErrNotFound.
 func (s *Store) GetNotification(ctx context.Context, id int32) (Notification, error) {
-	n, err := scanNotification(s.pool.QueryRow(ctx, `SELECT `+notificationColumns+` FROM notification WHERE id = $1`, id))
+	n, err := s.scanNotification(s.pool.QueryRow(ctx, `SELECT `+notificationColumns+` FROM notification WHERE id = $1`, id))
 	return n, notificationResult(err)
 }
 
 // CreateNotification stores a new notification. With applyToAll, every monitor starts using it.
 func (s *Store) CreateNotification(ctx context.Context, n Notification, applyToAll bool) (Notification, error) {
-	created, err := scanNotification(s.pool.QueryRow(ctx, `
-		INSERT INTO notification (name, type, config, active, is_default) VALUES ($1, $2, $3, $4, $5)
-		RETURNING `+notificationColumns, n.Name, n.Type, n.Config, n.Active, n.IsDefault))
+	id, err := nextNotificationID(ctx, s.pool)
+	if err != nil {
+		return Notification{}, fmt.Errorf("create notification: %w", err)
+	}
+	config, err := s.sealJSON(n.Config, notificationAAD(id))
+	if err != nil {
+		return Notification{}, err
+	}
+	created, err := s.scanNotification(s.pool.QueryRow(ctx, `
+		INSERT INTO notification (id, name, type, config, active, is_default) VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING `+notificationColumns, id, n.Name, n.Type, config, n.Active, n.IsDefault))
 	if err := notificationResult(err); err != nil {
 		return created, err
 	}
@@ -83,9 +109,13 @@ func (s *Store) CreateNotification(ctx context.Context, n Notification, applyToA
 
 // UpdateNotification replaces a notification or returns ErrNotFound.
 func (s *Store) UpdateNotification(ctx context.Context, n Notification, applyToAll bool) (Notification, error) {
-	updated, err := scanNotification(s.pool.QueryRow(ctx, `
+	config, err := s.sealJSON(n.Config, notificationAAD(n.ID))
+	if err != nil {
+		return Notification{}, err
+	}
+	updated, err := s.scanNotification(s.pool.QueryRow(ctx, `
 		UPDATE notification SET name = $2, type = $3, config = $4, active = $5, is_default = $6, updated_at = now()
-		WHERE id = $1 RETURNING `+notificationColumns, n.ID, n.Name, n.Type, n.Config, n.Active, n.IsDefault))
+		WHERE id = $1 RETURNING `+notificationColumns, n.ID, n.Name, n.Type, config, n.Active, n.IsDefault))
 	if err := notificationResult(err); err != nil {
 		return updated, err
 	}
@@ -189,7 +219,7 @@ func (s *Store) ActiveNotificationsFor(ctx context.Context, monitorID int32) ([]
 	if err != nil {
 		return nil, fmt.Errorf("read notifications: %w", err)
 	}
-	return collectNotifications(rows)
+	return s.collectNotifications(rows)
 }
 
 // LastDownTime returns when a monitor last went down, if it has.
@@ -263,17 +293,28 @@ func (s *Store) ImportNotification(ctx context.Context, sourceID int32, n Notifi
 	err = tx.QueryRow(ctx, `SELECT notification_id FROM notification_import WHERE source_id = $1`, sourceID).Scan(&id)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		err = tx.QueryRow(ctx, `
-			INSERT INTO notification (name, type, config, active, is_default) VALUES ($1, $2, $3, false, $4) RETURNING id`,
-			n.Name, n.Type, n.Config, n.IsDefault).Scan(&id)
+		if id, err = nextNotificationID(ctx, tx); err != nil {
+			return 0, fmt.Errorf("create notification: %w", err)
+		}
+		config, err := s.sealJSON(n.Config, notificationAAD(id))
+		if err != nil {
+			return 0, err
+		}
+		_, err = tx.Exec(ctx, `
+			INSERT INTO notification (id, name, type, config, active, is_default) VALUES ($1, $2, $3, $4, false, $5)`,
+			id, n.Name, n.Type, config, n.IsDefault)
 		if err != nil {
 			return 0, fmt.Errorf("create notification: %w", err)
 		}
 	case err != nil:
 		return 0, fmt.Errorf("read import: %w", err)
 	default:
+		config, err := s.sealJSON(n.Config, notificationAAD(id))
+		if err != nil {
+			return 0, err
+		}
 		_, err = tx.Exec(ctx, `UPDATE notification SET name = $2, type = $3, config = $4, is_default = $5, updated_at = now() WHERE id = $1`,
-			id, n.Name, n.Type, n.Config, n.IsDefault)
+			id, n.Name, n.Type, config, n.IsDefault)
 		if err != nil {
 			return 0, fmt.Errorf("update notification: %w", err)
 		}

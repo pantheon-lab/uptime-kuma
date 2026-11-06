@@ -118,7 +118,7 @@ func (u *User) fields() []any {
 	return []any{&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPLockedUntil, &u.Role, &u.GitHubID, &u.GitHubCheckedAt, &u.GitHubTeams}
 }
 
-func scanUser(row pgx.Row) (User, error) {
+func (s *Store) scanUser(row pgx.Row) (User, error) {
 	var u User
 	err := row.Scan(u.fields()...)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -127,19 +127,22 @@ func scanUser(row pgx.Row) (User, error) {
 	if err != nil {
 		return User{}, fmt.Errorf("read user: %w", err)
 	}
+	if err := s.openUser(&u); err != nil {
+		return User{}, fmt.Errorf("read user: %w", err)
+	}
 	return u, nil
 }
 
 // UserByUsername returns an account or ErrNotFound. Usernames match case-insensitively.
 func (s *Store) UserByUsername(ctx context.Context, username string) (User, error) {
-	return scanUser(s.pool.QueryRow(ctx, `
+	return s.scanUser(s.pool.QueryRow(ctx, `
 		SELECT `+userColumns+` FROM app_user
 		WHERE lower(username) = lower($1) ORDER BY id LIMIT 1`, username))
 }
 
 // UserByID returns an account or ErrNotFound.
 func (s *Store) UserByID(ctx context.Context, id int32) (User, error) {
-	return scanUser(s.pool.QueryRow(ctx, `
+	return s.scanUser(s.pool.QueryRow(ctx, `
 		SELECT `+userColumns+` FROM app_user WHERE id = $1`, id))
 }
 
@@ -200,6 +203,9 @@ func (s *Store) FindSession(ctx context.Context, tokenHash []byte) (Session, Use
 		return Session{}, User{}, ErrNotFound
 	}
 	if err != nil {
+		return Session{}, User{}, fmt.Errorf("find session: %w", err)
+	}
+	if err := s.openUser(&user); err != nil {
 		return Session{}, User{}, fmt.Errorf("find session: %w", err)
 	}
 	return session, user, nil
@@ -264,6 +270,9 @@ const (
 	WebpushPrivateKeySetting = "webpushPrivateVapidKey"
 )
 
+// vapidAAD is where the VAPID private key is sealed for.
+var vapidAAD = secretAAD("app_setting", "value", WebpushPrivateKeySetting)
+
 // WebpushKeys returns the VAPID key pair, made with generate the first time. Browsers subscribe
 // with the public key, so it never changes once made: when two requests make one at once, the
 // first to be saved wins.
@@ -276,7 +285,8 @@ func (s *Store) WebpushKeys(ctx context.Context, generate func() (public, privat
 		if err != nil || public == nil || private == nil {
 			return "", "", err
 		}
-		return *public, *private, nil
+		plain, err := s.openText(*private, vapidAAD)
+		return *public, plain, err
 	}
 	public, private, err := read()
 	if err != nil {
@@ -289,8 +299,12 @@ func (s *Store) WebpushKeys(ctx context.Context, generate func() (public, privat
 	if err != nil {
 		return "", "", fmt.Errorf("make web push keys: %w", err)
 	}
+	sealedPrivate, err := s.sealText(newPrivate, vapidAAD)
+	if err != nil {
+		return "", "", err
+	}
 	pub, _ := json.Marshal(newPublic)
-	priv, _ := json.Marshal(newPrivate)
+	priv, _ := json.Marshal(sealedPrivate)
 	// Both rows, or neither: a concurrent insert of the same keys makes this one do nothing.
 	if _, err := s.pool.Exec(ctx, `
 		INSERT INTO app_setting (key, value) VALUES ($1, $2), ($3, $4) ON CONFLICT (key) DO NOTHING`,
@@ -309,8 +323,12 @@ func (s *Store) WebpushKeys(ctx context.Context, generate func() (public, privat
 // ImportWebpushKeys saves a VAPID key pair from Node.js, so that browsers subscribed there keep
 // receiving messages. It does nothing, and says so, when this server has a pair already.
 func (s *Store) ImportWebpushKeys(ctx context.Context, public, private string) (bool, error) {
+	sealed, err := s.sealText(private, vapidAAD)
+	if err != nil {
+		return false, err
+	}
 	pub, _ := json.Marshal(public)
-	priv, _ := json.Marshal(private)
+	priv, _ := json.Marshal(sealed)
 	tag, err := s.pool.Exec(ctx, `
 		INSERT INTO app_setting (key, value)
 		SELECT k, v FROM (VALUES ($1, $2::jsonb), ($3, $4::jsonb)) AS pair (k, v)
@@ -342,13 +360,25 @@ func (s *Store) SaveGitHubUser(ctx context.Context, githubID int64, login, role,
 			WHERE username = $1 AND github_id IS NOT NULL AND github_id <> $2`, GitHubAccountPrefix+login, githubID); err != nil {
 			return err
 		}
-		return tx.QueryRow(ctx, `
+		err := tx.QueryRow(ctx, `
 		INSERT INTO app_user (username, password_hash, role, github_id, github_token, github_checked_at, github_teams)
-		VALUES ($1, '', $2, $3, $4, now(), $5)
+		VALUES ($1, '', $2, $3, NULL, now(), $4)
 		ON CONFLICT (github_id) WHERE github_id IS NOT NULL DO UPDATE
-		SET username = excluded.username, role = excluded.role, github_token = excluded.github_token,
-		    github_checked_at = now(), github_teams = excluded.github_teams
-		RETURNING `+userColumns, GitHubAccountPrefix+login, role, githubID, token, teams).Scan(user.fields()...)
+		SET username = excluded.username, role = excluded.role, github_checked_at = now(), github_teams = excluded.github_teams
+		RETURNING `+userColumns, GitHubAccountPrefix+login, role, githubID, teams).Scan(user.fields()...)
+		if err != nil {
+			return err
+		}
+		if err := s.openUser(&user); err != nil {
+			return err
+		}
+		// The token is sealed for the account's row, whose id is known now.
+		sealed, err := s.sealText(token, secretAAD("app_user", "github_token", user.ID))
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `UPDATE app_user SET github_token = $2 WHERE id = $1`, user.ID, sealed)
+		return err
 	})
 	if err != nil {
 		return User{}, fmt.Errorf("save GitHub account: %w", err)
@@ -366,7 +396,11 @@ func (s *Store) GitHubToken(ctx context.Context, userID int32) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("read GitHub token: %w", err)
 	}
-	return *token, nil
+	plain, err := s.openText(*token, secretAAD("app_user", "github_token", userID))
+	if err != nil {
+		return "", fmt.Errorf("read GitHub token: %w", err)
+	}
+	return plain, nil
 }
 
 // SetGitHubChecked records a check of a GitHub account's teams, and the role they give now.

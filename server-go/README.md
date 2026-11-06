@@ -377,11 +377,34 @@ docker compose up --build
 | `KUMA_GITHUB_ADMIN_TEAMS`          | not set          | Team slugs whose members are admins, comma-separated                                            |
 | `KUMA_GITHUB_VIEWER_TEAMS`         | not set          | Team slugs whose members are viewers, or `*` for every member of the organization               |
 | `KUMA_PASSWORD_LOGIN`              | `true`           | `false` refuses logging in with a password, once GitHub login works                             |
+| `KUMA_SECRET_KEY`                  | not set          | 32 bytes in base64 or hex that encrypt stored secrets. See "Encrypting stored secrets"          |
+| `KUMA_SECRET_KEY_OLD`              | not set          | Earlier keys, comma-separated, while rotating. Both also come from a file with `_FILE`          |
 | `CLOUDFLARE_TUNNEL_TOKEN`          | not set          | In `compose.yaml`, the token of the Cloudflare Tunnel that the `tunnel` profile runs            |
 | `DOCKER_TLS_DIR_PATH`              | not set          | Client certificates for `https://` Docker hosts, in a directory per host                        |
 
 To deploy on Kubernetes, use the Helm chart in [`charts/uptime-kuma`](charts/uptime-kuma/README.md), which
 runs the same stack.
+
+### Encrypting stored secrets
+
+With `KUMA_SECRET_KEY`, these are stored encrypted, so that a copy of the database, such as a backup, doesn't give
+them away: authenticator keys, GitHub tokens, notification settings, proxy passwords and the web push (VAPID)
+private key. Each is encrypted with AES-256-GCM for its column and row, so that a value copied to another row
+doesn't open. Monitors' credentials aren't: they're spread over many columns that checks, the API and the UI read,
+and the Grafana role can't read them already.
+
+```bash
+openssl rand -base64 32   # keep it in a secret manager or a file, never in the database
+```
+
+- **Turning it on:** set `KUMA_SECRET_KEY` (or `KUMA_SECRET_KEY_FILE`, a path to the key), and restart. Plain values
+  are encrypted at start, and the log says how many. Give `kuma-import` the same key.
+- **Losing it** loses those values: the server won't start with encrypted values and no key, or the wrong key,
+  rather than run without them. Back the key up apart from the database.
+- **Rotating it:** set the new key as `KUMA_SECRET_KEY` and the old one as `KUMA_SECRET_KEY_OLD`, restart, then run
+  `kuma-analytics rekey` with the same variables, which encrypts everything again with the new key. Then remove
+  `KUMA_SECRET_KEY_OLD`.
+- **Turning it off** isn't supported: the values would have to be decrypted first, and nothing does that.
 
 Run a single instance: there's no coordination between schedulers, so two instances
 would both run every check.

@@ -29,7 +29,7 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | 7b    | Logging in with GitHub                                              | Done    |
 | E1    | Managing accounts in the UI                                         | Done    |
 | E2    | The Security page for GitHub accounts                               | Done    |
-| E3    | Encrypting stored secrets                                           | Planned |
+| E3    | Encrypting stored secrets                                           | Done    |
 | E4    | Completing the migration from MariaDB                               | Planned |
 
 ## Phase 0: Core (done)
@@ -686,19 +686,40 @@ the GitHub account's page with its organization, teams, role and last check and 
 two-factor settings, the server refusing both changes, and a password account's page unchanged. Hiding "disable
 auth" for GitHub accounts came after that run, and was only linted.
 
-### E3: Encrypting stored secrets
+### E3: Encrypting stored secrets (done)
 
-Authenticator keys, GitHub tokens, notification settings, monitor credentials and the VAPID private key are stored as
-they are, and protected only by the database's access control. Encrypting them with a key kept outside the database
-means a copy of the database, such as a backup, doesn't give them away.
+Authenticator keys, GitHub tokens, notification settings, monitor credentials and the VAPID private key were stored
+as they are, protected only by the database's access control.
 
-- `KUMA_SECRET_KEY`, from a file or a secret manager, never in the database. AES-256-GCM with the column and row as
-  associated data, so that a value can't be moved to another row.
-- A key version on each value, so that the key can be rotated: a command re-encrypts everything with the new key.
-- Existing plain values are encrypted at the first start with a key, and the server refuses to start with
-  encrypted values and no key.
-- Decide first which columns: the Grafana read-only role already can't read monitors' credentials, and encrypting
-  them stops the database from searching or checking them.
+- `KUMA_SECRET_KEY` (or `KUMA_SECRET_KEY_FILE`), 32 bytes in base64 or hex, never in the database. Values are
+  sealed with AES-256-GCM with the table, column and row as associated data, so that a value moved to another row
+  doesn't open (`internal/secrets`). A new row's id is taken from its sequence first, so that it's sealed for it.
+- Encrypted: authenticator keys, GitHub tokens, notification settings (the whole `config`), proxy passwords and the
+  VAPID private key. **Decided against:** monitors' credentials, which are spread over many columns that checks, the
+  API and the UI read, and which the Grafana role can't read already; and Docker hosts and remote browsers, whose
+  addresses rarely hold credentials. Comparisons that the database made on encrypted columns (confirming the
+  authenticator key, matching an imported proxy) are made after opening them.
+- Each value carries its key's id, the start of the key's SHA-256. `KUMA_SECRET_KEY_OLD` holds keys being
+  replaced, and `kuma-analytics rekey` encrypts everything again with the current key.
+- At each start, plain values are encrypted when there's a key, and the log counts them. The server, and
+  `kuma-import -apply`, refuse to start with encrypted values and no key, or a key that doesn't open them.
+
+Tested with the race detector: the keyring (sealing, a moved value, no key, unknown keys, parsing keys), and against
+TimescaleDB, each of the five kinds stored before there was a key, encrypted at start, read back, written anew
+encrypted (with two-factor confirmation and proxy matching on encrypted values), a value copied to another row
+refusing to open, refusing to start without the key, and rotation. The whole store suite also passes with
+`TEST_SECRET_KEY` set, so that every stored secret in it is encrypted. Against the built image
+(`internal/e2e/browser/secrets-e3.mjs`): a notification and a proxy saved without a key, then a start with one that
+logged both encrypted, the database holding only `kenc:v1:` values, the notification dialog showing the webhook,
+and a new notification stored encrypted; then a start without the key refused, `rekey` with a new key, a start
+with the new key alone, and one with the old key alone refused.
+
+Not tested against the image: authenticator keys, GitHub tokens and the VAPID key, which the store tests cover.
+
+Known limits:
+
+- Turning encryption off isn't supported: nothing decrypts the values back.
+- Losing the key loses those values. The README says to back it up apart from the database.
 
 ### E4: Completing the migration from MariaDB
 
