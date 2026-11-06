@@ -51,7 +51,6 @@ var errNotLoggedIn = errors.New("You are not logged in.")
 // emptyReplies answer events that the UI sends on its own when a page opens, for features
 // this service doesn't have yet. An error would show a toast on every page load.
 var emptyReplies = map[string]func() any{
-	"getAPIKeyList":   func() any { return ok() },
 	"getDatabaseSize": func() any { return ok("size", 0) },
 	"checkApprise":    func() any { return false },
 }
@@ -448,6 +447,12 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r = gameList()
 	case "getPM2ProcessList":
 		r, err = s.getPM2ProcessList(ctx)
+	case "getAPIKeyList":
+		r, err = s.getAPIKeyList(ctx)
+	case "addAPIKey":
+		r, err = s.addAPIKey(ctx, c, args)
+	case "deleteAPIKey":
+		r, err = s.deleteAPIKey(ctx, c, args)
 	default:
 		if s.pages == nil {
 			return nil, false

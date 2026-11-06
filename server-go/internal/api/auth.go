@@ -83,6 +83,12 @@ func generateKey() (plain string, hash []byte, prefix string, err error) {
 	return plain, hashKey(plain), plain[:shownPrefixLen], nil
 }
 
+// NewKey makes an API key as createAPIKey does, for the web UI, which saves keys itself.
+func NewKey() (plain string, hash []byte, prefix string, err error) { return generateKey() }
+
+// GrantableScopes returns the scopes a key can have.
+func GrantableScopes() []string { return slices.Clone(grantableScopes) }
+
 func hashKey(plain string) []byte {
 	sum := sha256.Sum256([]byte(plain))
 	return sum[:]

@@ -19,7 +19,9 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | 4d    | Docker, system and remote browser monitors                          | Done    |
 | 4e    | HTTP options, proxies and domain expiry                             | Done    |
 | 4f    | Globalping, GameDig and Tailscale ping                              | Done    |
-| 5     | Accounts and administration                                         | Next    |
+| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done    |
+| 5b    | Settings that take effect, and the Monitor History page             | Next    |
+| 5c    | Importing accounts, status pages and maintenance windows            | Planned |
 | 6     | Integrations                                                        | Planned |
 
 ## Phase 0: Core (done)
@@ -292,12 +294,57 @@ Known limits and differences from Node.js:
   query reads the response's body, where Node.js read the whole output, headers too, which only a body could pass.
 - Tailscale ping messages say what failed in words of their own, as before, without the command's output.
 
-## Phase 5: Accounts and administration (planned)
+## Phase 5: Accounts and administration
 
-- Two-factor login, more than one account, the leaked password check, and API keys in the UI
+Phase 5 was split like Phase 4. More than one account, which the plan listed, was left out: the Node.js server
+didn't have it either. better-auth's admin routes for it were turned off there, and the UI has no page for
+accounts, so there's nothing to port. It needs a design of its own first, such as what each account may do.
+
+### Phase 5a: Two-factor login, leaked passwords and API keys (done)
+
+- **Two-factor login** with an authenticator app, through the same better-auth routes the UI calls:
+  `/two-factor/enable`, `/two-factor/verify-totp` and `/two-factor/disable`, and a login that answers
+  `twoFactorRedirect` when a code is needed. Codes are RFC 6238, as better-auth's.
+- **The leaked password check** against Pwned Passwords, at setup and when the password changes, as in Node.js.
+  `KUMA_DISABLE_LEAK_PASSWORD_CHECK` turns it off, as `UPTIME_KUMA_DISABLE_LEAK_PWD_CHECK` did.
+- **API keys in the UI:** Settings > API Keys lists, adds and deletes the REST API's keys. The dialog now picks
+  the key's scopes, and the list shows them, the key's prefix and when it was last used.
+- `KUMA_INITIAL_ADMIN_USERNAME` and `KUMA_INITIAL_ADMIN_PASSWORD` create the account at start, as
+  `UK_INITIAL_ADMIN_USERNAME` and `UK_INITIAL_ADMIN_PASSWORD` did.
+
+Tested with the race detector: the routes against an in-memory store, with RFC 6238's test vectors, replayed
+codes, the limits on tries, and a fake Pwned Passwords API that pads its answers, and the store against TimescaleDB,
+including concurrent uses of one code. In headless
+Chromium against the built image, against the real Pwned Passwords API: setup refused `password123`, two-factor
+login was turned on through Settings > Security with a code computed from the QR code's key, a login asked for a
+code, refused a wrong one and took a right one, a key with only `monitors:read` was added through the form, could
+read monitors and not add one, and stopped working when deleted, and two-factor login was turned off:
+`internal/e2e/browser/accounts-5a.mjs`. The initial account variables were tried against the image.
+
+Not tested: a real authenticator app scanning the QR code, and a server that can't reach Pwned Passwords
+other than through a fake that fails.
+
+Known limits and differences from Node.js:
+
+- There are no backup codes. better-auth made them, but the UI never showed them. Losing the app means turning
+  two-factor login off in the database, which the README explains.
+- A code can't be used twice, even within its 30 seconds, where better-auth allowed it. Turning two-factor login
+  on ends the account's other logins, and better-auth's "trust this device" isn't offered, as the UI never asked.
+- The authenticator key is stored as it is, where better-auth encrypted it with its secret, which here would sit
+  in the same configuration as the database's password.
+- Deleting an API key revokes it, which the REST API's list still shows, and the UI's doesn't. A key made in the
+  UI without choosing scopes, by an older page, gets them all.
+- Keys made by the Node.js server, by better-auth or in its older table, aren't imported, and Prometheus's
+  `/metrics`, which they unlocked, is replaced by OpenTelemetry.
+
+### Phase 5b: Settings and the Monitor History page (next)
+
 - Settings that take effect, such as the data retention setting, which `RETENTION_DAYS` decides today
 - The Monitor History page: clearing heartbeats and statistics, shrinking the database, and the database size
-- Importing users, status pages and maintenance windows from MariaDB
+
+### Phase 5c: Importing accounts, status pages and maintenance windows (planned)
+
+- The account from MariaDB, with its password hash and two-factor key, and status pages and maintenance windows
 
 ## Phase 6: Integrations (planned)
 

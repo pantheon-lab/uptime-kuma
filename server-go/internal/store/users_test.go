@@ -183,3 +183,157 @@ func TestUIQueries(t *testing.T) {
 		t.Fatalf("links: %v %v", links, err)
 	}
 }
+
+func TestTwoFactorStore(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	user, err := s.CreateFirstUser(ctx, "admin", "salt:hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.TOTPEnabled || user.TOTPSecret != nil {
+		t.Fatalf("new user: %+v", user)
+	}
+	future := time.Now().Add(time.Hour)
+	for _, h := range []string{"keep", "other"} {
+		if err := s.CreateSession(ctx, []byte(h), Session{UserID: user.ID, ExpiresAt: future}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	first, second := []byte("first key"), []byte("second key")
+	if err := s.StartTOTPSetup(ctx, user.ID, first); err != nil {
+		t.Fatal(err)
+	}
+	// Set up again before confirming, as from another tab: the first key no longer works.
+	if err := s.StartTOTPSetup(ctx, user.ID, second); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnableTOTP(ctx, user.ID, first, 100, []byte("keep")); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("enable with a replaced key: %v", err)
+	}
+	if err := s.EnableTOTP(ctx, user.ID, second, 100, []byte("keep")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.FindSession(ctx, []byte("other")); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("other session after enabling: %v", err)
+	}
+	_, u, err := s.FindSession(ctx, []byte("keep"))
+	if err != nil || !u.TOTPEnabled || string(u.TOTPSecret) != "second key" {
+		t.Fatalf("kept session: %+v %v", u, err)
+	}
+	if err := s.StartTOTPSetup(ctx, user.ID, first); !errors.Is(err, ErrTOTPEnabled) {
+		t.Fatalf("setup while enabled: %v", err)
+	}
+	if err := s.StartTOTPSetup(ctx, 999, first); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("setup of a missing user: %v", err)
+	}
+
+	// A step is used once, and an older one never.
+	for _, tc := range []struct {
+		step int64
+		want bool
+	}{{100, false}, {99, false}, {101, true}, {101, false}, {103, true}} {
+		if got, err := s.UseTOTPStep(ctx, user.ID, tc.step); err != nil || got != tc.want {
+			t.Fatalf("step %d: %v %v", tc.step, got, err)
+		}
+	}
+	// Two requests with the same code: only one wins.
+	var wg sync.WaitGroup
+	wins := make(chan bool, 8)
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			used, err := s.UseTOTPStep(ctx, user.ID, 200)
+			if err != nil {
+				t.Error(err)
+			}
+			wins <- used
+		}()
+	}
+	wg.Wait()
+	close(wins)
+	n := 0
+	for w := range wins {
+		if w {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("%d requests used the same step", n)
+	}
+
+	for range 2 {
+		if err := s.RecordTOTPFailure(ctx, user.ID, 3, time.Minute); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if u, _ := s.UserByID(ctx, user.ID); u.TOTPLockedUntil != nil {
+		t.Fatal("locked too early")
+	}
+	if err := s.RecordTOTPFailure(ctx, user.ID, 3, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	u, _ = s.UserByID(ctx, user.ID)
+	if u.TOTPLockedUntil == nil || time.Until(*u.TOTPLockedUntil) < 50*time.Second {
+		t.Fatalf("not locked: %+v", u.TOTPLockedUntil)
+	}
+	if used, _ := s.UseTOTPStep(ctx, user.ID, 300); !used {
+		t.Fatal("a right code after the lock")
+	}
+	if u, _ := s.UserByID(ctx, user.ID); u.TOTPLockedUntil != nil {
+		t.Fatal("a right code didn't clear the lock")
+	}
+
+	// Challenges.
+	if err := s.CreateTwoFactorChallenge(ctx, []byte("c1"), TwoFactorChallenge{UserID: user.ID, Remember: true, ExpiresAt: future}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateTwoFactorChallenge(ctx, []byte("old"), TwoFactorChallenge{UserID: user.ID, ExpiresAt: time.Now().Add(-time.Second)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.FindTwoFactorChallenge(ctx, []byte("old")); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expired challenge: %v", err)
+	}
+	c, cu, err := s.FindTwoFactorChallenge(ctx, []byte("c1"))
+	if err != nil || !c.Remember || c.Attempts != 0 || cu.Username != "admin" || !cu.TOTPEnabled {
+		t.Fatalf("challenge: %+v %+v %v", c, cu, err)
+	}
+	for want := 1; want <= 3; want++ {
+		if n, err := s.CountTwoFactorAttempt(ctx, []byte("c1")); err != nil || n != want {
+			t.Fatalf("attempt %d: %d %v", want, n, err)
+		}
+	}
+	if _, err := s.CountTwoFactorAttempt(ctx, []byte("missing")); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("attempt at a missing challenge: %v", err)
+	}
+	if ok, err := s.DeleteTwoFactorChallenge(ctx, []byte("c1")); err != nil || !ok {
+		t.Fatalf("delete: %v %v", ok, err)
+	}
+	if ok, _ := s.DeleteTwoFactorChallenge(ctx, []byte("c1")); ok {
+		t.Fatal("deleted twice")
+	}
+
+	// Changing the password or turning two-factor login off ends the waiting challenges.
+	_ = s.CreateTwoFactorChallenge(ctx, []byte("c2"), TwoFactorChallenge{UserID: user.ID, ExpiresAt: future})
+	if err := s.SetPassword(ctx, user.ID, "salt:new", []byte("keep")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.FindTwoFactorChallenge(ctx, []byte("c2")); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("challenge after a password change: %v", err)
+	}
+	_ = s.CreateTwoFactorChallenge(ctx, []byte("c3"), TwoFactorChallenge{UserID: user.ID, ExpiresAt: future})
+	if err := s.DisableTOTP(ctx, user.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.FindTwoFactorChallenge(ctx, []byte("c3")); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("challenge after disabling: %v", err)
+	}
+	if u, _ := s.UserByID(ctx, user.ID); u.TOTPEnabled || u.TOTPSecret != nil {
+		t.Fatalf("after disabling: %+v", u)
+	}
+	if err := s.DisableTOTP(ctx, 999); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("disable a missing user: %v", err)
+	}
+}

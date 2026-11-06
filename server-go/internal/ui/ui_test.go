@@ -49,10 +49,18 @@ type fakeStore struct {
 	remoteBrowsers []check.RemoteBrowser
 	screenshots    map[int32][]byte
 	proxies        []check.Proxy
+
+	totpSteps    map[int32]int64
+	totpFailures map[int32]int
+	challenges   map[string]store.TwoFactorChallenge
+	apiKeys      []store.APIKey
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{sessions: map[string]store.Session{}, monitors: map[int32]monitor.Monitor{}, settings: map[string]json.RawMessage{}}
+	return &fakeStore{
+		sessions: map[string]store.Session{}, monitors: map[int32]monitor.Monitor{}, settings: map[string]json.RawMessage{},
+		totpSteps: map[int32]int64{}, totpFailures: map[int32]int{}, challenges: map[string]store.TwoFactorChallenge{},
+	}
 }
 
 func (f *fakeStore) HasUser(context.Context) (bool, error) {
@@ -458,6 +466,11 @@ func (f *fakeScheduler) Remove(_ context.Context, id int32) error {
 
 func newTestServer(t *testing.T) (*Server, *fakeStore, *httptest.Server) {
 	t.Helper()
+	return newTestServerWith(t, nil)
+}
+
+func newTestServerWith(t *testing.T, configure func(*Options)) (*Server, *fakeStore, *httptest.Server) {
+	t.Helper()
 	fs := newFakeStore()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	calendar, err := holidays.New()
@@ -465,7 +478,11 @@ func newTestServer(t *testing.T) (*Server, *fakeStore, *httptest.Server) {
 		t.Fatal(err)
 	}
 	service := maintenance.NewService(fs, calendar, time.UTC, log)
-	s := New(fs, &fakeScheduler{}, notify.DefaultEnv(""), log, Options{Version: "1.2.3", Maintenance: service})
+	opts := Options{Version: "1.2.3", Maintenance: service}
+	if configure != nil {
+		configure(&opts)
+	}
+	s := New(fs, &fakeScheduler{}, notify.DefaultEnv(""), log, opts)
 	mux := http.NewServeMux()
 	s.Register(mux)
 	ts := httptest.NewServer(mux)

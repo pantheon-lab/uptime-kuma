@@ -31,6 +31,13 @@
                                 {{ $t("Expires") }}:
                                 {{ item.expiresAt || $t("Never") }}
                             </div>
+                            <div v-if="item.lastUsedAt" class="date">
+                                {{ $t("apiKeyLastUsed") }}: {{ item.lastUsedAt }}
+                            </div>
+                            <div v-if="item.scopes" class="date">
+                                <code>{{ item.prefix }}…</code>
+                                {{ item.scopes.join(", ") }}
+                            </div>
                         </div>
                     </div>
 
@@ -47,16 +54,14 @@
         </div>
 
         <div class="text-center mt-3" style="font-size: 13px">
-            <a href="https://github.com/louislam/uptime-kuma/wiki/Prometheus-API-Keys" target="_blank">
-                {{ $t("Learn More") }}
-            </a>
+            {{ $t("apiKeyUsage") }}
         </div>
 
         <Confirm ref="confirmDelete" btn-style="btn-danger" :yes-text="$t('Yes')" :no-text="$t('No')" @yes="deleteKey">
             {{ $t("deleteAPIKeyMsg") }}
         </Confirm>
 
-        <APIKeyDialog ref="apiKeyDialog" @keyAdded="loadAPIKeys" />
+        <APIKeyDialog ref="apiKeyDialog" :scopes="scopes" @keyAdded="loadAPIKeys" />
     </div>
 </template>
 
@@ -72,7 +77,7 @@ export default {
     data() {
         return {
             apiKeyList: [],
-            legacyKeyList: [],
+            scopes: undefined,
             selectedKeyID: null,
         };
     },
@@ -91,6 +96,9 @@ export default {
             this.$root.getAPIKeyList((res) => {
                 if (res.ok) {
                     this.apiKeyList = res.apiKeyList;
+                    if (res.scopes) {
+                        this.scopes = res.scopes;
+                    }
                 }
             });
         },
