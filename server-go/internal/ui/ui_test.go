@@ -55,14 +55,16 @@ type fakeStore struct {
 	challenges   map[string]store.TwoFactorChallenge
 	apiKeys      []store.APIKey
 
-	cleared   []int32
-	retention []int
+	cleared      []int32
+	githubTokens map[int32]string
+	retention    []int
 }
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{
 		sessions: map[string]store.Session{}, monitors: map[int32]monitor.Monitor{}, settings: map[string]json.RawMessage{},
 		totpSteps: map[int32]int64{}, totpFailures: map[int32]int{}, challenges: map[string]store.TwoFactorChallenge{},
+		githubTokens: map[int32]string{},
 	}
 }
 

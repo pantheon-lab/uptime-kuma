@@ -1,7 +1,10 @@
 <template>
     <div class="form-container">
         <div class="form">
-            <form aria-label="Login Form" class="pt-3" @submit.prevent="submit">
+            <div v-if="loginError" class="alert alert-danger mt-3" role="alert">
+                {{ loginError }}
+            </div>
+            <form v-if="passwordLogin" aria-label="Login Form" class="pt-3" @submit.prevent="submit">
                 <div v-if="!tokenRequired" class="form-floating">
                     <input
                         id="floatingInput"
@@ -68,6 +71,19 @@
                     {{ $t(res.msg) }}
                 </div>
             </form>
+            <div v-if="$root.info.githubLogin && !tokenRequired" class="pt-3">
+                <div v-if="!passwordLogin" class="form-check mb-3 d-flex justify-content-center pe-4">
+                    <div class="form-check">
+                        <input id="remember-github" v-model="$root.remember" type="checkbox" class="form-check-input" />
+                        <label class="form-check-label" for="remember-github">
+                            {{ $t("Remember me") }}
+                        </label>
+                    </div>
+                </div>
+                <a id="github-login" class="w-100 btn btn-dark" :href="githubLoginURL">
+                    {{ $t("loginWithGitHub") }}
+                </a>
+            </div>
         </div>
     </div>
 </template>
@@ -85,6 +101,37 @@ export default {
             res: null,
             tokenRequired: false,
         };
+    },
+
+    computed: {
+        /**
+         * Whether logging in with a password is on
+         * @returns {boolean} On
+         */
+        passwordLogin() {
+            return this.$root.info.passwordLogin !== false;
+        },
+        /**
+         * Where "Log in with GitHub" starts
+         * @returns {string} Path
+         */
+        githubLoginURL() {
+            return "/api/auth/github/start?remember=" + (this.$root.remember ? "1" : "0");
+        },
+        /**
+         * Why the last GitHub login failed, from the address it came back to
+         * @returns {string} Message, or empty
+         */
+        loginError() {
+            const code = this.$route.query.loginError;
+            const messages = {
+                "github-not-allowed": this.$t("githubLoginNotAllowed"),
+                "github-denied": this.$t("githubLoginDenied"),
+                "github-expired": this.$t("githubLoginExpired"),
+                "github-failed": this.$t("githubLoginFailed"),
+            };
+            return code ? messages[code] || this.$t("githubLoginFailed") : "";
+        },
     },
 
     watch: {

@@ -461,6 +461,13 @@ var migrations = [][]string{
 		`ALTER TABLE app_user DROP CONSTRAINT IF EXISTS app_user_role_check`,
 		`ALTER TABLE app_user ADD CONSTRAINT app_user_role_check CHECK (role IN ('admin', 'viewer'))`,
 	},
+	{
+		// Accounts that log in with GitHub. The token is kept to check membership again later.
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS github_id bigint`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS app_user_github_id_idx ON app_user (github_id) WHERE github_id IS NOT NULL`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS github_token text`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS github_checked_at timestamptz`,
+	},
 }
 
 // Migrate brings the schema up to date.

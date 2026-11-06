@@ -161,6 +161,8 @@ func (s *Server) info(ctx context.Context, full bool) map[string]any {
 		sign, offset = "-", -offset
 	}
 	info := map[string]any{
+		"githubLogin":          s.opts.GitHub != nil,
+		"passwordLogin":        !s.opts.DisablePasswordLogin,
 		"primaryBaseURL":       baseURL,
 		"serverTimezone":       s.opts.Location.String(),
 		"serverTimezoneOffset": fmt.Sprintf("%s%02d:%02d", sign, offset/3600, offset%3600/60),

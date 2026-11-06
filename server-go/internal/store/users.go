@@ -34,6 +34,11 @@ type User struct {
 
 	// Role is RoleAdmin or RoleViewer.
 	Role string
+
+	// GitHubID is set for an account that logs in with GitHub, which has no password.
+	GitHubID *int64
+	// GitHubCheckedAt is when the account's GitHub teams were last checked.
+	GitHubCheckedAt *time.Time
 }
 
 // Roles. An admin can do everything. A viewer can look at monitors, beats, maintenance and status
@@ -46,7 +51,8 @@ const (
 // IsAdmin reports whether the account may change things and see credentials.
 func (u User) IsAdmin() bool { return u.Role == RoleAdmin }
 
-const userColumns = `id, username, password_hash, created_at, totp_secret, totp_enabled, totp_locked_until, role`
+const userColumns = `id, username, password_hash, created_at, totp_secret, totp_enabled, totp_locked_until, role,
+	github_id, github_checked_at`
 
 // Session is a web UI login. Only the token's hash is stored.
 type Session struct {
@@ -97,7 +103,7 @@ func (s *Store) CreateFirstUser(ctx context.Context, username, passwordHash stri
 }
 
 func (u *User) fields() []any {
-	return []any{&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPLockedUntil, &u.Role}
+	return []any{&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPLockedUntil, &u.Role, &u.GitHubID, &u.GitHubCheckedAt}
 }
 
 func scanUser(row pgx.Row) (User, error) {
@@ -172,7 +178,8 @@ func (s *Store) FindSession(ctx context.Context, tokenHash []byte) (Session, Use
 	var user User
 	err := s.pool.QueryRow(ctx, `
 		SELECT s.user_id, s.remember, s.created_at, s.expires_at,
-		       u.id, u.username, u.password_hash, u.created_at, u.totp_secret, u.totp_enabled, u.totp_locked_until, u.role
+		       u.id, u.username, u.password_hash, u.created_at, u.totp_secret, u.totp_enabled, u.totp_locked_until, u.role,
+		       u.github_id, u.github_checked_at
 		FROM app_session s JOIN app_user u ON u.id = s.user_id
 		WHERE s.token_hash = $1 AND s.expires_at > now()`, tokenHash).
 		Scan(append([]any{&session.UserID, &session.Remember, &session.CreatedAt, &session.ExpiresAt}, user.fields()...)...)
@@ -301,4 +308,63 @@ func (s *Store) ImportWebpushKeys(ctx context.Context, public, private string) (
 		return false, fmt.Errorf("import web push keys: %w", err)
 	}
 	return tag.RowsAffected() == 2, nil
+}
+
+// GitHubAccountPrefix starts the username of an account that logs in with GitHub, such as
+// "@octocat", so that it can't be taken by a password account.
+const GitHubAccountPrefix = "@"
+
+// SaveGitHubUser makes or updates the account of a GitHub user at login, with the role their
+// teams give. The token is kept to check the teams again later.
+func (s *Store) SaveGitHubUser(ctx context.Context, githubID int64, login, role, token string) (User, error) {
+	var user User
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		// GitHub logins can be renamed and taken by someone else: the account that had the name
+		// before keeps its id, under a name that says so.
+		if _, err := tx.Exec(ctx, `
+			UPDATE app_user SET username = username || '#' || id
+			WHERE username = $1 AND github_id IS NOT NULL AND github_id <> $2`, GitHubAccountPrefix+login, githubID); err != nil {
+			return err
+		}
+		return tx.QueryRow(ctx, `
+		INSERT INTO app_user (username, password_hash, role, github_id, github_token, github_checked_at)
+		VALUES ($1, '', $2, $3, $4, now())
+		ON CONFLICT (github_id) WHERE github_id IS NOT NULL DO UPDATE
+		SET username = excluded.username, role = excluded.role, github_token = excluded.github_token,
+		    github_checked_at = now()
+		RETURNING `+userColumns, GitHubAccountPrefix+login, role, githubID, token).Scan(user.fields()...)
+	})
+	if err != nil {
+		return User{}, fmt.Errorf("save GitHub account: %w", err)
+	}
+	return user, nil
+}
+
+// GitHubToken returns the token an account last logged in with.
+func (s *Store) GitHubToken(ctx context.Context, userID int32) (string, error) {
+	var token *string
+	err := s.pool.QueryRow(ctx, `SELECT github_token FROM app_user WHERE id = $1`, userID).Scan(&token)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && token == nil) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("read GitHub token: %w", err)
+	}
+	return *token, nil
+}
+
+// SetGitHubChecked records a check of a GitHub account's teams, and the role they give now.
+func (s *Store) SetGitHubChecked(ctx context.Context, userID int32, role string) error {
+	if _, err := s.pool.Exec(ctx, `UPDATE app_user SET role = $2, github_checked_at = now() WHERE id = $1`, userID, role); err != nil {
+		return fmt.Errorf("record GitHub check: %w", err)
+	}
+	return nil
+}
+
+// EndUserSessions logs an account out everywhere, such as when it has left the GitHub teams.
+func (s *Store) EndUserSessions(ctx context.Context, userID int32) error {
+	if _, err := s.pool.Exec(ctx, `DELETE FROM app_session WHERE user_id = $1`, userID); err != nil {
+		return fmt.Errorf("end sessions: %w", err)
+	}
+	return nil
 }

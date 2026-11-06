@@ -1676,5 +1676,10 @@
     "databaseSizeDescriptionPostgres": "PostgreSQL frees space on its own: monitor history older than the days above is dropped a day at a time, and clearing statistics frees their space at once.",
     "cloudflaredSidecar": "This server doesn't start cloudflared itself. Run Cloudflare's cloudflared beside it instead, as Cloudflare recommends for containers, and point the tunnel's public hostname at this server.",
     "cloudflaredSidecarHow": "With Docker Compose, set {token} and run {profile}. With the Helm chart, set {helm} and the tunnel token.",
-    "cloudflaredSidecarGuide": "How to set up a Cloudflare Tunnel"
+    "cloudflaredSidecarGuide": "How to set up a Cloudflare Tunnel",
+    "loginWithGitHub": "Log in with GitHub",
+    "githubLoginNotAllowed": "Your GitHub account isn't in a team that may use this server. Ask an admin to add you to one.",
+    "githubLoginDenied": "GitHub login was cancelled.",
+    "githubLoginExpired": "The GitHub login took too long or was started elsewhere. Please try again.",
+    "githubLoginFailed": "Logging in with GitHub failed. Please try again, or ask an admin to look at the server's log."
 }

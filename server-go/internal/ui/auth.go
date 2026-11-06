@@ -154,6 +154,10 @@ func (s *Server) signIn(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &body) {
 		return
 	}
+	if s.opts.DisablePasswordLogin {
+		authError(w, http.StatusForbidden, "PASSWORD_LOGIN_DISABLED", "Logging in with a password is turned off. Log in with GitHub.")
+		return
+	}
 	if !s.limiter.allow(body.Username) {
 		authError(w, http.StatusTooManyRequests, "TOO_MANY_REQUESTS", "Too many requests. Please try again later.")
 		return
@@ -269,6 +273,22 @@ func (s *Server) currentSession(ctx context.Context, w http.ResponseWriter, r *h
 	}
 	if err != nil {
 		return store.Session{}, store.User{}, false, err
+	}
+	if user.GitHubID != nil {
+		role := s.recheckGitHub(ctx, user)
+		if role == "" {
+			if err := s.store.EndUserSessions(ctx, user.ID); err != nil {
+				return store.Session{}, store.User{}, false, err
+			}
+			s.closeOtherSessions(user.ID, nil)
+			clearSessionCookie(w, r)
+			return store.Session{}, store.User{}, false, nil
+		}
+		if role != user.Role {
+			// Open pages reconnect, and get what the new role allows.
+			user.Role = role
+			s.closeOtherSessions(user.ID, nil)
+		}
 	}
 	if session.Remember && session.ExpiresAt.Sub(s.now()) < rememberFor-renewAfter {
 		expires := s.now().Add(rememberFor)

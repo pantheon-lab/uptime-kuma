@@ -587,11 +587,46 @@ Known limits:
   database.
 - A viewer still sees heartbeat messages, which can quote a response, and status pages' settings, which are public.
 
-### Phase 7b: Logging in with GitHub (next)
+### Phase 7b: Logging in with GitHub (done)
 
-- An OAuth App, configured with `KUMA_GITHUB_CLIENT_ID` and `KUMA_GITHUB_CLIENT_SECRET`, and "Log in with GitHub" on
-  the login page. The authorization code flow with `state`, and a session cookie as with a password.
-- `KUMA_GITHUB_ORG`, with `KUMA_GITHUB_ADMIN_TEAMS` and `KUMA_GITHUB_VIEWER_TEAMS`: membership decides the role at
-  every login, and is checked again when a session is renewed, so someone removed is logged out within a day.
-- An account for each GitHub user, made at their first login, named `@login`.
-- The password account stays, as a way in when GitHub is down, and `KUMA_PASSWORD_LOGIN=false` turns it off.
+- "Log in with GitHub" on the login page, with an OAuth App: the authorization code flow with `state` and PKCE
+  (S256), both kept in a cookie only the flow's paths receive, for 10 minutes. The `read:org` scope reads
+  membership: of the organization, then of its teams.
+- `KUMA_GITHUB_ADMIN_TEAMS` and `KUMA_GITHUB_VIEWER_TEAMS` decide the role, at each login and once a day while a
+  session is used. Someone no longer in the teams is logged out everywhere, and a changed role takes effect, with
+  open pages reconnecting. When GitHub can't be reached, the account keeps its role until the next try. Turning
+  GitHub login off ends its accounts' sessions.
+- An account per GitHub user, by GitHub id, named `@login`. A renamed login whose old name someone else takes
+  leaves the old account as `@name#id`. Password accounts can't start with `@`.
+- `KUMA_PASSWORD_LOGIN=false` refuses the password, and the login page then shows only GitHub. The server won't
+  start with it unless GitHub login is set up.
+- A refused login comes back to the login page with a reason.
+
+Tested with the race detector, against a fake GitHub that checks the client secret and the PKCE verifier:
+
+- admin and viewer teams, and a team of the same name in another organization, which counts for nothing
+- refusals: no team, not a member of the organization, a forged state, no flow cookie, a cancelled login, and a
+  bad code
+- the next day: a move to a viewer team making the session a viewer, leaving the organization ending the session,
+  and GitHub being down keeping it
+- password login off
+- accounts in the store, with renames, rechecks and ending sessions
+
+In headless Chromium against the built image (`internal/e2e/browser/github-7b.mjs`), with a fake GitHub that the
+script serves and that redirects back as GitHub does, 7 of 7 steps passed with no page errors:
+
+- the login page offering both, and the password account still logging in
+- an admin team's member logging in as `@alice`, an admin
+- a viewer team's member as a viewer, without the monitor's token
+- someone in no team refused with the reason shown
+- with `KUMA_PASSWORD_LOGIN=false`, only GitHub offered and the password refused
+
+Not tested: the real GitHub, which needs an OAuth App registered for the organization.
+
+Known limits:
+
+- The GitHub token is stored as it is, as the authenticator key is, to check the teams again. It can read the
+  user's organizations and teams, nothing else.
+- Accounts can't be listed or removed in the UI. Someone who leaves the teams is logged out at their next use,
+  within a day, and can't log in again.
+- The Security page's password and two-factor settings don't apply to GitHub accounts, which have neither.

@@ -4,6 +4,7 @@ package main
 import (
 	_ "time/tzdata" // The container image has no timezone files, and KUMA_TIMEZONE needs them.
 
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -242,16 +243,26 @@ func run(log *slog.Logger) error {
 		}, log)
 		go updateChecker.Run(ctx)
 	}
+	githubLogin, err := githubOptions()
+	if err != nil {
+		return err
+	}
+	passwordLogin := os.Getenv("KUMA_PASSWORD_LOGIN") == "" || envTrue(os.Getenv("KUMA_PASSWORD_LOGIN"))
+	if !passwordLogin && githubLogin == nil {
+		return errors.New("KUMA_PASSWORD_LOGIN=false needs GitHub login, or nobody could log in")
+	}
 	uiServer := ui.New(db, sched, notifyEnv, log, ui.Options{
-		Updates:        updateChecker,
-		PasswordLeaked: passwordLeaked,
-		Version:        version,
-		BaseURL:        strings.TrimRight(os.Getenv("KUMA_BASE_URL"), "/"),
-		Location:       location,
-		Maintenance:    maintenanceService,
-		StatusPages:    db,
-		IndexHTML:      webui.IndexHTML(),
-		Domains:        domainService,
+		GitHub:               githubLogin,
+		DisablePasswordLogin: !passwordLogin,
+		Updates:              updateChecker,
+		PasswordLeaked:       passwordLeaked,
+		Version:              version,
+		BaseURL:              strings.TrimRight(os.Getenv("KUMA_BASE_URL"), "/"),
+		Location:             location,
+		Maintenance:          maintenanceService,
+		StatusPages:          db,
+		IndexHTML:            webui.IndexHTML(),
+		Domains:              domainService,
 	})
 	if err := createInitialAdmin(ctx, uiServer, log); err != nil {
 		return err
@@ -340,4 +351,39 @@ func createInitialAdmin(ctx context.Context, server *ui.Server, log *slog.Logger
 		log.Info("an account exists, so KUMA_INITIAL_ADMIN_USERNAME and KUMA_INITIAL_ADMIN_PASSWORD are ignored")
 	}
 	return nil
+}
+
+// githubOptions reads the GitHub login settings, or returns nil when KUMA_GITHUB_CLIENT_ID isn't set.
+func githubOptions() (*ui.GitHubOptions, error) {
+	id := strings.TrimSpace(os.Getenv("KUMA_GITHUB_CLIENT_ID"))
+	if id == "" {
+		return nil, nil
+	}
+	teams := func(name string) []string {
+		var out []string
+		for _, team := range strings.Split(os.Getenv(name), ",") {
+			if team = strings.ToLower(strings.TrimSpace(team)); team != "" {
+				out = append(out, team)
+			}
+		}
+		return out
+	}
+	g := &ui.GitHubOptions{
+		ClientID:     id,
+		ClientSecret: os.Getenv("KUMA_GITHUB_CLIENT_SECRET"),
+		Org:          strings.TrimSpace(os.Getenv("KUMA_GITHUB_ORG")),
+		AdminTeams:   teams("KUMA_GITHUB_ADMIN_TEAMS"),
+		ViewerTeams:  teams("KUMA_GITHUB_VIEWER_TEAMS"),
+		WebURL:       strings.TrimRight(cmp.Or(os.Getenv("KUMA_GITHUB_URL"), "https://github.com"), "/"),
+		APIURL:       strings.TrimRight(cmp.Or(os.Getenv("KUMA_GITHUB_API_URL"), "https://api.github.com"), "/"),
+	}
+	switch {
+	case g.ClientSecret == "":
+		return nil, errors.New("KUMA_GITHUB_CLIENT_SECRET is required with KUMA_GITHUB_CLIENT_ID")
+	case g.Org == "":
+		return nil, errors.New("KUMA_GITHUB_ORG is required with KUMA_GITHUB_CLIENT_ID: its teams decide who may log in")
+	case len(g.AdminTeams) == 0 && len(g.ViewerTeams) == 0:
+		return nil, errors.New("set KUMA_GITHUB_ADMIN_TEAMS or KUMA_GITHUB_VIEWER_TEAMS, the team slugs whose members may log in")
+	}
+	return g, nil
 }

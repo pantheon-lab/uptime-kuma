@@ -96,3 +96,19 @@ Cloudflare Tunnel without an ingress. Create the tunnel in Cloudflare's dashboar
 ```bash
 helm upgrade --install kuma ./charts/uptime-kuma --set cloudflared.enabled=true --set cloudflared.token="$TUNNEL_TOKEN"
 ```
+
+## Logging in with GitHub
+
+Set the variables in `analytics.extraEnv`, with the secret from a Kubernetes secret. The README of `server-go`
+explains them and the OAuth App.
+
+```yaml
+analytics:
+  extraEnv:
+    - { name: KUMA_GITHUB_CLIENT_ID, value: Iv1.0123456789abcdef }
+    - name: KUMA_GITHUB_CLIENT_SECRET
+      valueFrom: { secretKeyRef: { name: kuma-github, key: client-secret } }
+    - { name: KUMA_GITHUB_ORG, value: pantheon-lab }
+    - { name: KUMA_GITHUB_ADMIN_TEAMS, value: sre }
+    - { name: KUMA_GITHUB_VIEWER_TEAMS, value: "*" }
+```

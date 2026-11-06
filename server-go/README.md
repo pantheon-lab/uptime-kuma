@@ -30,8 +30,27 @@ can't change anything, and aren't sent credentials. The server enforces this: a 
 URLs' credentials and query strings, headers, bodies, connection strings, push tokens or passwords, and empty lists
 of notifications, proxies, Docker hosts and remote browsers, and every event that would change something, or read
 settings or API keys, is refused. The UI hides those buttons, and sends a viewer back from settings and forms.
-Logging in with GitHub, planned in [`PORTING.md`](PORTING.md), will make viewers. Until then, one can be made in the
-database: `INSERT INTO app_user (username, password_hash, role) VALUES (..., ..., 'viewer')`.
+Accounts other than the setup one come from logging in with GitHub.
+
+### Logging in with GitHub
+
+With a GitHub OAuth App, the login page offers "Log in with GitHub". Membership of the organization's teams decides
+who may log in, and as what, at each login and again once a day while a session is used, so that someone who leaves
+a team loses access within a day, and a role that changed takes effect. Two-factor login is left to GitHub, where
+the organization can require it.
+
+1. In the organization's settings, under Developer settings > OAuth Apps, register an app with the callback URL
+   `https://<this server>/api/auth/github/callback`.
+2. Set `KUMA_GITHUB_CLIENT_ID`, `KUMA_GITHUB_CLIENT_SECRET` and `KUMA_GITHUB_ORG`, and the team slugs:
+   `KUMA_GITHUB_ADMIN_TEAMS` for admins and `KUMA_GITHUB_VIEWER_TEAMS` for viewers, comma-separated. A viewer
+   team of `*` lets every member of the organization look.
+3. Once it works, `KUMA_PASSWORD_LOGIN=false` turns the password off, which then only stays as a way in when
+   GitHub is down, after it's turned back on.
+
+The app asks for the `read:org` scope, to read team membership. Each GitHub user gets an account named `@login` at
+their first login, so password accounts can't start with `@`. The token is stored, as the password hashes are, to
+check the teams again; it's never sent to browsers. Setup isn't offered once someone has logged in with GitHub.
+`KUMA_GITHUB_URL` and `KUMA_GITHUB_API_URL` point at a GitHub Enterprise server instead.
 
 What works in the UI: logging in and out, two-factor login, changing the password, API keys, the dashboard with live beats, uptime and
 response times, the event list, adding, editing, pausing and deleting the monitor types above, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public
@@ -347,6 +366,12 @@ docker compose up --build
 | `KUMA_INITIAL_ADMIN_PASSWORD`      | not set          | The password of that account, which must pass the same checks as at setup                       |
 | `KUMA_DISABLE_LEAK_PASSWORD_CHECK` | `false`          | Stops checking new passwords against Pwned Passwords, for servers without internet access       |
 | `KUMA_UPDATE_CHECK_URL`            | GitHub's tags    | Where the update check lists releases, or `off`                                                 |
+| `KUMA_GITHUB_CLIENT_ID`            | not set          | Turns on logging in with GitHub, with this OAuth App                                            |
+| `KUMA_GITHUB_CLIENT_SECRET`        | not set          | The OAuth App's secret                                                                          |
+| `KUMA_GITHUB_ORG`                  | not set          | The organization whose teams decide access                                                      |
+| `KUMA_GITHUB_ADMIN_TEAMS`          | not set          | Team slugs whose members are admins, comma-separated                                            |
+| `KUMA_GITHUB_VIEWER_TEAMS`         | not set          | Team slugs whose members are viewers, or `*` for every member of the organization               |
+| `KUMA_PASSWORD_LOGIN`              | `true`           | `false` refuses logging in with a password, once GitHub login works                             |
 | `CLOUDFLARE_TUNNEL_TOKEN`          | not set          | In `compose.yaml`, the token of the Cloudflare Tunnel that the `tunnel` profile runs            |
 | `DOCKER_TLS_DIR_PATH`              | not set          | Client certificates for `https://` Docker hosts, in a directory per host                        |
 

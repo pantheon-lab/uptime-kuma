@@ -12,6 +12,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/scrypt"
 	"golang.org/x/text/unicode/norm"
+
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 )
 
 // Password hashes use the format of better-auth, which the Node.js backend used:
@@ -98,6 +100,9 @@ func checkPasswordRules(password string) error {
 func checkUsername(username string) error {
 	if strings.TrimSpace(username) == "" {
 		return errors.New("username is required")
+	}
+	if strings.HasPrefix(username, store.GitHubAccountPrefix) {
+		return errors.New("usernames starting with @ are for accounts that log in with GitHub")
 	}
 	if utf8.RuneCountInString(username) > 64 {
 		return errors.New("username must be at most 64 characters")
