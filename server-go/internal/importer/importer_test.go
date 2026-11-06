@@ -539,7 +539,7 @@ func TestImportsNotifications(t *testing.T) {
 	f.exec(t, `INSERT INTO notification (id, name, active, is_default, config) VALUES
 		(1, 'Ops webhook', 1, 1, '{"type":"webhook","webhookURL":"https://hooks.example/secret-token","webhookContentType":"json"}'),
 		(2, 'Mail', 0, 0, '{"type":"smtp","smtpHost":"mail.example","smtpPort":587,"smtpPassword":"secret-pass"}'),
-		(5, 'Push', 1, 0, '{"type":"nostr","accessToken":"secret-nostr"}'),
+		(5, 'Push', 1, 0, '{"type":"LineNotify","lineNotifyAccessToken":"secret-line"}'),
 		(6, 'Broken', 1, 0, 'not json')`)
 	f.exec(t, "INSERT INTO monitor_notification (monitor_id, notification_id) VALUES (4, 5)")
 

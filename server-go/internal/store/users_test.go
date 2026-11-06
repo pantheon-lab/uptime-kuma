@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -335,5 +337,50 @@ func TestTwoFactorStore(t *testing.T) {
 	}
 	if err := s.DisableTOTP(ctx, 999); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("disable a missing user: %v", err)
+	}
+}
+
+func TestWebpushKeys(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	var made atomic.Int32
+	generate := func() (string, string, error) {
+		n := made.Add(1)
+		return fmt.Sprintf("public-%d", n), fmt.Sprintf("private-%d", n), nil
+	}
+	// The first uses race, and all of them get the same pair.
+	type pair struct{ public, private string }
+	results := make(chan pair, 8)
+	for range 8 {
+		go func() {
+			public, private, err := s.WebpushKeys(ctx, generate)
+			if err != nil {
+				t.Error(err)
+			}
+			results <- pair{public, private}
+		}()
+	}
+	first := <-results
+	for range 7 {
+		if got := <-results; got != first {
+			t.Fatalf("%+v and %+v", first, got)
+		}
+	}
+	if first.public == "" || first.private[len("private-"):] != first.public[len("public-"):] {
+		t.Fatalf("mismatched pair %+v", first)
+	}
+	if imported, err := s.ImportWebpushKeys(ctx, "other-public", "other-private"); err != nil || imported {
+		t.Fatalf("an import replaced the pair: %v %v", imported, err)
+	}
+	if public, _, _ := s.WebpushKeys(ctx, generate); public != first.public {
+		t.Fatalf("the pair changed to %s", public)
+	}
+
+	fresh := newTestStore(t)
+	if imported, err := fresh.ImportWebpushKeys(ctx, "node-public", "node-private"); err != nil || !imported {
+		t.Fatalf("import: %v %v", imported, err)
+	}
+	if public, private, err := fresh.WebpushKeys(ctx, generate); err != nil || public != "node-public" || private != "node-private" {
+		t.Fatalf("imported pair: %s %s %v", public, private, err)
 	}
 }

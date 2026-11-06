@@ -7,29 +7,29 @@ Update this file in the same pull request as each phase. Only mark a phase done 
 wasn't. The order of the planned phases is a proposal, and should follow what's actually in use: the dry run of
 `kuma-import` lists every monitor it can't bring over, and why.
 
-| Phase | Scope                                                               | Status  |
-| ----- | ------------------------------------------------------------------- | ------- |
-| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done    |
-| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done    |
-| 2     | Push, Ping and DNS monitors                                         | Done    |
-| 3     | Status pages and badges                                             | Done    |
-| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done    |
-| 4b    | Other databases and messaging                                       | Done    |
-| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done    |
-| 4d    | Docker, system and remote browser monitors                          | Done    |
-| 4e    | HTTP options, proxies and domain expiry                             | Done    |
-| 4f    | Globalping, GameDig and Tailscale ping                              | Done    |
-| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done    |
-| 5b    | Settings that take effect, and the Monitor History page             | Done    |
-| 5c    | Importing accounts, status pages and maintenance windows            | Done    |
-| 6a    | The MCP server and the update check                                 | Done    |
-| 6b    | The `nostr` and `Webpush` notification providers                    | Next    |
-| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Planned |
+| Phase | Scope                                                               | Status |
+| ----- | ------------------------------------------------------------------- | ------ |
+| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done   |
+| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done   |
+| 2     | Push, Ping and DNS monitors                                         | Done   |
+| 3     | Status pages and badges                                             | Done   |
+| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done   |
+| 4b    | Other databases and messaging                                       | Done   |
+| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done   |
+| 4d    | Docker, system and remote browser monitors                          | Done   |
+| 4e    | HTTP options, proxies and domain expiry                             | Done   |
+| 4f    | Globalping, GameDig and Tailscale ping                              | Done   |
+| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done   |
+| 5b    | Settings that take effect, and the Monitor History page             | Done   |
+| 5c    | Importing accounts, status pages and maintenance windows            | Done   |
+| 6a    | The MCP server and the update check                                 | Done   |
+| 6b    | The `nostr` and `Webpush` notification providers                    | Done   |
+| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Next   |
 
 ## Phase 0: Core (done)
 
 - HTTP, keyword, TCP port and group monitors, with retries and upside-down mode
-- Notifications, except `nostr` and `Webpush`. `apprise` is ported, but its command isn't in the image
+- Notifications. `apprise` is ported, but its command isn't in the image. `nostr` and `Webpush` came in Phase 6b
 - History, charts and uptime stats in TimescaleDB, and a REST API with API keys
 - OpenTelemetry metrics and traces, and Grafana dashboards, instead of `/metrics`
 - `kuma-import`, which copies monitors, notifications and history from MariaDB
@@ -475,8 +475,41 @@ Known limits and differences from Node.js:
 - An MCP request counts against the key's rate limit, and so does each tool call it makes.
 - The update notice links to this fork's tags, not upstream's releases.
 
-### Phase 6b: The nostr and Webpush notification providers (next)
+### Phase 6b: The nostr and Webpush notification providers (done)
 
-### Phase 6c: apprise in the image, and the Cloudflare tunnel (planned)
+- **Webpush:** RFC 8291 encryption and VAPID with `github.com/SherClockHolmes/webpush-go`, with web-push's four-week
+  TTL, as Node.js sent. The VAPID key pair is made the first time the form asks for the public key
+  (`getWebpushVapidPublicKey`), once even when two pages ask at once. The private key is no longer sent to the
+  browser with the other settings, and the settings page can't replace either key. `kuma-import` copies Node.js's
+  pair, unless there's one here, so that subscribed browsers keep receiving.
+- **nostr:** a NIP-17 private message to each recipient, gift-wrapped with NIP-59, using
+  `github.com/nbd-wtf/go-nostr` for keys, NIP-44 encryption and the wrap. Relays are written to with our own small
+  NIP-01 client on `coder/websocket`, which logs in with NIP-42 when a relay asks, because go-nostr's relay client
+  has a data race between closing and its read loop. It succeeds when any relay takes the messages.
+
+Tested with the race detector:
+
+- Webpush against a fake push service that decrypts the message as a browser does and verifies the VAPID token,
+  plus an ended subscription and a missing one
+- nostr against a fake relay that requires NIP-42, unwrapping each message as its recipient, with a relay down
+- the key pair made by racing requests, kept by an import, and copied by `kuma-import`
+- the private key left out of the settings
+
+nostr was also tested against real relay software, `scsibug/nostr-rs-relay` in Docker (`TEST_NOSTR_RELAY`). Against
+the built image (`internal/e2e/browser/notify-6b.mjs`), 4 of 4 steps passed with no page errors: a nostr
+notification set up in the form and tested, then read from that relay with nostr-tools 2.20, the library Node.js
+used, which unwrapped it as the recipient; and the Webpush form's public key, the same each time, with the private
+key absent from the settings.
+
+Not tested: a real browser receiving a Webpush message, which headless Chromium can't subscribe for, and public
+nostr relays.
+
+Known limits and differences from Node.js:
+
+- A relay that can't be reached no longer fails the whole notification, as it did in Node.js, whose connect wasn't
+  caught: the others are still tried, and the error names each relay that failed.
+- The VAPID subject is this fork's repository rather than upstream's.
+
+### Phase 6c: apprise in the image, and the Cloudflare tunnel (next)
 
 Both add programs to an image that is now `FROM scratch`: `apprise` is Python, and the tunnel runs `cloudflared`.

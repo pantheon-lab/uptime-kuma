@@ -62,6 +62,7 @@ type Target interface {
 	ImportRemoteBrowser(ctx context.Context, b check.RemoteBrowser) (int32, error)
 	ImportProxy(ctx context.Context, p check.Proxy) (int32, error)
 	ImportAccount(ctx context.Context, a store.ImportedAccount) (bool, error)
+	ImportWebpushKeys(ctx context.Context, public, private string) (bool, error)
 	ImportedStatusPages(ctx context.Context) (map[int32]int32, error)
 	ImportStatusPage(ctx context.Context, sourceID int32, p store.ImportedPage) (int32, int, error)
 	ImportedMaintenances(ctx context.Context) (map[int32]int32, error)
@@ -127,6 +128,9 @@ type NotificationReport struct {
 	// MonitorsLosingAlerts are imported monitors using a notification that wasn't imported.
 	MonitorsLosingAlerts int   `json:"monitorsLosingAlerts"`
 	Activated            int64 `json:"activated"`
+	// WebpushKeys says what happened to the VAPID key pair that Webpush notifications need:
+	// "imported", "kept" when this server has its own, or empty when the source has none.
+	WebpushKeys string `json:"webpushKeys,omitempty"`
 }
 
 type sourceNotification struct {
@@ -242,6 +246,9 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 	log.Info("monitors done", "imported", report.Imported, "skipped", len(report.Skipped), "alreadyActive", report.AlreadyActive)
 
 	if err := copyNotifications(ctx, conn, opts.Target, active, report); err != nil {
+		return nil, err
+	}
+	if err := copyWebpushKeys(ctx, conn, opts.Target, report); err != nil {
 		return nil, err
 	}
 	log.Info("notifications done", "imported", report.Notifications.Imported, "skipped", len(report.Notifications.Skipped), "links", report.Notifications.Links)
@@ -1169,4 +1176,39 @@ func floatOf(v sql.NullString) float64 {
 
 func boolOf(v sql.NullString) bool {
 	return v.Valid && v.String != "" && v.String != "0"
+}
+
+// copyWebpushKeys copies the VAPID key pair, which browsers subscribed with, so that imported
+// Webpush notifications keep working. A pair made here already is kept.
+func copyWebpushKeys(ctx context.Context, conn *sql.Conn, target Target, report *Report) error {
+	rows, err := optionalTable(ctx, conn, "SELECT `key`, value FROM setting WHERE `key` IN (?, ?)",
+		store.WebpushPublicKeySetting, store.WebpushPrivateKeySetting)
+	if err != nil {
+		return fmt.Errorf("read web push keys: %w", err)
+	}
+	keys := map[string]string{}
+	for _, row := range rows {
+		value := row["value"].String
+		var decoded string
+		if json.Unmarshal([]byte(value), &decoded) == nil {
+			value = decoded
+		}
+		keys[row["key"].String] = strings.TrimSpace(value)
+	}
+	public, private := keys[store.WebpushPublicKeySetting], keys[store.WebpushPrivateKeySetting]
+	if public == "" || private == "" {
+		return nil
+	}
+	report.Notifications.WebpushKeys = "imported"
+	if target == nil {
+		return nil
+	}
+	imported, err := target.ImportWebpushKeys(ctx, public, private)
+	if err != nil {
+		return err
+	}
+	if !imported {
+		report.Notifications.WebpushKeys = "kept"
+	}
+	return nil
 }

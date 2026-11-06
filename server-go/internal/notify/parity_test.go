@@ -84,10 +84,10 @@ var deviations = map[string]string{
 	"SMSManager": "the original sends gateway=undefined",
 }
 
-// notPorted is what has no golden file for a good reason.
-var notPorted = map[string]string{
-	"nostr":   "needs a NIP-59 implementation, and a real relay to test it against",
-	"Webpush": "needs browser subscriptions, which the web UI would have to set up against this service",
+// noGolden is what has no golden file for a good reason. These are tested in push_test.go.
+var noGolden = map[string]string{
+	"nostr":   "each message is encrypted with new random keys, so the test unwraps it as the recipient",
+	"Webpush": "each message is encrypted with a new random key, so the test decrypts it as the browser",
 }
 
 func loadInputs(t *testing.T) goldenInputs {
@@ -284,13 +284,13 @@ func normalBody(req goldenRequest) any {
 	return body
 }
 
-func TestNotPortedIsAccurate(t *testing.T) {
-	for name := range notPorted {
-		if Supported(name) {
-			t.Errorf("%s is listed as not ported, but is registered", name)
+func TestNoGoldenIsAccurate(t *testing.T) {
+	for name := range noGolden {
+		if !Supported(name) {
+			t.Errorf("%s isn't registered", name)
 		}
 		if _, err := os.Stat(filepath.Join("testdata/golden", name+".json")); err == nil {
-			t.Errorf("%s has a golden file, so it should be ported", name)
+			t.Errorf("%s has a golden file, so it should be tested with it", name)
 		}
 	}
 }

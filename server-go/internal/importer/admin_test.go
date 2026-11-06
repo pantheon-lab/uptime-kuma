@@ -2,6 +2,7 @@ package importer
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -267,5 +268,30 @@ func TestImportsStatusPagesAndMaintenance(t *testing.T) {
 	}
 	if other, _ := f.target.StatusPageBySlug(ctx, "other"); other.Title != "Other" {
 		t.Fatalf("copied again: %+v", other)
+	}
+}
+
+func TestImportsWebpushKeys(t *testing.T) {
+	f := newFixture(t)
+	f.exec(t, "INSERT INTO setting (`key`, value, type) VALUES ('webpushPublicVapidKey', '\"node-public\"', NULL), ('webpushPrivateVapidKey', '\"node-private\"', NULL)")
+	f.exec(t, `INSERT INTO notification (id, name, active, is_default, config) VALUES
+		(1, 'Browser', 1, 0, '{"type":"Webpush","subscription":{"endpoint":"https://push.example/abc","keys":{"p256dh":"x","auth":"y"}}}')`)
+	if dry := f.runWith(t, false, nil); dry.Notifications.WebpushKeys != "imported" || dry.Notifications.Imported != 1 {
+		t.Fatalf("dry run: %+v", dry.Notifications)
+	}
+	report := f.runWith(t, true, nil)
+	if report.Notifications.WebpushKeys != "imported" || report.Notifications.Imported != 1 || len(report.Notifications.Skipped) != 0 {
+		t.Fatalf("import: %+v", report.Notifications)
+	}
+	public, private, err := f.target.WebpushKeys(context.Background(), func() (string, string, error) { return "new", "new", nil })
+	if err != nil || public != "node-public" || private != "node-private" {
+		t.Fatalf("keys %s %s %v", public, private, err)
+	}
+	if again := f.runWith(t, true, nil); again.Notifications.WebpushKeys != "kept" {
+		t.Fatalf("again: %+v", again.Notifications)
+	}
+	encoded, _ := json.Marshal(report)
+	if strings.Contains(string(encoded), "node-private") {
+		t.Fatal("the report holds the private key")
 	}
 }
