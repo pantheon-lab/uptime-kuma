@@ -8,8 +8,8 @@ percentiles and dashboard stats over REST, plus new beats over Server-Sent Event
 status pages and badges, exports traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
 **Status:** this is now the only backend, because the Node.js server and MariaDB support have
-been removed. It isn't feature complete. Not built yet: more than one account, importing the account, status pages and
-maintenance windows from MariaDB, and the integrations listed in [`PORTING.md`](PORTING.md).
+been removed. It isn't feature complete. Not built yet: more than one account, and the integrations listed in
+[`PORTING.md`](PORTING.md).
 
 [PORTING.md](PORTING.md) records what has moved from the Node.js server, phase by phase, and what's left.
 
@@ -42,8 +42,7 @@ Everything else answers "This isn't supported by this server yet". In particular
 Sessions are a random token in an `HttpOnly`, `SameSite=Lax` cookie, `Secure` behind HTTPS (the proxy must
 send `X-Forwarded-Proto`). Only a SHA-256 hash of the token is stored. A remembered login lasts 7 days and is
 renewed while used, and changing the password ends every other login. Passwords are hashed with scrypt in
-better-auth's format, so accounts from the Node.js backend could be imported unchanged; the importer doesn't
-do that yet. Logins are limited to 10 a minute per username and 60 a minute overall.
+better-auth's format, so `kuma-import` copies the account from the Node.js backend unchanged. Logins are limited to 10 a minute per username and 60 a minute overall.
 
 A new password, at setup or when it's changed, is checked against the
 [Pwned Passwords](https://haveibeenpwned.com/Passwords) list of leaked passwords, as the Node.js backend did. Only
@@ -522,7 +521,8 @@ Differences from Uptime Kuma:
 
 ## Importing from MariaDB
 
-`kuma-import` copies monitors, groups, notifications and history from an Uptime Kuma MariaDB database. It only
+`kuma-import` copies monitors, groups, notifications, history, the account, status pages and maintenance windows
+from an Uptime Kuma MariaDB database. It only
 reads the source, inside a read-only transaction. Give it a user that can only read, too:
 
 ```sql
@@ -560,8 +560,30 @@ Check these parts of the report:
 
 You can run it as often as you like. It duplicates nothing and picks up changes, except for monitors that have
 been resumed here, which are left alone because they produce their own data. The same goes for notifications
-that have been switched on here. Status pages, maintenance windows and users aren't imported yet. Nor is
-`primaryBaseURL`, so set `KUMA_BASE_URL` yourself.
+that have been switched on here. Other settings aren't imported, such as `primaryBaseURL`, so set `KUMA_BASE_URL`
+yourself.
+
+**The account** is copied with its password, when there's no account here yet, so it can't take over a server
+that's been set up. Logging in works as before, with the same password and authenticator app. If two-factor login
+is on, the importer needs the key that encrypted the authenticator key: set `SOURCE_AUTH_SECRET` to Uptime Kuma's
+`UPTIME_KUMA_AUTH_SECRET`, or to `authSecret` in `db-config.json` in its data directory. Without it the account
+isn't imported, because the password alone would then log in. An account from before better-auth, from a server
+nobody has logged in to since, has a bcrypt hash, which the first login here replaces.
+
+**Status pages** come with their groups, monitors, incidents and custom domains, and **maintenance windows** with
+their monitors and status pages. Monitors that weren't imported are left out, and counted in the report. A window
+set to the server's timezone gets Uptime Kuma's server timezone, when it was set, so that it stays at the same time. Uploaded logos
+are files in Uptime Kuma's data directory, so mount it and set `SOURCE_DATA_DIR` to it to copy them: without it,
+pages show the default logo, and `statusPages.logosMissing` counts them.
+
+```bash
+docker compose run --rm --no-deps -e SOURCE_MARIADB_DSN -e SOURCE_AUTH_SECRET -e SOURCE_DATA_DIR=/source-data \
+  -v /path/to/uptime-kuma/data:/source-data:ro --entrypoint /kuma-import analytics -apply
+```
+
+Each status page and window is copied once. Running the import again leaves those copied before alone, so changes
+made here are kept; delete one here to copy it again. A page whose slug is already used here is skipped, and a
+custom domain another page here shows stays with that page.
 
 Imported notifications stay off until `-activate`, even for monitors you resume by hand, so that a parallel run
 doesn't send every alert twice. `-activate` is therefore also when alerts start, and should come when you stop

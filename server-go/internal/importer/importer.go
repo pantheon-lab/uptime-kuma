@@ -24,6 +24,7 @@ import (
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/domains"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/maintenance"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/notify"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
@@ -60,6 +61,11 @@ type Target interface {
 	ImportDockerHost(ctx context.Context, h check.DockerHost) (int32, error)
 	ImportRemoteBrowser(ctx context.Context, b check.RemoteBrowser) (int32, error)
 	ImportProxy(ctx context.Context, p check.Proxy) (int32, error)
+	ImportAccount(ctx context.Context, a store.ImportedAccount) (bool, error)
+	ImportedStatusPages(ctx context.Context) (map[int32]int32, error)
+	ImportStatusPage(ctx context.Context, sourceID int32, p store.ImportedPage) (int32, int, error)
+	ImportedMaintenances(ctx context.Context) (map[int32]int32, error)
+	ImportMaintenance(ctx context.Context, sourceID int32, w maintenance.Window, monitorIDs, pageIDs []int32) (int32, error)
 }
 
 // Options controls an import. A nil Target means a dry run, which writes nothing.
@@ -69,6 +75,11 @@ type Options struct {
 	Activate bool
 	Now      func() time.Time
 	Log      *slog.Logger
+	// AuthSecret decrypts the account's two-factor key: the Node.js server's
+	// UPTIME_KUMA_AUTH_SECRET, or authSecret in its data directory's db-config.json.
+	AuthSecret string
+	// DataDir is the Node.js server's data directory, where uploaded status page logos are.
+	DataDir string
 }
 
 // Skipped is a monitor that wasn't imported.
@@ -100,6 +111,9 @@ type Report struct {
 	DailyStats      int64              `json:"dailyStats"`
 	Activated       int64              `json:"activated"`
 	Notifications   NotificationReport `json:"notifications"`
+	Account         AccountReport      `json:"account"`
+	StatusPages     StatusPageReport   `json:"statusPages"`
+	Maintenance     MaintenanceReport  `json:"maintenance"`
 	Cutover         time.Time          `json:"cutover"`
 }
 
@@ -148,6 +162,8 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 		DroppedSettings: map[string]int{},
 		Cutover:         cutover,
 		Notifications:   NotificationReport{Skipped: []Skipped{}},
+		StatusPages:     StatusPageReport{Skipped: []Skipped{}},
+		Maintenance:     MaintenanceReport{Skipped: []Skipped{}},
 	}
 
 	conn, err := opts.Source.Conn(ctx)
@@ -234,6 +250,24 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 		return nil, err
 	}
 	log.Info("tags done", "tags", report.Tags, "links", report.TagLinks)
+
+	if err := copyAccount(ctx, conn, opts, report); err != nil {
+		return nil, err
+	}
+	// Every monitor that's here, including those resumed here since an earlier import.
+	allMonitors := make(map[int32]int32, len(monitors))
+	for _, m := range monitors {
+		allMonitors[m.id] = m.targetID
+	}
+	pages, err := copyStatusPages(ctx, conn, opts, allMonitors, report)
+	if err != nil {
+		return nil, err
+	}
+	if err := copyMaintenance(ctx, conn, opts, allMonitors, pages, report); err != nil {
+		return nil, err
+	}
+	log.Info("account, status pages and maintenance done", "account", report.Account.Imported,
+		"statusPages", report.StatusPages.Imported, "maintenance", report.Maintenance.Imported)
 
 	if err := copyStats(ctx, conn, opts.Target, false, targets, cutover, &report.HourlyStats); err != nil {
 		return nil, err
@@ -437,8 +471,8 @@ func copyResources(ctx context.Context, conn *sql.Conn, target Target, report *R
 }
 
 // optionalTable reads a table that older installations don't have, as no rows.
-func optionalTable(ctx context.Context, conn *sql.Conn, query string) ([]map[string]sql.NullString, error) {
-	rows, _, err := readRows(ctx, conn, query)
+func optionalTable(ctx context.Context, conn *sql.Conn, query string, args ...any) ([]map[string]sql.NullString, error) {
+	rows, _, err := readRows(ctx, conn, query, args...)
 	var mysqlErr *mysql.MySQLError
 	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1146 { // ER_NO_SUCH_TABLE
 		return nil, nil

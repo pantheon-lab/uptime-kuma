@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/time/rate"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/api"
@@ -504,5 +505,55 @@ func TestAPIKeyEvents(t *testing.T) {
 	}
 	if fs.apiKeys[0].RevokedAt == nil {
 		t.Fatal("not revoked")
+	}
+}
+
+func (f *fakeStore) UpgradePasswordHash(_ context.Context, id int32, old, hash string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.users {
+		if f.users[i].ID == id && f.users[i].PasswordHash == old {
+			f.users[i].PasswordHash = hash
+		}
+	}
+	return nil
+}
+
+// An account imported from the user table before better-auth has a bcrypt hash, which the
+// first login replaces with scrypt.
+func TestImportedBcryptPassword(t *testing.T) {
+	_, fs, ts := newTestServer(t)
+	legacy, err := bcrypt.GenerateFromPassword([]byte("old password"), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fs.users = append(fs.users, store.User{ID: 1, Username: "admin", PasswordHash: string(legacy)})
+	signIn := func(password string) int {
+		res, _ := postJSON(t, newClient(t), ts.URL+"/api/auth/sign-in/username", map[string]any{"username": "admin", "password": password})
+		return res.StatusCode
+	}
+	if code := signIn("wrong password"); code != 401 || fs.users[0].PasswordHash != string(legacy) {
+		t.Fatalf("a wrong password: %d", code)
+	}
+	if code := signIn("old password"); code != 200 {
+		t.Fatalf("the imported password: %d", code)
+	}
+	if hash := fs.users[0].PasswordHash; isBcrypt(hash) || !verifyPassword(hash, "old password") {
+		t.Fatalf("the hash wasn't replaced: %s", hash)
+	}
+	if code := signIn("old password"); code != 200 {
+		t.Fatalf("after the upgrade: %d", code)
+	}
+}
+
+// better-auth used the text of its generated key as the HMAC key, which kuma-import stores as
+// it is. These codes came from better-auth's createOTP("abcdefghijklmnopqrstuvwxyzABCDEF").hotp.
+func TestTOTPMatchesBetterAuthForImportedKeys(t *testing.T) {
+	key := []byte("abcdefghijklmnopqrstuvwxyzABCDEF")
+	if got := hotp(key, 1); got != "530764" {
+		t.Errorf("counter 1: %s", got)
+	}
+	if got := hotp(key, 55555555); got != "285745" {
+		t.Errorf("counter 55555555: %s", got)
 	}
 }
