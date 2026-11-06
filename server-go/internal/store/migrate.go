@@ -455,6 +455,12 @@ var migrations = [][]string{
 			imported_at timestamptz NOT NULL DEFAULT now()
 		)`,
 	},
+	{
+		// Accounts' roles: the password account and accounts until now are admins.
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'admin'`,
+		`ALTER TABLE app_user DROP CONSTRAINT IF EXISTS app_user_role_check`,
+		`ALTER TABLE app_user ADD CONSTRAINT app_user_role_check CHECK (role IN ('admin', 'viewer'))`,
+	},
 }
 
 // Migrate brings the schema up to date.

@@ -31,9 +31,22 @@ type User struct {
 	TOTPEnabled bool
 	// TOTPLockedUntil is set after too many wrong codes in a row.
 	TOTPLockedUntil *time.Time
+
+	// Role is RoleAdmin or RoleViewer.
+	Role string
 }
 
-const userColumns = `id, username, password_hash, created_at, totp_secret, totp_enabled, totp_locked_until`
+// Roles. An admin can do everything. A viewer can look at monitors, beats, maintenance and status
+// pages, but changes nothing and is sent no credentials.
+const (
+	RoleAdmin  = "admin"
+	RoleViewer = "viewer"
+)
+
+// IsAdmin reports whether the account may change things and see credentials.
+func (u User) IsAdmin() bool { return u.Role == RoleAdmin }
+
+const userColumns = `id, username, password_hash, created_at, totp_secret, totp_enabled, totp_locked_until, role`
 
 // Session is a web UI login. Only the token's hash is stored.
 type Session struct {
@@ -84,7 +97,7 @@ func (s *Store) CreateFirstUser(ctx context.Context, username, passwordHash stri
 }
 
 func (u *User) fields() []any {
-	return []any{&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPLockedUntil}
+	return []any{&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPLockedUntil, &u.Role}
 }
 
 func scanUser(row pgx.Row) (User, error) {
@@ -159,7 +172,7 @@ func (s *Store) FindSession(ctx context.Context, tokenHash []byte) (Session, Use
 	var user User
 	err := s.pool.QueryRow(ctx, `
 		SELECT s.user_id, s.remember, s.created_at, s.expires_at,
-		       u.id, u.username, u.password_hash, u.created_at, u.totp_secret, u.totp_enabled, u.totp_locked_until
+		       u.id, u.username, u.password_hash, u.created_at, u.totp_secret, u.totp_enabled, u.totp_locked_until, u.role
 		FROM app_session s JOIN app_user u ON u.id = s.user_id
 		WHERE s.token_hash = $1 AND s.expires_at > now()`, tokenHash).
 		Scan(append([]any{&session.UserID, &session.Remember, &session.CreatedAt, &session.ExpiresAt}, user.fields()...)...)

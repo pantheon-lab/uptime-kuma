@@ -275,7 +275,12 @@
             <!-- Admin functions -->
             <div v-if="authenticated" class="mb-2">
                 <div v-if="!enableEditMode">
-                    <button class="btn btn-primary mb-2 me-2" data-testid="edit-button" @click="edit">
+                    <button
+                        v-if="$root.canEdit"
+                        class="btn btn-primary mb-2 me-2"
+                        data-testid="edit-button"
+                        @click="edit"
+                    >
                         <font-awesome-icon icon="edit" />
                         {{ $t("Edit Status Page") }}
                     </button>

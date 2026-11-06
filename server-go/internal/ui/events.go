@@ -93,12 +93,20 @@ func (s *Server) onConnect(c *conn, login *userInfo) {
 		c.emit("loginRequired")
 		return
 	}
-	c.emit("session", login.username)
+	role := store.RoleViewer
+	if login.admin {
+		role = store.RoleAdmin
+	}
+	c.emit("session", login.username, role)
 	s.setLogin(c, login)
 	s.afterLogin(ctx, c)
 }
 
 func (s *Server) afterLogin(ctx context.Context, c *conn) {
+	if !c.admin {
+		s.afterViewerLogin(ctx, c)
+		return
+	}
 	if err := s.sendMonitorList(ctx, c); err != nil {
 		s.log.Error("send monitor list", "error", err)
 	}
@@ -193,7 +201,11 @@ func (s *Server) sendMonitorList(ctx context.Context, c *conn) error {
 	if err != nil {
 		return err
 	}
-	c.emit("monitorList", tree.listJSON())
+	if c.admin {
+		c.emit("monitorList", tree.listJSON())
+	} else {
+		c.emit("monitorList", viewerMonitorList(tree.listJSON()))
+	}
 	return nil
 }
 
@@ -211,7 +223,7 @@ func (s *Server) broadcastMonitors(ctx context.Context, ids ...int32) {
 		}
 	}
 	if len(update) > 0 {
-		s.broadcast(encodeMessage("updateMonitorIntoList", update))
+		s.broadcastMonitorUpdate(update)
 	}
 }
 
@@ -242,7 +254,7 @@ func (s *Server) broadcastNotificationList(ctx context.Context) {
 		s.log.Error("send notification list", "error", err)
 		return
 	}
-	s.broadcast(encodeMessage("notificationList", list))
+	s.broadcastAdmins(encodeMessage("notificationList", list))
 }
 
 func (s *Server) stats(ctx context.Context) (map[string]any, error) {
@@ -321,6 +333,9 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 	if !c.loggedIn() {
 		return fail(errNotLoggedIn), true
 	}
+	if !c.admin && !viewerEvents[event] {
+		return fail(errReadOnly), true
+	}
 	if empty, found := emptyReplies[event]; found {
 		return empty(), true
 	}
@@ -336,6 +351,12 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r = ok()
 	case "getMonitor":
 		r, err = s.getMonitor(ctx, args)
+		if err == nil && !c.admin {
+			// The monitor's page loads it; a viewer gets it without credentials.
+			if full, isMap := r["monitor"].(map[string]any); isMap {
+				r["monitor"] = viewerMonitorJSON(full)
+			}
+		}
 	case "add":
 		r, err = s.addMonitor(ctx, args)
 	case "editMonitor":
@@ -918,7 +939,7 @@ func (s *Server) saveNotification(ctx context.Context, args []json.RawMessage) (
 	s.broadcastNotificationList(ctx)
 	if applyToAll {
 		if tree, err := s.monitorTree(ctx); err == nil {
-			s.broadcast(encodeMessage("updateMonitorIntoList", tree.listJSON()))
+			s.broadcastMonitorUpdate(tree.listJSON())
 		}
 	}
 	return okI18n("Saved.", "id", saved.ID), nil

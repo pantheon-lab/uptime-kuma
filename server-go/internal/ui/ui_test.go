@@ -78,7 +78,7 @@ func (f *fakeStore) CreateFirstUser(_ context.Context, username, hash string) (s
 	if len(f.users) > 0 {
 		return store.User{}, store.ErrSetupDone
 	}
-	u := store.User{ID: 1, Username: username, PasswordHash: hash, CreatedAt: time.Now()}
+	u := store.User{ID: 1, Username: username, PasswordHash: hash, CreatedAt: time.Now(), Role: store.RoleAdmin}
 	f.users = append(f.users, u)
 	return u, nil
 }
@@ -125,7 +125,12 @@ func (f *fakeStore) FindSession(_ context.Context, h []byte) (store.Session, sto
 	if !ok || s.ExpiresAt.Before(time.Now()) {
 		return store.Session{}, store.User{}, store.ErrNotFound
 	}
-	return s, f.users[0], nil
+	for _, u := range f.users {
+		if u.ID == s.UserID {
+			return s, u, nil
+		}
+	}
+	return store.Session{}, store.User{}, store.ErrNotFound
 }
 
 func (f *fakeStore) ExtendSession(_ context.Context, h []byte, t time.Time) error {
@@ -1017,7 +1022,7 @@ func TestParseWindow(t *testing.T) {
 func TestMaintenanceEvents(t *testing.T) {
 	s, fs, _ := newTestServer(t)
 	ctx := context.Background()
-	c := &conn{userID: 1, out: make(chan []byte, 256), done: make(chan struct{})}
+	c := &conn{userID: 1, admin: true, out: make(chan []byte, 256), done: make(chan struct{})}
 	call := func(event string, args ...any) reply {
 		t.Helper()
 		raws := make([]json.RawMessage, len(args))
@@ -1084,7 +1089,7 @@ func TestMaintenanceEvents(t *testing.T) {
 func TestHolidayEvents(t *testing.T) {
 	s, _, _ := newTestServer(t)
 	ctx := context.Background()
-	c := &conn{userID: 1, out: make(chan []byte, 256), done: make(chan struct{})}
+	c := &conn{userID: 1, admin: true, out: make(chan []byte, 256), done: make(chan struct{})}
 	call := func(event string, args ...any) reply {
 		t.Helper()
 		raws := make([]json.RawMessage, len(args))
@@ -1158,7 +1163,7 @@ func TestHolidayEvents(t *testing.T) {
 func TestTagEvents(t *testing.T) {
 	s, fs, _ := newTestServer(t)
 	ctx := context.Background()
-	c := &conn{userID: 1, out: make(chan []byte, 256), done: make(chan struct{})}
+	c := &conn{userID: 1, admin: true, out: make(chan []byte, 256), done: make(chan struct{})}
 	s.mu.Lock()
 	s.conns["test"] = c
 	s.mu.Unlock()
@@ -1350,7 +1355,7 @@ func TestMonitorJSONShowsPushPingDNSSettings(t *testing.T) {
 func TestPushTokenConflictIsShown(t *testing.T) {
 	s, fs, _ := newTestServer(t)
 	ctx := context.Background()
-	c := &conn{userID: 1, out: make(chan []byte, 256), done: make(chan struct{})}
+	c := &conn{userID: 1, admin: true, out: make(chan []byte, 256), done: make(chan struct{})}
 	s.mu.Lock()
 	s.conns["test"] = c
 	s.mu.Unlock()
@@ -1626,7 +1631,7 @@ func TestParsePhase4dMonitors(t *testing.T) {
 func TestResourceEvents(t *testing.T) {
 	s, fs, ts := newTestServer(t)
 	ctx := context.Background()
-	c := &conn{userID: 1, out: make(chan []byte, 256), done: make(chan struct{})}
+	c := &conn{userID: 1, admin: true, out: make(chan []byte, 256), done: make(chan struct{})}
 	s.mu.Lock()
 	s.conns["test"] = c
 	s.mu.Unlock()
@@ -1821,7 +1826,7 @@ func TestProxyAndDomainEvents(t *testing.T) {
 	s, fs, _ := newTestServer(t)
 	s.opts.Domains = fakeDomains{}
 	ctx := context.Background()
-	c := &conn{userID: 1, out: make(chan []byte, 256), done: make(chan struct{})}
+	c := &conn{userID: 1, admin: true, out: make(chan []byte, 256), done: make(chan struct{})}
 	s.mu.Lock()
 	s.conns["test"] = c
 	s.mu.Unlock()

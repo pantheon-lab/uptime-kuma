@@ -36,6 +36,8 @@ export default {
                 initedSocketIO: false,
             },
             username: null,
+            // "admin", or "viewer" for an account that can only look.
+            role: null,
             remember: localStorage.remember !== "0",
             allowLoginDialog: false, // Allowed to show login dialog, but "loggedIn" have to be true too. This exists because prevent the login dialog show 0.1s in first before the socket server auth-ed.
             loggedIn: false,
@@ -82,6 +84,19 @@ export default {
     },
 
     methods: {
+        /**
+         * Send a viewer from a page that edits back to the dashboard, as the server would refuse it
+         * @returns {void}
+         */
+        leaveEditingPage() {
+            const path = this.$route?.path ?? "";
+            const editing =
+                /^\/(add|edit|clone|settings|add-status-page|add-maintenance|maintenance\/(edit|clone))(\/|$)/;
+            if (!this.canEdit && (editing.test(path) || this.$route?.query?.edit !== undefined)) {
+                this.$router.replace("/dashboard");
+            }
+        },
+
         /**
          * Store the newest beat of a monitor and its display status.
          * Called per beat: must stay O(1), thousands of monitors beat every minute.
@@ -149,10 +164,12 @@ export default {
                 this.$router.push("/setup");
             });
 
-            socket.on("session", (username) => {
+            socket.on("session", (username, role) => {
                 this.loggedIn = true;
                 this.$root.loginRequired = false;
                 this.username = username;
+                this.role = role || "admin";
+                this.leaveEditingPage();
                 if (!this.$root.dashboardLoadProgress) {
                     this.$root.dashboardLoadProgress = 8;
                 }
@@ -447,6 +464,7 @@ export default {
                 console.log("Logged out");
                 this.loggedIn = false;
                 this.username = null;
+                this.role = null;
                 this.allowLoginDialog = false;
                 this.clearData();
                 reconnectSocket();
@@ -674,6 +692,14 @@ export default {
     },
 
     computed: {
+        /**
+         * Whether the account may change things. A viewer can only look, which the server enforces.
+         * @returns {boolean} Can edit
+         */
+        canEdit() {
+            return this.role !== "viewer";
+        },
+
         usernameFirstChar() {
             if (typeof this.username == "string" && this.username.length >= 1) {
                 return this.username.charAt(0).toUpperCase();
@@ -778,6 +804,7 @@ export default {
 
         // Reconnect the socket io, if status-page to dashboard
         "$route.fullPath"(newValue, oldValue) {
+            this.leaveEditingPage();
             if (newValue) {
                 for (let page of noSocketIOPages) {
                     if (newValue.match(page)) {

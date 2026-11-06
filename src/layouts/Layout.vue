@@ -83,7 +83,7 @@
                                 </router-link>
                             </li>
 
-                            <li>
+                            <li v-if="$root.canEdit">
                                 <router-link
                                     to="/settings/general"
                                     class="dropdown-item"
@@ -143,12 +143,12 @@
                 {{ $t("List") }}
             </router-link>
 
-            <router-link to="/add" class="nav-link">
+            <router-link v-if="$root.canEdit" to="/add" class="nav-link">
                 <div><font-awesome-icon icon="plus" /></div>
                 {{ $t("Add") }}
             </router-link>
 
-            <router-link to="/settings" class="nav-link">
+            <router-link v-if="$root.canEdit" to="/settings" class="nav-link">
                 <div><font-awesome-icon icon="cog" /></div>
                 {{ $t("Settings") }}
             </router-link>

@@ -5,7 +5,7 @@
                 {{ $t("Maintenance") }}
             </h1>
 
-            <div>
+            <div v-if="$root.canEdit">
                 <router-link to="/add-maintenance" class="btn btn-primary mb-3">
                     <font-awesome-icon icon="plus" />
                     {{ $t("Schedule Maintenance") }}
@@ -33,7 +33,7 @@
                         </div>
                     </div>
 
-                    <div class="buttons">
+                    <div v-if="$root.canEdit" class="buttons">
                         <div class="btn-group" role="group">
                             <button
                                 v-if="item.active"

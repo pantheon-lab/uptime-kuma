@@ -291,7 +291,7 @@ func userJSON(u store.User) map[string]any {
 		"email":            u.Username + "@noreply.uptime-kuma.internal",
 		"emailVerified":    false,
 		"image":            nil,
-		"role":             "admin",
+		"role":             u.Role,
 		"twoFactorEnabled": u.TOTPEnabled,
 		"createdAt":        u.CreatedAt,
 		"updatedAt":        u.CreatedAt,

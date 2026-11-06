@@ -55,6 +55,8 @@ type conn struct {
 	userID    int32
 	username  string
 	tokenHash []byte
+	// admin is false for a viewer, who may only read and is sent no credentials.
+	admin bool
 
 	rendered sync.Once
 }
@@ -121,7 +123,7 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	var login *userInfo
 	if loggedIn {
 		cookie, _ := r.Cookie(sessionCookie)
-		login = &userInfo{id: user.ID, username: user.Username, tokenHash: hashToken(cookie.Value)}
+		login = &userInfo{id: user.ID, username: user.Username, tokenHash: hashToken(cookie.Value), admin: user.IsAdmin()}
 	}
 
 	rc := http.NewResponseController(w)
@@ -263,13 +265,14 @@ type userInfo struct {
 	id        int32
 	username  string
 	tokenHash []byte
+	admin     bool
 }
 
 // setLogin marks a connection as logged in, so that broadcasts reach it.
 func (s *Server) setLogin(c *conn, login *userInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	c.userID, c.username, c.tokenHash = login.id, login.username, login.tokenHash
+	c.userID, c.username, c.tokenHash, c.admin = login.id, login.username, login.tokenHash, login.admin
 }
 
 // process runs a connection's start-up, then its events in order.

@@ -384,3 +384,31 @@ func TestWebpushKeys(t *testing.T) {
 		t.Fatalf("imported pair: %s %s %v", public, private, err)
 	}
 }
+
+func TestRoles(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	admin, err := s.CreateFirstUser(ctx, "admin", "x:y")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if admin.Role != RoleAdmin || !admin.IsAdmin() {
+		t.Fatalf("the first account is %q", admin.Role)
+	}
+	if _, err := s.pool.Exec(ctx, `INSERT INTO app_user (username, password_hash, role) VALUES ('v', 'x:y', 'viewer')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `INSERT INTO app_user (username, password_hash, role) VALUES ('o', 'x:y', 'owner')`); err == nil {
+		t.Fatal("an unknown role was stored")
+	}
+	viewer, err := s.UserByUsername(ctx, "v")
+	if err != nil || viewer.Role != RoleViewer || viewer.IsAdmin() {
+		t.Fatalf("viewer: %+v %v", viewer, err)
+	}
+	if err := s.CreateSession(ctx, []byte("token"), Session{UserID: viewer.ID, ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, user, err := s.FindSession(ctx, []byte("token")); err != nil || user.Role != RoleViewer {
+		t.Fatalf("session: %+v %v", user, err)
+	}
+}

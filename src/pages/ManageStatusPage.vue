@@ -6,7 +6,7 @@
             </h1>
 
             <div>
-                <router-link to="/add-status-page" class="btn btn-primary mb-3">
+                <router-link v-if="$root.canEdit" to="/add-status-page" class="btn btn-primary mb-3">
                     <font-awesome-icon icon="plus" />
                     {{ $t("New Status Page") }}
                 </router-link>

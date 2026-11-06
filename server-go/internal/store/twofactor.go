@@ -125,7 +125,7 @@ func (s *Store) FindTwoFactorChallenge(ctx context.Context, tokenHash []byte) (T
 	var u User
 	err := s.pool.QueryRow(ctx, `
 		SELECT c.user_id, c.remember, c.attempts, c.expires_at,
-		       u.id, u.username, u.password_hash, u.created_at, u.totp_secret, u.totp_enabled, u.totp_locked_until
+		       u.id, u.username, u.password_hash, u.created_at, u.totp_secret, u.totp_enabled, u.totp_locked_until, u.role
 		FROM app_two_factor_challenge c JOIN app_user u ON u.id = c.user_id
 		WHERE c.token_hash = $1 AND c.expires_at > now()`, tokenHash).
 		Scan(append([]any{&c.UserID, &c.Remember, &c.Attempts, &c.ExpiresAt}, u.fields()...)...)
