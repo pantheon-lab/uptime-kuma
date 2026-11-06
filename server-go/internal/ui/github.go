@@ -121,7 +121,7 @@ func (s *Server) githubCallback(w http.ResponseWriter, r *http.Request) {
 		fail("github-failed")
 		return
 	}
-	id, login, role, err := s.githubRole(ctx, token)
+	id, login, role, teams, err := s.githubRole(ctx, token)
 	if err != nil {
 		s.log.Warn("GitHub login failed", "error", err)
 		fail("github-failed")
@@ -132,7 +132,7 @@ func (s *Server) githubCallback(w http.ResponseWriter, r *http.Request) {
 		fail("github-not-allowed")
 		return
 	}
-	user, err := s.store.SaveGitHubUser(ctx, id, login, role, token)
+	user, err := s.store.SaveGitHubUser(ctx, id, login, role, token, teams)
 	if err != nil {
 		s.log.Error("GitHub login", "error", err)
 		fail("github-failed")
@@ -189,10 +189,10 @@ func (s *Server) githubExchange(ctx context.Context, code, verifier string) (str
 	return body.AccessToken, nil
 }
 
-// githubRole asks GitHub who the token's user is, and what their teams make them: RoleAdmin,
-// RoleViewer, or "" for someone who may not log in. A token GitHub refuses is "", and a GitHub
-// that can't be reached is errGitHubUnavailable.
-func (s *Server) githubRole(ctx context.Context, token string) (int64, string, string, error) {
+// githubRole asks GitHub who the token's user is, which of the organization's teams they're in,
+// and what those make them: RoleAdmin, RoleViewer, or "" for someone who may not log in. A token
+// GitHub refuses is "", and a GitHub that can't be reached is errGitHubUnavailable.
+func (s *Server) githubRole(ctx context.Context, token string) (int64, string, string, []string, error) {
 	g := s.opts.GitHub
 	var user struct {
 		ID    int64  `json:"id"`
@@ -200,13 +200,13 @@ func (s *Server) githubRole(ctx context.Context, token string) (int64, string, s
 	}
 	status, err := s.githubGet(ctx, token, "/user", &user)
 	if err != nil {
-		return 0, "", "", err
+		return 0, "", "", nil, err
 	}
 	if status == http.StatusUnauthorized {
-		return 0, "", "", nil
+		return 0, "", "", nil, nil
 	}
 	if status != http.StatusOK || user.ID == 0 || user.Login == "" {
-		return 0, "", "", fmt.Errorf("user: HTTP %d", status)
+		return 0, "", "", nil, fmt.Errorf("user: HTTP %d", status)
 	}
 
 	var membership struct {
@@ -214,14 +214,14 @@ func (s *Server) githubRole(ctx context.Context, token string) (int64, string, s
 	}
 	status, err = s.githubGet(ctx, token, "/user/memberships/orgs/"+url.PathEscape(g.Org), &membership)
 	if err != nil {
-		return 0, "", "", err
+		return 0, "", "", nil, err
 	}
 	switch {
 	case status == http.StatusOK && membership.State == "active":
 	case status == http.StatusOK, status == http.StatusNotFound, status == http.StatusForbidden, status == http.StatusUnauthorized:
-		return user.ID, user.Login, "", nil
+		return user.ID, user.Login, "", nil, nil
 	default:
-		return 0, "", "", fmt.Errorf("membership: HTTP %d", status)
+		return 0, "", "", nil, fmt.Errorf("membership: HTTP %d", status)
 	}
 
 	var teams []string
@@ -234,10 +234,10 @@ func (s *Server) githubRole(ctx context.Context, token string) (int64, string, s
 		}
 		status, err := s.githubGet(ctx, token, fmt.Sprintf("/user/teams?per_page=100&page=%d", page), &list)
 		if err != nil {
-			return 0, "", "", err
+			return 0, "", "", nil, err
 		}
 		if status != http.StatusOK {
-			return 0, "", "", fmt.Errorf("teams: HTTP %d", status)
+			return 0, "", "", nil, fmt.Errorf("teams: HTTP %d", status)
 		}
 		for _, team := range list {
 			if strings.EqualFold(team.Organization.Login, g.Org) {
@@ -248,7 +248,8 @@ func (s *Server) githubRole(ctx context.Context, token string) (int64, string, s
 			break
 		}
 	}
-	return user.ID, user.Login, roleForTeams(teams, g.AdminTeams, g.ViewerTeams), nil
+	slices.Sort(teams)
+	return user.ID, user.Login, roleForTeams(teams, g.AdminTeams, g.ViewerTeams), teams, nil
 }
 
 // roleForTeams is the role an organization member's teams give.
@@ -315,7 +316,7 @@ func (s *Server) recheckGitHub(ctx context.Context, user store.User) string {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	_, _, role, err := s.githubRole(ctx, token)
+	_, _, role, teams, err := s.githubRole(ctx, token)
 	if err != nil {
 		s.log.Warn("check GitHub teams", "username", user.Username, "error", err)
 		return user.Role
@@ -324,7 +325,7 @@ func (s *Server) recheckGitHub(ctx context.Context, user store.User) string {
 		s.log.Info("GitHub account logged out: no longer in the teams", "username", user.Username)
 		return ""
 	}
-	if err := s.store.SetGitHubChecked(ctx, user.ID, role); err != nil {
+	if err := s.store.SetGitHubChecked(ctx, user.ID, role, teams); err != nil {
 		s.log.Warn("check GitHub teams", "error", err)
 	}
 	if role != user.Role {

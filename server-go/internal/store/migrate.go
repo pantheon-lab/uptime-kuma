@@ -472,6 +472,10 @@ var migrations = [][]string{
 		// When each account last logged in, for Settings > Accounts.
 		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS last_login_at timestamptz`,
 	},
+	{
+		// The organization's teams a GitHub account was in at its last check, for the Security page.
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS github_teams text[]`,
+	},
 }
 
 // Migrate brings the schema up to date.

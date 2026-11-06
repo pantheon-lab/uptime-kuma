@@ -558,19 +558,19 @@ func TestTOTPMatchesBetterAuthForImportedKeys(t *testing.T) {
 	}
 }
 
-func (f *fakeStore) SaveGitHubUser(_ context.Context, githubID int64, login, role, token string) (store.User, error) {
+func (f *fakeStore) SaveGitHubUser(_ context.Context, githubID int64, login, role, token string, teams []string) (store.User, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	now := time.Now()
 	for i, u := range f.users {
 		if u.GitHubID != nil && *u.GitHubID == githubID {
-			f.users[i].Username, f.users[i].Role, f.users[i].GitHubCheckedAt = "@"+login, role, &now
+			f.users[i].Username, f.users[i].Role, f.users[i].GitHubCheckedAt, f.users[i].GitHubTeams = "@"+login, role, &now, teams
 			f.githubTokens[u.ID] = token
 			return f.users[i], nil
 		}
 	}
 	id := int32(len(f.users) + 1)
-	u := store.User{ID: id, Username: "@" + login, Role: role, GitHubID: &githubID, GitHubCheckedAt: &now, CreatedAt: now}
+	u := store.User{ID: id, Username: "@" + login, Role: role, GitHubID: &githubID, GitHubCheckedAt: &now, GitHubTeams: teams, CreatedAt: now}
 	f.users = append(f.users, u)
 	f.githubTokens[id] = token
 	return u, nil
@@ -586,13 +586,13 @@ func (f *fakeStore) GitHubToken(_ context.Context, id int32) (string, error) {
 	return token, nil
 }
 
-func (f *fakeStore) SetGitHubChecked(_ context.Context, id int32, role string) error {
+func (f *fakeStore) SetGitHubChecked(_ context.Context, id int32, role string, teams []string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	now := time.Now()
 	for i := range f.users {
 		if f.users[i].ID == id {
-			f.users[i].Role, f.users[i].GitHubCheckedAt = role, &now
+			f.users[i].Role, f.users[i].GitHubCheckedAt, f.users[i].GitHubTeams = role, &now, teams
 		}
 	}
 	return nil

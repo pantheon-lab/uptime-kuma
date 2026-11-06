@@ -56,7 +56,9 @@ async function login(p, username) {
     await p.getByPlaceholder("Password").fill(password);
     await p.getByRole("button", { name: "Log in" }).click();
     await p.waitForSelector("text=Add New Monitor, text=No Monitors", { timeout: 10000 }).catch(() => {});
-    await p.waitForFunction(() => document.querySelector("#app").__vue_app__._container._vnode.component.proxy.loggedIn);
+    await p.waitForFunction(
+        () => document.querySelector("#app").__vue_app__._container._vnode.component.proxy.loggedIn
+    );
 }
 
 /**
@@ -131,7 +133,10 @@ await step("the page lists every account", async () => {
             throw new Error(`${name}: ${text[name]} doesn't match ${re}`);
         }
     }
-    if (!(await account("admin").getByTestId("remove").isDisabled()) || !(await account("admin").getByTestId("role").isDisabled())) {
+    if (
+        !(await account("admin").getByTestId("remove").isDisabled()) ||
+        !(await account("admin").getByTestId("role").isDisabled())
+    ) {
         throw new Error("the admin can remove or demote themselves");
     }
     if ((await account("@octocat").getByTestId("role").count()) !== 0) {

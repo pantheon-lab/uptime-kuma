@@ -1703,5 +1703,11 @@
     "removeAccountMsg": "Remove {username}? This logs them out everywhere.",
     "removeGitHubAccountMsg": "While they're still in the GitHub teams, they can log in again, which makes the account again. Remove them from the teams to keep them out.",
     "endSessionsMsg": "Log {username} out everywhere?",
-    "endOwnSessionsMsg": "Log yourself out everywhere else? This page stays logged in."
+    "endOwnSessionsMsg": "Log yourself out everywhere else? This page stays logged in.",
+    "Logging in with GitHub": "Logging in with GitHub",
+    "Organization": "Organization",
+    "Teams": "Teams",
+    "Role": "Role",
+    "securityGitHubIntro": "This account logs in with GitHub, so it has no password here, and two-factor login is GitHub's: turn it on in your GitHub account, and the organization can require it.",
+    "securityGitHubRecheck": "Your teams decide your role. They're checked at each login, and every {hours} hours while you're logged in; leaving them logs you out."
 }

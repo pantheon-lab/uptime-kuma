@@ -60,6 +60,32 @@ func (s *Server) accountJSON(a store.Account, c *conn) map[string]any {
 	}
 }
 
+// getOwnAccount tells the Security page how the account logs in: with a password, or with
+// GitHub, with the organization, the teams it was in and when they were last checked.
+func (s *Server) getOwnAccount(ctx context.Context, c *conn) (reply, error) {
+	user, err := s.store.UserByID(ctx, c.userID)
+	if err != nil {
+		return nil, err
+	}
+	if user.GitHubID == nil {
+		return ok("method", "password", "twoFactorEnabled", user.TOTPEnabled), nil
+	}
+	org := ""
+	if s.opts.GitHub != nil {
+		org = s.opts.GitHub.Org
+	}
+	teams := user.GitHubTeams
+	if teams == nil {
+		teams = []string{}
+	}
+	var checked any
+	if user.GitHubCheckedAt != nil {
+		checked = user.GitHubCheckedAt.In(s.opts.Location).Format(uiTimeFormat)
+	}
+	return ok("method", "github", "role", user.Role, "org", org, "teams", teams, "checkedAt", checked,
+		"recheckHours", int(githubRecheckEvery.Hours())), nil
+}
+
 func (s *Server) getAccountList(ctx context.Context, c *conn) (reply, error) {
 	accounts, err := s.store.ListAccounts(ctx)
 	if err != nil {

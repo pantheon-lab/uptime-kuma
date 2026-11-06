@@ -15,7 +15,7 @@ func TestAccounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gh, err := s.SaveGitHubUser(ctx, 42, "octocat", RoleAdmin, "token")
+	gh, err := s.SaveGitHubUser(ctx, 42, "octocat", RoleAdmin, "token", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestAccounts(t *testing.T) {
 	}
 
 	// A viewer can always go.
-	viewer, err := s.SaveGitHubUser(ctx, 7, "viewer", RoleViewer, "token")
+	viewer, err := s.SaveGitHubUser(ctx, 7, "viewer", RoleViewer, "token", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

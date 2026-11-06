@@ -20,6 +20,17 @@ func (f *fakeStore) EndOtherUserSessions(_ context.Context, id int32, keep []byt
 	return nil
 }
 
+func (f *fakeStore) UserByID(_ context.Context, id int32) (store.User, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, u := range f.users {
+		if u.ID == id {
+			return u, nil
+		}
+	}
+	return store.User{}, store.ErrNotFound
+}
+
 func (f *fakeStore) ListAccounts(_ context.Context) ([]store.Account, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

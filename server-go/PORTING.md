@@ -28,7 +28,7 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | 7a    | More than one account, with full and read-only roles                | Done    |
 | 7b    | Logging in with GitHub                                              | Done    |
 | E1    | Managing accounts in the UI                                         | Done    |
-| E2    | The Security page for GitHub accounts                               | Planned |
+| E2    | The Security page for GitHub accounts                               | Done    |
 | E3    | Encrypting stored secrets                                           | Planned |
 | E4    | Completing the migration from MariaDB                               | Planned |
 
@@ -633,7 +633,8 @@ Known limits:
   user's organizations and teams, nothing else.
 - Someone who leaves the teams is logged out at their next use, within a day, and can't log in again. E1 added
   listing and removing accounts.
-- The Security page's password and two-factor settings don't apply to GitHub accounts, which have neither.
+- The Security page's password and two-factor settings didn't apply to GitHub accounts, which have neither. E2
+  replaced them for those accounts.
 
 ## Enhancements (planned)
 
@@ -668,13 +669,22 @@ Known limits:
 - Password accounts can't be created here: the setup account is the only one, and others come from GitHub.
 - A GitHub admin that has left the teams still counts as an admin who can log in until its next check.
 
-### E2: The Security page for GitHub accounts
+### E2: The Security page for GitHub accounts (done)
 
-GitHub accounts have no password and leave two-factor login to GitHub, but the Security page offers both.
+GitHub accounts have no password and leave two-factor login to GitHub, but the Security page offered both.
 
-- For a GitHub account, show that it logs in with GitHub, its organization and teams, and when they were last
-  checked, instead of the password and two-factor settings.
-- Refuse changing the password and turning on two-factor login for GitHub accounts on the server too.
+- The organization's teams an account is in are kept at each login and check (a new column), and a GitHub
+  account's Security page shows its organization, teams, role and last check, and how often it's checked, instead
+  of the password, two-factor and "disable auth" settings. The page asks with `getOwnAccount`.
+- The server refuses changing the password, starting two-factor login and confirming its code for GitHub accounts
+  (`GITHUB_ACCOUNT`).
+
+Tested with the race detector: the teams stored at login (only the organization's), the three refusals, and
+`getOwnAccount`, against the fake GitHub; the store's teams against TimescaleDB. In headless Chromium against the
+built image (`internal/e2e/browser/security-e2.mjs`), with a fake GitHub, 4 of 4 steps passed with no page errors:
+the GitHub account's page with its organization, teams, role and last check and without the password and
+two-factor settings, the server refusing both changes, and a password account's page unchanged. Hiding "disable
+auth" for GitHub accounts came after that run, and was only linted.
 
 ### E3: Encrypting stored secrets
 

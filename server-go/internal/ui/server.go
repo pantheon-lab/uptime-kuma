@@ -27,11 +27,12 @@ type Store interface {
 	HasUser(ctx context.Context) (bool, error)
 	CreateFirstUser(ctx context.Context, username, passwordHash string) (store.User, error)
 	UserByUsername(ctx context.Context, username string) (store.User, error)
+	UserByID(ctx context.Context, id int32) (store.User, error)
 	SetPassword(ctx context.Context, userID int32, passwordHash string, keep []byte) error
 	UpgradePasswordHash(ctx context.Context, userID int32, old, hash string) error
-	SaveGitHubUser(ctx context.Context, githubID int64, login, role, token string) (store.User, error)
+	SaveGitHubUser(ctx context.Context, githubID int64, login, role, token string, teams []string) (store.User, error)
 	GitHubToken(ctx context.Context, userID int32) (string, error)
-	SetGitHubChecked(ctx context.Context, userID int32, role string) error
+	SetGitHubChecked(ctx context.Context, userID int32, role string, teams []string) error
 	EndUserSessions(ctx context.Context, userID int32) error
 	EndOtherUserSessions(ctx context.Context, userID int32, keep []byte) error
 	ListAccounts(ctx context.Context) ([]store.Account, error)

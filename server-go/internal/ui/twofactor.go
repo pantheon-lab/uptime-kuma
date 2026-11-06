@@ -93,6 +93,9 @@ func (s *Server) enableTwoFactor(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &body) {
 		return
 	}
+	if refuseGitHubAccount(w, user) {
+		return
+	}
 	if body.Method != "" && body.Method != "totp" {
 		authError(w, http.StatusBadRequest, "OTP_NOT_CONFIGURED", "OTP is not available")
 		return
@@ -179,6 +182,9 @@ func (s *Server) verifyTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if loggedIn {
+		if refuseGitHubAccount(w, user) {
+			return
+		}
 		s.confirmTOTP(w, r, user, body.Code)
 		return
 	}

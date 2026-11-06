@@ -162,6 +162,36 @@ func TestGitHubLogin(t *testing.T) {
 	if user := session(alice); to != "/dashboard" || user["username"] != "@alice" || user["role"] != "admin" {
 		t.Fatalf("alice: %s %v", to, user)
 	}
+	// E2: the teams are kept for the Security page, and there's no password or two-factor login.
+	fs.mu.Lock()
+	aliceTeams := strings.Join(fs.users[0].GitHubTeams, ",")
+	fs.mu.Unlock()
+	if aliceTeams != "sre" {
+		t.Errorf("alice's teams: %q", aliceTeams)
+	}
+	for _, path := range []string{"/api/auth/change-password", "/api/auth/two-factor/enable", "/api/auth/two-factor/verify-totp"} {
+		res, body := postJSON(t, alice, ts.URL+path, map[string]any{"currentPassword": "", "newPassword": "a long new password", "password": "", "code": "123456"})
+		if res.StatusCode != http.StatusBadRequest || body["code"] != "GITHUB_ACCOUNT" {
+			t.Errorf("%s for a GitHub account: %d %v", path, res.StatusCode, body)
+		}
+	}
+	id, stream, done := openStream(t, alice, ts.URL)
+	sendEvent(t, alice, ts.URL, id, "getOwnAccount", 1)
+	for {
+		kind, parts := stream.message(t)
+		if kind != "ack" {
+			continue
+		}
+		got := string(parts[1])
+		for _, want := range []string{`"method":"github"`, `"org":"pantheon-lab"`, `"teams":["sre"]`, `"checkedAt":"20`} {
+			if !strings.Contains(got, want) {
+				t.Errorf("getOwnAccount has no %s: %s", want, got)
+			}
+		}
+		break
+	}
+	done()
+
 	bob, _ := login("t-bob", nil)
 	if user := session(bob); user["role"] != "viewer" {
 		t.Fatalf("bob: %v", user)

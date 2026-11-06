@@ -372,6 +372,9 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &body) {
 		return
 	}
+	if refuseGitHubAccount(w, user) {
+		return
+	}
 	if !s.limiter.allow(user.Username) {
 		authError(w, http.StatusTooManyRequests, "TOO_MANY_REQUESTS", "Too many requests. Please try again later.")
 		return
@@ -408,6 +411,17 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 	s.closeOtherSessions(user.ID, keep)
 	s.log.Info("password changed", "username", user.Username)
 	writeJSON(w, http.StatusOK, map[string]any{"token": nil, "user": userJSON(user)})
+}
+
+// refuseGitHubAccount answers a password or two-factor change for an account that logs in with
+// GitHub, which has neither, and returns whether it did.
+func refuseGitHubAccount(w http.ResponseWriter, user store.User) bool {
+	if user.GitHubID == nil {
+		return false
+	}
+	authError(w, http.StatusBadRequest, "GITHUB_ACCOUNT",
+		"This account logs in with GitHub, so it has no password or two-factor login here. Manage them on GitHub.")
+	return true
 }
 
 func (s *Server) authNotSupported(w http.ResponseWriter, r *http.Request) {
