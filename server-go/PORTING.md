@@ -7,22 +7,24 @@ Update this file in the same pull request as each phase. Only mark a phase done 
 wasn't. The order of the planned phases is a proposal, and should follow what's actually in use: the dry run of
 `kuma-import` lists every monitor it can't bring over, and why.
 
-| Phase | Scope                                                               | Status |
-| ----- | ------------------------------------------------------------------- | ------ |
-| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done   |
-| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done   |
-| 2     | Push, Ping and DNS monitors                                         | Done   |
-| 3     | Status pages and badges                                             | Done   |
-| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done   |
-| 4b    | Other databases and messaging                                       | Done   |
-| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done   |
-| 4d    | Docker, system and remote browser monitors                          | Done   |
-| 4e    | HTTP options, proxies and domain expiry                             | Done   |
-| 4f    | Globalping, GameDig and Tailscale ping                              | Done   |
-| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done   |
-| 5b    | Settings that take effect, and the Monitor History page             | Done   |
-| 5c    | Importing accounts, status pages and maintenance windows            | Done   |
-| 6     | Integrations                                                        | Next   |
+| Phase | Scope                                                               | Status  |
+| ----- | ------------------------------------------------------------------- | ------- |
+| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done    |
+| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done    |
+| 2     | Push, Ping and DNS monitors                                         | Done    |
+| 3     | Status pages and badges                                             | Done    |
+| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done    |
+| 4b    | Other databases and messaging                                       | Done    |
+| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done    |
+| 4d    | Docker, system and remote browser monitors                          | Done    |
+| 4e    | HTTP options, proxies and domain expiry                             | Done    |
+| 4f    | Globalping, GameDig and Tailscale ping                              | Done    |
+| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done    |
+| 5b    | Settings that take effect, and the Monitor History page             | Done    |
+| 5c    | Importing accounts, status pages and maintenance windows            | Done    |
+| 6a    | The MCP server and the update check                                 | Done    |
+| 6b    | The `nostr` and `Webpush` notification providers                    | Next    |
+| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Planned |
 
 ## Phase 0: Core (done)
 
@@ -436,8 +438,45 @@ Known limits and differences from Node.js:
 - A page's `published`, `password` and `search_engine_index` columns aren't imported. Node.js didn't use them.
 - Other settings, such as `primaryBaseURL`, still aren't imported.
 
-## Phase 6: Integrations (next)
+## Phase 6: Integrations
 
-- The MCP server, the Cloudflare tunnel and backup upload
-- The update check
-- The `nostr` and `Webpush` notification providers, and `apprise` in the image
+Phase 6 was split like the others. "Backup upload", which the plan listed, isn't ported: the Node.js server at
+`921745bf^` had no backup feature, only its old JSON backup, removed before.
+
+### Phase 6a: The MCP server and the update check (done)
+
+- **MCP** at `/mcp`, over Streamable HTTP, stateless, as in Node.js. Its tools are the REST API's read-only
+  operations, built from `openapi.json`, as Node.js built them from its routes. Node.js left out routes with a path
+  parameter; here they're tools too, with an input schema from the document, so `getMonitor` and `getBeats` work.
+  Each call is made to the REST API in-process with the caller's key, so scopes and rate limits apply as on the
+  API. It uses the official Go SDK, `github.com/modelcontextprotocol/go-sdk`.
+- **The update check** reads this fork's `v*` tags from GitHub every 48 hours, as Node.js asked uptime.kuma.pet,
+  whose versions are upstream's. "Show update if available" and "Also check beta release" work as before, and
+  changing them checks again. The UI's links go to this fork's tags.
+
+Tested with the race detector: the MCP server through the SDK's own client against the real `openapi.json`, with
+the tools, their arguments, a key without the scope, and no key; the update check against a fake list of tags,
+with pre-releases, the settings and rechecks. Against the built image (`internal/e2e/browser/integrations-6a.mjs`),
+6 of 6 steps passed with no page errors:
+
+- `/mcp` over plain HTTP, as a client sends it: refused without a key; with a `monitors:read` key it
+  initialized, listed 11 tools, answered `listMonitors` with the monitor, and refused `getBeats` with the API's 403
+- the update notice in headless Chromium, with tags served by the script: 3.0.0 with the notice, 3.1.0-beta.1 with
+  betas, and nothing with checking off
+
+The default address was also tried against GitHub, where the fork has no tags yet, so there's no notice.
+
+Not tested: an AI assistant's MCP client, other than the SDK's and the plain HTTP above.
+
+Known limits and differences from Node.js:
+
+- MCP tools can't change anything, as in Node.js. Tools are listed whatever the key's scopes, and a call without
+  the scope answers with the API's error.
+- An MCP request counts against the key's rate limit, and so does each tool call it makes.
+- The update notice links to this fork's tags, not upstream's releases.
+
+### Phase 6b: The nostr and Webpush notification providers (next)
+
+### Phase 6c: apprise in the image, and the Cloudflare tunnel (planned)
+
+Both add programs to an image that is now `FROM scratch`: `apprise` is Python, and the tunnel runs `cloudflared`.

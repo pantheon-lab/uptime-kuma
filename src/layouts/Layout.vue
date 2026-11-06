@@ -25,7 +25,7 @@
             <a
                 v-if="hasNewVersion"
                 target="_blank"
-                href="https://github.com/louislam/uptime-kuma/releases"
+                href="https://github.com/pantheon-lab/uptime-kuma/tags"
                 class="btn btn-primary me-3"
             >
                 <font-awesome-icon icon="arrow-alt-circle-up" />

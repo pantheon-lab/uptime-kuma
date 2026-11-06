@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -158,6 +159,11 @@ func (s *Server) info(ctx context.Context, full bool) map[string]any {
 	}
 	if full {
 		info["version"] = s.opts.Version
+		if s.opts.Updates != nil {
+			if latest := s.opts.Updates.Latest(); latest != "" {
+				info["latestVersion"] = latest
+			}
+		}
 		info["isContainer"] = true
 		info["dbType"] = "postgres"
 		info["runtime"] = map[string]any{"platform": "linux", "arch": ""}
@@ -775,6 +781,12 @@ func (s *Server) getSettings(ctx context.Context) (reply, error) {
 	return ok("data", data), nil
 }
 
+// changed reports whether a setting being saved differs from the stored one.
+func changed(before, saving map[string]json.RawMessage, key string) bool {
+	value, found := saving[key]
+	return found && !bytes.Equal(bytes.TrimSpace(before[key]), bytes.TrimSpace(value))
+}
+
 // readOnlySettings are decided by the server's configuration, so they aren't saved.
 var readOnlySettings = map[string]bool{"serverTimezone": true}
 
@@ -792,6 +804,10 @@ func (s *Server) setSettings(ctx context.Context, c *conn, args []json.RawMessag
 	for key := range readOnlySettings {
 		delete(toSave, key)
 	}
+	before, err := s.store.Settings(ctx)
+	if err != nil {
+		return nil, err
+	}
 	retention, changeRetention, err := s.retentionChange(ctx, toSave)
 	if err != nil {
 		return nil, userErr(err)
@@ -807,6 +823,9 @@ func (s *Server) setSettings(ctx context.Context, c *conn, args []json.RawMessag
 		s.log.Info("retention changed", "days", retention, "by", c.username)
 	}
 	s.cache.clear() // The entry page or trusting a proxy may have changed.
+	if s.opts.Updates != nil && (changed(before, toSave, "checkUpdate") || changed(before, toSave, "checkBeta")) {
+		s.opts.Updates.Recheck()
+	}
 	c.emit("info", s.info(ctx, true))
 	return okI18n("Saved."), nil
 }

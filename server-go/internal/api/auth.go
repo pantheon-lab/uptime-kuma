@@ -54,7 +54,19 @@ type principal struct {
 }
 
 func (p principal) has(scope string) bool {
+	if scope == scopeAny {
+		return true
+	}
 	return p.admin || (scope != scopeAdmin && slices.Contains(p.scopes, scope))
+}
+
+// scopeAny is any valid credential, whatever its scopes.
+const scopeAny = "*any*"
+
+// Authenticate lets a request through with a valid API key, whatever its scopes, or the admin
+// token. Keys are rate limited as on the API's routes.
+func (s *Server) Authenticate(next http.Handler) http.Handler {
+	return s.require(scopeAny, next.ServeHTTP)
 }
 
 func (p principal) String() string {
