@@ -491,6 +491,14 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.addAPIKey(ctx, c, args)
 	case "deleteAPIKey":
 		r, err = s.deleteAPIKey(ctx, c, args)
+	case "getAccountList":
+		r, err = s.getAccountList(ctx, c)
+	case "deleteAccount":
+		r, err = s.deleteAccount(ctx, c, args)
+	case "setAccountRole":
+		r, err = s.setAccountRole(ctx, c, args)
+	case "endAccountSessions":
+		r, err = s.endAccountSessions(ctx, c, args)
 	default:
 		if s.pages == nil {
 			return nil, false

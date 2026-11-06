@@ -468,6 +468,10 @@ var migrations = [][]string{
 		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS github_token text`,
 		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS github_checked_at timestamptz`,
 	},
+	{
+		// When each account last logged in, for Settings > Accounts.
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS last_login_at timestamptz`,
+	},
 }
 
 // Migrate brings the schema up to date.

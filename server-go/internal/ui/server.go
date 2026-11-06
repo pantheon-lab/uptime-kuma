@@ -33,6 +33,10 @@ type Store interface {
 	GitHubToken(ctx context.Context, userID int32) (string, error)
 	SetGitHubChecked(ctx context.Context, userID int32, role string) error
 	EndUserSessions(ctx context.Context, userID int32) error
+	EndOtherUserSessions(ctx context.Context, userID int32, keep []byte) error
+	ListAccounts(ctx context.Context) ([]store.Account, error)
+	DeleteUser(ctx context.Context, userID int32, methods store.LoginMethods) (store.User, error)
+	SetUserRole(ctx context.Context, userID int32, role string, methods store.LoginMethods) (store.User, error)
 	StartTOTPSetup(ctx context.Context, userID int32, secret []byte) error
 	EnableTOTP(ctx context.Context, userID int32, secret []byte, step int64, keep []byte) error
 	DisableTOTP(ctx context.Context, userID int32) error

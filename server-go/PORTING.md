@@ -27,7 +27,7 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Done    |
 | 7a    | More than one account, with full and read-only roles                | Done    |
 | 7b    | Logging in with GitHub                                              | Done    |
-| E1    | Managing accounts in the UI                                         | Planned |
+| E1    | Managing accounts in the UI                                         | Done    |
 | E2    | The Security page for GitHub accounts                               | Planned |
 | E3    | Encrypting stored secrets                                           | Planned |
 | E4    | Completing the migration from MariaDB                               | Planned |
@@ -631,25 +631,42 @@ Known limits:
 
 - The GitHub token is stored as it is, as the authenticator key is, to check the teams again. It can read the
   user's organizations and teams, nothing else.
-- Accounts can't be listed or removed in the UI. Someone who leaves the teams is logged out at their next use,
-  within a day, and can't log in again.
+- Someone who leaves the teams is logged out at their next use, within a day, and can't log in again. E1 added
+  listing and removing accounts.
 - The Security page's password and two-factor settings don't apply to GitHub accounts, which have neither.
 
 ## Enhancements (planned)
 
 The port is complete. These go beyond what the Node.js server did, and came out of Phases 5 to 7.
 
-### E1: Managing accounts in the UI
+### E1: Managing accounts in the UI (done)
 
-GitHub teams are the only control over accounts today, and an account that has left them stays in the database.
+GitHub teams were the only control over accounts, and an account that had left them stayed in the database.
 
-- A Settings > Accounts page for admins: every account, with its role, whether it logs in with GitHub or a
-  password, when it last logged in, and its open sessions.
-- Ending an account's sessions, and removing an account. Removing a GitHub account only lasts until its next login
-  while it's still in the teams, so the page says so.
-- Changing a password account's role. A GitHub account's role follows its teams, so it can't be changed here.
-- The last admin who can log in can't be removed or made a viewer.
-- Recording logins and these changes, by whom, in the log.
+- Settings > Accounts, for admins: every account, with its role, whether it logs in with GitHub or a password, when
+  it last logged in (a new column, set with each session), and its open sessions, marking the page's own.
+- Ending an account's sessions (an admin's own page stays logged in), and removing an account. Removing a GitHub
+  account only lasts until its next login while it's still in the teams, and the confirmation says so.
+- Changing a password account's role, which makes its open pages reconnect with the new one. A GitHub account's role
+  follows its teams, and the server refuses changing it.
+- The last admin who can log in can't be removed or made a viewer. "Can log in" follows the configuration: a
+  password admin needs password login on, a GitHub admin needs GitHub login on. The check holds a lock, so that two
+  admins removing each other at once can't both succeed. Admins can't remove or demote themselves either.
+- Logins were logged already; removals, role changes and ended sessions are logged with who made them.
+- The events are admin-only, by not being in the viewer list.
+
+Tested with the race detector: the store against TimescaleDB (the listing, the last-admin rule with and without
+GitHub login, two concurrent removals of the only two admins, ending all sessions but one), and the events against
+the fake store (every refusal, role changes, ending sessions, removing, and a viewer refused all four). In headless
+Chromium against the built image (`internal/e2e/browser/accounts-e1.mjs`), 6 of 6 steps passed with no page errors:
+the list with roles, methods, last logins and sessions; making a viewer an admin, which their open page picked up;
+ending their sessions, which logged them out; removing a GitHub account with the warning shown; and the server
+refusing self-removal, self-demotion and a viewer's request.
+
+Known limits:
+
+- Password accounts can't be created here: the setup account is the only one, and others come from GitHub.
+- A GitHub admin that has left the teams still counts as an admin who can log in until its next check.
 
 ### E2: The Security page for GitHub accounts
 

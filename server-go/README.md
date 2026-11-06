@@ -8,8 +8,7 @@ percentiles and dashboard stats over REST, plus new beats over Server-Sent Event
 status pages and badges, exports traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
 **Status:** this is now the only backend, because the Node.js server and MariaDB support have
-been removed. It isn't feature complete. Not built yet: more than one account, and logging in with GitHub, which
-[`PORTING.md`](PORTING.md) plans.
+been removed. Enhancements beyond what the Node.js server did are planned in [`PORTING.md`](PORTING.md).
 
 [PORTING.md](PORTING.md) records what has moved from the Node.js server, phase by phase, and what's left.
 
@@ -31,6 +30,12 @@ URLs' credentials and query strings, headers, bodies, connection strings, push t
 of notifications, proxies, Docker hosts and remote browsers, and every event that would change something, or read
 settings or API keys, is refused. The UI hides those buttons, and sends a viewer back from settings and forms.
 Accounts other than the setup one come from logging in with GitHub.
+
+**Settings > Accounts** lists every account, for admins: its role, whether it logs in with GitHub or a password, its
+last login and its open sessions. An admin can end an account's sessions, remove it, and change a password account's
+role; a GitHub account's role follows its teams. Removing a GitHub account lasts only until its next login while it's
+still in the teams. No change may leave no admin who can log in, and admins can't remove or demote themselves. Each
+change is logged with who made it.
 
 ### Logging in with GitHub
 

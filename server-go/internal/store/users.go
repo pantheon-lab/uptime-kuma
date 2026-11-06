@@ -159,7 +159,9 @@ func (s *Store) CreateSession(ctx context.Context, tokenHash []byte, session Ses
 	if _, err := s.pool.Exec(ctx, `DELETE FROM app_session WHERE expires_at < now()`); err != nil {
 		return fmt.Errorf("clear expired sessions: %w", err)
 	}
+	// Each session is a login, which Settings > Accounts shows.
 	_, err := s.pool.Exec(ctx, `
+		WITH login AS (UPDATE app_user SET last_login_at = now() WHERE id = $2)
 		INSERT INTO app_session (token_hash, user_id, remember, expires_at) VALUES ($1, $2, $3, $4)`,
 		tokenHash, session.UserID, session.Remember, session.ExpiresAt)
 	if err != nil {
