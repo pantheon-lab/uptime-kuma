@@ -1,0 +1,53 @@
+{{- if .Values.otelCollector.enabled }}
+{{- $name := include "uptime-kuma.component" (dict "root" . "name" "otel-collector") -}}
+{{- $v := .Values.otelCollector -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "uptime-kuma.labels" (dict "root" . "name" "otel-collector") | nindent 4 }}
+data:
+  # Mirrors server-go/observability/otel-collector.yaml, with this release's service names.
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+
+    processors:
+      memory_limiter:
+        check_interval: 5s
+        limit_mib: {{ $v.memoryLimitMiB }}
+      batch: {}
+
+    exporters:
+      {{- if .Values.tempo.enabled }}
+      otlp/tempo:
+        endpoint: {{ include "uptime-kuma.component" (dict "root" . "name" "tempo") }}:4317
+        tls:
+          insecure: true
+      {{- end }}
+      {{- if .Values.prometheus.enabled }}
+      prometheusremotewrite:
+        endpoint: http://{{ include "uptime-kuma.component" (dict "root" . "name" "prometheus") }}:9090/api/v1/write
+        resource_to_telemetry_conversion:
+          enabled: false
+      {{- end }}
+      {{- if not (and .Values.tempo.enabled .Values.prometheus.enabled) }}
+      debug:
+        verbosity: basic
+      {{- end }}
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [{{ ternary "otlp/tempo" "debug" .Values.tempo.enabled }}]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [{{ ternary "prometheusremotewrite" "debug" .Values.prometheus.enabled }}]
+{{- end }}

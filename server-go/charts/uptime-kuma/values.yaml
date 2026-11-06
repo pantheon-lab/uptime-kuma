@@ -1,0 +1,172 @@
+# kuma-analytics, the Go backend. Always runs as a single replica, because schedulers don't
+# coordinate and two instances would both run every check.
+image:
+  # Published by .github/workflows/docker-release.yml. Also on Docker Hub when that's configured.
+  repository: ghcr.io/pantheon-lab/uptime-kuma
+  # Defaults to the chart's appVersion, published from the git tag v<appVersion>. Use "main"
+  # (with pullPolicy Always) or "sha-<commit>" for builds of the main branch.
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Secrets. Leave existingSecret empty to have the chart generate them. Generated values are
+# kept across `helm upgrade` (via lookup), but tools that render without a cluster, such as
+# Argo CD, regenerate them on every sync, so use existingSecret there.
+# An existing secret must hold the keys below that apply:
+#   ANALYTICS_API_TOKEN      always, at least 32 characters
+#   POSTGRES_PASSWORD        when timescaledb.enabled
+#   DATABASE_URL             when timescaledb.enabled is false (unless externalDatabase.url is set)
+#   GRAFANA_DB_PASSWORD      when grafana.enabled
+#   GRAFANA_ADMIN_PASSWORD   when grafana.enabled
+existingSecret: ""
+
+analytics:
+  # Admin bearer token. Generated when empty.
+  apiToken: ""
+  retentionDays: 365
+  checkConcurrency: 2000
+  apiKeyRateLimit: 50
+  # Public address of the web UI, for links in notifications.
+  baseUrl: ""
+  timezone: UTC
+  traceSuccessRatio: "0.01"
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 1Gi
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Serves the API and the web UI from src/, which is embedded in the image.
+service:
+  type: ClusterIP
+  port: 3002
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: uptime-kuma.example.com
+  # secretName for TLS. Leave empty to serve plain HTTP from the ingress.
+  tlsSecretName: ""
+
+# Used when timescaledb.enabled is false. Or put DATABASE_URL in existingSecret.
+externalDatabase:
+  url: ""
+
+timescaledb:
+  enabled: true
+  image:
+    repository: timescale/timescaledb
+    tag: latest-pg17
+    pullPolicy: IfNotPresent
+  database: kuma
+  # Generated when empty. Keep it URL-safe, because it is placed in DATABASE_URL.
+  password: ""
+  persistence:
+    storageClass: ""
+    size: 20Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 2Gi
+
+# Observability stack, mirroring server-go/compose.yaml. Each part can be switched off.
+# When otelCollector is off, set OTEL_EXPORTER_OTLP_ENDPOINT in analytics.extraEnv to export
+# to a collector you already run, or leave it unset to export nothing.
+otelCollector:
+  enabled: true
+  image:
+    repository: otel/opentelemetry-collector-contrib
+    tag: 0.116.1
+  memoryLimitMiB: 400
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+# Off by default. Without it, the collector logs metrics through its debug exporter.
+prometheus:
+  enabled: false
+  image:
+    repository: prom/prometheus
+    tag: v3.1.0
+  retention: 30d
+  persistence:
+    storageClass: ""
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 2Gi
+
+tempo:
+  enabled: true
+  image:
+    repository: grafana/tempo
+    tag: 2.6.1
+  retention: 720h
+  persistence:
+    storageClass: ""
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 1Gi
+
+# Off by default. Turn it on, with prometheus, for the dashboards from server-go/observability.
+grafana:
+  enabled: false
+  image:
+    repository: grafana/grafana
+    tag: 11.4.0
+  # Generated when empty.
+  adminPassword: ""
+  # Password of the read-only kuma_grafana database role. Generated when empty.
+  dbPassword: ""
+  # Where Grafana reads TimescaleDB, as host:port. Defaults to the chart's timescaledb service;
+  # set it when timescaledb.enabled is false.
+  databaseHost: ""
+  databaseName: ""
+  databaseSslMode: disable
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    host: grafana.example.com
+    tlsSecretName: ""
+
+# One-off import from an Uptime Kuma MariaDB database, run by kuma-import (see server-go/README.md).
+# Enable it for one `helm upgrade`, read the report with `kubectl logs -l
+# app.kubernetes.io/component=import`, then switch it off again. Changing args runs a new job.
+import:
+  enabled: false
+  # Secret holding SOURCE_MARIADB_DSN, such as kuma_import:password@tcp(host:3306)/kuma
+  dsnSecret: ""
+  dsnSecretKey: SOURCE_MARIADB_DSN
+  # [] is a dry run. ["-apply"] imports, ["-apply", "-activate"] is the cutover; restart the
+  # analytics deployment afterwards.
+  args: []

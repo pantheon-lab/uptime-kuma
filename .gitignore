@@ -25,3 +25,6 @@ extra/exe-builder/obj
 .vs
 .vscode
 .devcontainer
+
+# server-go/internal/webui/dist/ is ignored by "dist" above. Its .gitkeep is tracked, because
+# go:embed needs a file there; the Dockerfile copies the frontend build in.

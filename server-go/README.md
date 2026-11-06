@@ -8,7 +8,13 @@ traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 **Status:** this is now the only backend, because the Node.js server and MariaDB support have
 been removed. It isn't feature complete. Not built yet: login, maintenance
 windows, status pages, tags, TLS certificate tracking, HTTP authentication options, proxies, all
-other monitor types. The web UI in `src/` can't connect to it yet.
+other monitor types.
+
+The Docker image, built from the repository root's `Dockerfile`, embeds the web UI from `src/` and serves it
+on the same port as the API: `/api/` and `/healthz` go to the API, and every other path to the UI. The UI
+loads but can't log in or show data yet, because it calls endpoints this service doesn't have:
+`/api/auth/*` for login, `/api/setup` and `/api/realtime/*`. A plain `go build` leaves the UI out and
+serves only the API.
 
 ## Run
 
@@ -33,6 +39,9 @@ docker compose up --build
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | not set          | OTLP gRPC endpoint. Without it nothing is exported. Other standard `OTEL_*` variables apply too |
 | `KUMA_TRACE_SUCCESS_RATIO`    | `0.01`           | Share of successful traces to export. Failures are always exported                              |
 | `GRAFANA_DB_PASSWORD`         | not set          | Creates or updates the read-only `kuma_grafana` database role                                   |
+
+To deploy on Kubernetes, use the Helm chart in [`charts/uptime-kuma`](charts/uptime-kuma/README.md), which
+runs the same stack.
 
 Run a single instance: there's no coordination between schedulers, so two instances
 would both run every check.

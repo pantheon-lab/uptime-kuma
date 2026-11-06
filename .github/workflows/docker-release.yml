@@ -1,0 +1,97 @@
+name: docker-release
+
+# Builds the root Dockerfile, the Go backend with the web UI embedded, and publishes it to GHCR,
+# and to Docker Hub when configured. Pushes to main publish :main and :sha-<short>; a v1.2.3 tag publishes :1.2.3, :1.2
+# and :latest. Pull requests only build.
+#
+# Docker Hub is optional. To enable it, set the repository variable DOCKERHUB_IMAGE (such as
+# pantheonlab/uptime-kuma) and the secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN.
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+    paths: &image-paths
+      - "server-go/**"
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "vite.config.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".github/workflows/docker-release.yml"
+  pull_request:
+    branches:
+      - main
+    paths: *image-paths
+  workflow_dispatch:
+permissions: {}
+
+concurrency:
+  group: docker-release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      PUSH: ${{ github.event_name != 'pull_request' }}
+      DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        if: env.PUSH == 'true'
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: env.PUSH == 'true' && env.DOCKERHUB_IMAGE != ''
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tags
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+            ${{ env.DOCKERHUB_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=sha-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          flavor: |
+            latest=auto
+          labels: |
+            org.opencontainers.image.title=uptime-kuma
+            org.opencontainers.image.description=Pantheon Lab's Uptime Kuma: Go backend with embedded web UI, and kuma-import
+
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ env.PUSH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
