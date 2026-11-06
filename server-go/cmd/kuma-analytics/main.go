@@ -145,6 +145,16 @@ func run(log *slog.Logger) error {
 		_ = json.Unmarshal(settings["steamAPIKey"], &key)
 		return key, nil
 	})
+	// Optional: without one, Globalping's anonymous limits apply. Saved under Settings > General.
+	checker.SetGlobalpingToken(func(ctx context.Context) (string, error) {
+		settings, err := db.Settings(ctx)
+		if err != nil {
+			return "", err
+		}
+		var token string
+		_ = json.Unmarshal(settings["globalpingApiToken"], &token)
+		return token, nil
+	})
 	checker.SetDockerHosts(db)
 	checker.SetBrowsers(db)
 	checker.SetProxies(db)

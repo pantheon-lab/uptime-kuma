@@ -643,6 +643,18 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 		m.RemoteBrowserID = int32(intOf(row["remote_browser"]))
 		m.ScreenshotDelay = int32(intOf(row["screenshot_delay"]))
 		return checked(m)
+	case monitor.TypeGameDig:
+		m.Hostname = strings.TrimSpace(row["hostname"].String)
+		m.Port = int32(intOf(row["port"]))
+		m.Game = row["game"].String
+		m.GamedigGivenPortOnly = boolOf(row["gamedig_given_port_only"])
+		m.GamedigToken = row["gamedig_token"].String
+		return checked(m)
+	case monitor.TypeTailscale:
+		m.Hostname = strings.TrimSpace(row["hostname"].String)
+		return checked(m)
+	case monitor.TypeGlobalping:
+		return convertGlobalping(m, row)
 	case monitor.TypeHTTP, monitor.TypeKeyword, monitor.TypeJSONQuery, monitor.TypeWebSocket:
 	default:
 		return m, "unsupported monitor type: " + m.Type
@@ -719,6 +731,66 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 	m.ResponseMaxLength = int32(intOf(row["response_max_length"]))
 	if m.Type == monitor.TypeJSONQuery {
 		m.RetryOnlyOnStatusCodeFailure = boolOf(row["retry_only_on_status_code_failure"])
+	}
+	return checked(m)
+}
+
+// convertGlobalping reads a Globalping monitor, whose fields depend on its measurement.
+func convertGlobalping(m monitor.Monitor, row map[string]sql.NullString) (monitor.Monitor, string) {
+	m.Subtype, m.Location, m.Protocol = row["subtype"].String, row["location"].String, row["protocol"].String
+	m.IPFamily = row["ip_family"].String
+	if m.IPFamily == "null" {
+		m.IPFamily = ""
+	}
+	switch m.Subtype {
+	case "ping":
+		m.Hostname = strings.TrimSpace(row["hostname"].String)
+		m.Port = int32(intOf(row["port"]))
+		if row["ping_count"].Valid {
+			m.PingCount = int32(intOf(row["ping_count"]))
+		}
+	case "dns":
+		m.Hostname = strings.TrimSpace(row["hostname"].String)
+		m.Port = int32(intOf(row["port"]))
+		m.DNSResolveType = cmp.Or(row["dns_resolve_type"].String, "A")
+		m.DNSResolveServer = row["dns_resolve_server"].String
+		m.Keyword = row["keyword"].String
+	case "http":
+		m.URL = row["url"].String
+		m.Method = cmp.Or(strings.ToUpper(strings.TrimSpace(row["method"].String)), "GET")
+		m.IgnoreTLS = boolOf(row["ignore_tls"])
+		m.CacheBust = boolOf(row["cache_bust"])
+		m.DNSResolveServer = row["dns_resolve_server"].String
+		m.Keyword, m.InvertKeyword = row["keyword"].String, boolOf(row["invert_keyword"])
+		m.JSONPath, m.ExpectedValue = row["json_path"].String, row["expected_value"].String
+		if op := row["json_path_operator"].String; op != "" {
+			m.JSONPathOperator = op
+		}
+		if raw := strings.TrimSpace(row["accepted_statuscodes_json"].String); raw != "" {
+			if err := json.Unmarshal([]byte(raw), &m.AcceptedStatusCodes); err != nil {
+				return m, "invalid setting: accepted status codes aren't valid JSON"
+			}
+		}
+		headers, reason := convertHeaders(row["headers"].String)
+		if reason != "" {
+			return m, reason
+		}
+		m.Headers = headers
+		switch method := row["auth_method"].String; method {
+		case "", "null":
+		case "basic":
+			m.AuthMethod, m.BasicAuthUser, m.BasicAuthPass = method, row["basic_auth_user"].String, row["basic_auth_pass"].String
+		case "bearer":
+			m.AuthMethod, m.BearerToken = method, row["bearer_token"].String
+		case "oauth2-cc":
+			m.AuthMethod = method
+			m.OAuthAuthMethod = cmp.Or(row["oauth_auth_method"].String, "client_secret_basic")
+			m.OAuthTokenURL, m.OAuthClientID = row["oauth_token_url"].String, row["oauth_client_id"].String
+			m.OAuthClientSecret, m.OAuthScopes = row["oauth_client_secret"].String, row["oauth_scopes"].String
+			m.OAuthAudience = row["oauth_audience"].String
+		default:
+			return m, "unsupported setting: authentication method " + method + " on a Globalping monitor"
+		}
 	}
 	return checked(m)
 }

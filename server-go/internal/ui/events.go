@@ -444,6 +444,8 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.addProxy(ctx, args)
 	case "deleteProxy":
 		r, err = s.deleteProxy(ctx, args)
+	case "getGameList":
+		r = gameList()
 	case "getPM2ProcessList":
 		r, err = s.getPM2ProcessList(ctx)
 	default:

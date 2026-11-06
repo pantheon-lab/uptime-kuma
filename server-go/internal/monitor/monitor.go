@@ -61,13 +61,17 @@ const (
 	TypeSFTP          = "sftp"
 	TypeGRPC          = "grpc-keyword"
 	TypeRealBrowser   = "real-browser"
+
+	TypeGlobalping = "globalping"
+	TypeGameDig    = "gamedig"
+	TypeTailscale  = "tailscale-ping"
 )
 
 // Types are every supported type, in the order error messages list them.
 var Types = []string{TypeHTTP, TypeKeyword, TypeJSONQuery, TypePort, TypePing, TypeDNS, TypePush, TypeGroup,
 	TypeManual, TypeWebSocket, TypePostgres, TypeMySQL, TypeRedis, TypeSQLServer, TypeOracle, TypeMongoDB, TypeMQTT,
 	TypeRabbitMQ, TypeKafka, TypeNTP, TypeSNMP, TypeSMTP, TypeSIP, TypeRADIUS, TypeSteam, TypeDocker, TypeSystemService,
-	TypePM2, TypeSFTP, TypeGRPC, TypeRealBrowser}
+	TypePM2, TypeSFTP, TypeGRPC, TypeRealBrowser, TypeGlobalping, TypeGameDig, TypeTailscale}
 
 // SNMPVersions and SMTPSecurities are the choices of the SNMP and SMTP types.
 var (
@@ -333,7 +337,28 @@ type Settings struct {
 
 	// DomainExpiryNotification alerts before the domain of the monitor's target expires.
 	DomainExpiryNotification bool `json:"domainExpiryNotification,omitempty"`
+
+	// Game is a GameDig monitor's game, by gamedig's key. GamedigGivenPortOnly queries only the
+	// monitor's port, not the game's other usual ports. GamedigToken is kept for the protocols that
+	// need one, which aren't ported yet.
+	Game                 string `json:"game,omitempty"`
+	GamedigGivenPortOnly bool   `json:"gamedigGivenPortOnly,omitempty"`
+	GamedigToken         string `json:"gamedigToken,omitempty"`
+
+	// Subtype is a Globalping monitor's measurement: ping, http or dns. Location is where its probe
+	// is, in Globalping's terms, such as "Germany" or "AWS+eu-west-1". Protocol is ICMP or TCP for
+	// ping, empty or HTTP2 for http, and UDP or TCP for dns.
+	Subtype  string `json:"subtype,omitempty"`
+	Location string `json:"location,omitempty"`
+	Protocol string `json:"protocol,omitempty"`
 }
+
+// GameExists reports whether GameDig monitors can query a game. The check package sets it.
+var GameExists = func(string) bool { return true }
+
+// GlobalpingDNSTypes are the record types a Globalping DNS measurement can ask for.
+var GlobalpingDNSTypes = []string{"A", "AAAA", "ANY", "CNAME", "DNSKEY", "DS", "HTTPS", "MX", "NS", "NSEC", "PTR", "RRSIG",
+	"SOA", "SRV", "SVCB", "TXT"}
 
 // The limits of saved responses, the same as the Node.js backend's.
 const (
@@ -419,7 +444,7 @@ func (m Monitor) Redacted() Monitor {
 	}
 	for _, secret := range []*string{&m.MQTTPassword, &m.RabbitMQPassword, &m.SNMPCommunity, &m.RadiusPassword, &m.RadiusSecret,
 		&m.SSHPassword, &m.SSHPrivateKey, &m.SSHPassphrase, &m.GRPCBody, &m.GRPCMetadata,
-		&m.BasicAuthPass, &m.BearerToken, &m.TLSKey, &m.OAuthClientSecret} {
+		&m.BasicAuthPass, &m.BearerToken, &m.TLSKey, &m.OAuthClientSecret, &m.GamedigToken} {
 		if *secret != "" {
 			*secret = redactedValue
 		}
@@ -545,6 +570,24 @@ func (m *Monitor) Validate() error {
 		return m.validateGRPC()
 	case TypeRealBrowser:
 		return m.validateRealBrowser()
+	case TypeGameDig:
+		if !GameExists(m.Game) {
+			return fmt.Errorf("game %q isn't supported", m.Game)
+		}
+		if h := strings.TrimSpace(m.Hostname); h == "" || strings.ContainsAny(h, " /\\@") {
+			return errors.New("hostname must be a host name or an IP address")
+		}
+		if m.Port < 0 || m.Port > 65535 {
+			return errors.New("port must be from 1 to 65535")
+		}
+		return nil
+	case TypeTailscale:
+		if h := strings.TrimSpace(m.Hostname); h == "" || strings.ContainsAny(h, " /\\@") {
+			return errors.New("hostname must be a Tailscale host name or IP address")
+		}
+		return nil
+	case TypeGlobalping:
+		return m.validateGlobalping()
 	case TypeKeyword:
 		if m.Keyword == "" {
 			return errors.New("keyword is required")
@@ -812,6 +855,54 @@ func (m *Monitor) validateRealBrowser() error {
 	// As in Node.js, the delay must leave time for the page to load and for the next check.
 	if limit := int64(m.Interval) * 500; int64(m.ScreenshotDelay) >= limit {
 		return fmt.Errorf("Screenshot delay must be less than %dms (0.5 × interval)", limit) //nolint:staticcheck // Shown to users.
+	}
+	return nil
+}
+
+func (m *Monitor) validateGlobalping() error {
+	if strings.Contains(m.Location, ",") {
+		return errors.New("Only one location is allowed") //nolint:staticcheck // Shown to users.
+	}
+	switch m.Subtype {
+	case "ping":
+		if h := strings.TrimSpace(m.Hostname); h == "" || strings.ContainsAny(h, " /\\@") {
+			return errors.New("hostname must be a host name or an IP address")
+		}
+		if m.Protocol != "" && m.Protocol != "ICMP" && m.Protocol != "TCP" {
+			return errors.New("protocol of a ping must be ICMP or TCP")
+		}
+		if m.PingCount < 1 || m.PingCount > 16 {
+			return errors.New("pingCount of a Globalping ping must be from 1 to 16")
+		}
+		if m.Port < 0 || m.Port > 65535 {
+			return errors.New("port must be from 1 to 65535")
+		}
+	case "http":
+		if m.Protocol != "" && m.Protocol != "HTTP2" {
+			return errors.New("protocol of an HTTP measurement must be HTTP2 or empty")
+		}
+		return m.validateHTTP()
+	case "dns":
+		if strings.TrimSpace(m.Hostname) == "" {
+			return errors.New("hostname is required")
+		}
+		if m.Protocol != "" && m.Protocol != "UDP" && m.Protocol != "TCP" {
+			return errors.New("protocol of a DNS measurement must be UDP or TCP")
+		}
+		if !slices.Contains(GlobalpingDNSTypes, m.DNSResolveType) {
+			return fmt.Errorf("dnsResolveType must be one of %s", strings.Join(GlobalpingDNSTypes, ", "))
+		}
+		if m.Port < 1 || m.Port > 65535 {
+			return errors.New("port must be from 1 to 65535")
+		}
+		if _, err := regexp.Compile("(?i)" + m.Keyword); err != nil {
+			return fmt.Errorf("keyword isn't a valid regular expression: %w", err)
+		}
+	default:
+		return errors.New("subtype must be ping, http or dns")
+	}
+	if m.IPFamily != "" && m.IPFamily != "ipv4" && m.IPFamily != "ipv6" {
+		return errors.New("ipFamily must be ipv4, ipv6 or empty")
 	}
 	return nil
 }
