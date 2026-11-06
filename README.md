@@ -7,8 +7,9 @@
 > [!WARNING]
 > **This is Pantheon Lab's fork, partway through a rewrite.** The Node.js server and MariaDB
 > support have been removed, and the backend is now the Go service in [`server-go/`](server-go/README.md).
-> It can run checks and has an API and Grafana dashboards, but it has no login or notifications
-> yet, and the web UI in `src/` can't connect to it. Don't use it to replace a working installation.
+> It runs HTTP, keyword, TCP port and group monitors with notifications, and serves the web UI in
+> `src/`, but status pages, maintenance windows, tags, proxies and other monitor types aren't built yet.
+> Don't use it to replace a working installation.
 > The rest of this file describes the original project.
 
 Uptime Kuma is an easy-to-use self-hosted monitoring tool.

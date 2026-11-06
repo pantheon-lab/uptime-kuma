@@ -9,7 +9,7 @@ RUN npm ci --no-audit --no-fund
 COPY index.html vite.config.mjs tsconfig.json ./
 COPY public ./public
 COPY src ./src
-RUN npm run build
+RUN npm run build && node -p "require('./package.json').version" > /app/VERSION
 
 # Builds on the build platform and cross-compiles, so multi-arch images don't need emulation.
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS backend
@@ -19,9 +19,11 @@ COPY server-go/go.mod server-go/go.sum ./
 RUN go mod download
 COPY server-go/ ./
 COPY --from=frontend /app/dist ./internal/webui/dist
+COPY --from=frontend /app/VERSION /VERSION
 ARG TARGETOS TARGETARCH
 ENV CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH
-RUN go build -trimpath -ldflags='-s -w' -o /kuma-analytics ./cmd/kuma-analytics
+# The UI compares this version with its own.
+RUN go build -trimpath -ldflags="-s -w -X main.version=$(cat /VERSION)" -o /kuma-analytics ./cmd/kuma-analytics
 RUN go build -trimpath -ldflags='-s -w' -o /kuma-import ./cmd/kuma-import
 
 FROM scratch
