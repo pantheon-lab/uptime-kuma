@@ -30,6 +30,7 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | E1    | Managing accounts in the UI                                         | Planned |
 | E2    | The Security page for GitHub accounts                               | Planned |
 | E3    | Encrypting stored secrets                                           | Planned |
+| E4    | Completing the migration from MariaDB                               | Planned |
 
 ## Phase 0: Core (done)
 
@@ -671,3 +672,27 @@ means a copy of the database, such as a backup, doesn't give them away.
   encrypted values and no key.
 - Decide first which columns: the Grafana read-only role already can't read monitors' credentials, and encrypting
   them stops the database from searching or checking them.
+
+### E4: Completing the migration from MariaDB
+
+`kuma-import` copies monitors, every raw beat, the hourly and daily statistics, notifications, tags, proxies, Docker
+hosts, remote browsers, the account, status pages and maintenance windows from Uptime Kuma's MariaDB into
+TimescaleDB. This finishes the move, so that nothing has to be set up again by hand, and the move can be checked.
+
+- **Settings:** the ones that take effect here, such as `primaryBaseURL`, the entry page, search engine visibility,
+  trusting a proxy, the certificate and domain expiry days, the retention, the Steam key, the Globalping token, the
+  Chrome executable, and the update check's. A setting changed here since isn't overwritten, and the report lists
+  each one copied and each one left, and why.
+- **API keys:** better-auth's keys (`better_auth_apikey`) and the older table's, with their names, expiry and
+  whether they're on, so that scripts using them keep working. Only their hashes exist, so they keep their format and
+  this service learns to check it. Their permissions become scopes, or all scopes where there were none.
+- **Alert state:** which certificate and domain expiry alerts were sent (`notification_sent_history`), so that they
+  aren't sent again, and the certificates last seen (`monitor_tls_info`), so that the pages show them before the
+  first check.
+- **Monitors that were skipped:** their beats and statistics, kept apart until the monitor can be imported, so that
+  a later version that supports their type or setting brings their history with them.
+- **Checking the move:** `kuma-import -verify` compares the source with what's here, monitor by monitor: beats,
+  uptime over 24 hours, 30 days and a year, and the newest beat. It reports any that differ beyond rounding, and
+  exits non-zero if any do, so that a cutover can be scripted.
+- **A cutover runbook** in the README: a dry run, an import while both run, `-verify`, then stopping Uptime Kuma,
+  a last import, `-activate`, a restart and a last `-verify`, with how to go back if something's wrong.
