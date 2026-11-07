@@ -28,7 +28,8 @@ var (
 const monitorColumns = `id, name, type, active, interval_seconds, retry_interval_seconds, timeout_seconds,
 	max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
 	max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval, expiry_notification,
-	push_token, ping_count, ping_per_request_timeout, packet_size, dns_resolve_type, dns_resolve_server, dns_last_result`
+	push_token, ping_count, ping_per_request_timeout, packet_size, dns_resolve_type, dns_resolve_server, dns_last_result,
+	json_path, json_path_operator, expected_value, conditions, manual_status, ws_subprotocol, ws_ignore_accept_header, database_connection_string, database_query, database_password`
 
 // aggregateRefreshTimeout allows for rebuilding every bucket a deleted monitor touched.
 const (
@@ -45,7 +46,9 @@ func scanMonitor(row pgx.Row) (monitor.Monitor, error) {
 	err := row.Scan(&m.ID, &m.Name, &m.Type, &m.Active, &m.Interval, &m.RetryInterval, &m.Timeout,
 		&m.MaxRetries, &m.UpsideDown, &m.URL, &m.Method, &m.Headers, &m.Body, &m.BodyEncoding, &m.AcceptedStatusCodes,
 		&m.MaxRedirects, &m.IgnoreTLS, &m.Keyword, &m.InvertKeyword, &m.Hostname, &m.Port, &m.ParentID, &m.PropagateTrace, &m.ResendInterval, &m.ExpiryNotification,
-		&m.PushToken, &m.PingCount, &m.PingPerRequestTimeout, &m.PacketSize, &m.DNSResolveType, &m.DNSResolveServer, &m.DNSLastResult)
+		&m.PushToken, &m.PingCount, &m.PingPerRequestTimeout, &m.PacketSize, &m.DNSResolveType, &m.DNSResolveServer, &m.DNSLastResult,
+		&m.JSONPath, &m.JSONPathOperator, &m.ExpectedValue, &m.Conditions, &m.ManualStatus, &m.WSSubprotocol, &m.WSIgnoreAcceptHeader,
+		&m.DatabaseConnectionString, &m.DatabaseQuery, &m.DatabasePassword)
 	return m, err
 }
 
@@ -168,6 +171,7 @@ func (s *Store) inTreeTransaction(ctx context.Context, fn func(pgx.Tx) (monitor.
 // CreateMonitor stores a new monitor and returns it with its id.
 func (s *Store) CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error) {
 	m.ID = 0
+	m.Normalize()
 	m.PushToken = cmp.Or(m.PushToken, generatedPushToken(m))
 	return s.inTreeTransaction(ctx, func(tx pgx.Tx) (monitor.Monitor, error) {
 		if err := validateParent(ctx, tx, m); err != nil {
@@ -177,14 +181,16 @@ func (s *Store) CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 			INSERT INTO monitor (name, type, active, interval_seconds, retry_interval_seconds, timeout_seconds,
 				max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
 				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval, expiry_notification,
-				push_token, ping_count, ping_per_request_timeout, packet_size, dns_resolve_type, dns_resolve_server)
+				push_token, ping_count, ping_per_request_timeout, packet_size, dns_resolve_type, dns_resolve_server,
+				json_path, json_path_operator, expected_value, conditions, manual_status, ws_subprotocol, ws_ignore_accept_header, database_connection_string, database_query, database_password)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
-				$25, $26, $27, $28, $29, $30)
+				$25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40)
 			RETURNING `+monitorColumns,
 			m.Name, m.Type, m.Active, m.Interval, m.RetryInterval, m.Timeout,
 			m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers, m.Body, m.BodyEncoding, m.AcceptedStatusCodes,
 			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace, m.ResendInterval, m.ExpiryNotification,
-			m.PushToken, m.PingCount, m.PingPerRequestTimeout, m.PacketSize, m.DNSResolveType, m.DNSResolveServer))
+			m.PushToken, m.PingCount, m.PingPerRequestTimeout, m.PacketSize, m.DNSResolveType, m.DNSResolveServer,
+			m.JSONPath, m.JSONPathOperator, m.ExpectedValue, m.Conditions, m.ManualStatus, m.WSSubprotocol, m.WSIgnoreAcceptHeader, m.DatabaseConnectionString, m.DatabaseQuery, m.DatabasePassword))
 		return created, monitorResult(err)
 	})
 }
@@ -193,6 +199,7 @@ func (s *Store) CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 // becomes another type releases its children, the same as the Node.js backend. An empty push
 // token keeps the current one, because senders that have it would break otherwise.
 func (s *Store) UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error) {
+	m.Normalize()
 	return s.inTreeTransaction(ctx, func(tx pgx.Tx) (monitor.Monitor, error) {
 		if err := validateParent(ctx, tx, m); err != nil {
 			return m, err
@@ -205,13 +212,17 @@ func (s *Store) UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 				resend_interval = $24, expiry_notification = $25,
 				push_token = COALESCE(NULLIF($26::text, ''), NULLIF(push_token, ''), $27::text), ping_count = $28,
 				ping_per_request_timeout = $29, packet_size = $30, dns_resolve_type = $31, dns_resolve_server = $32,
+				json_path = $33, json_path_operator = $34, expected_value = $35, conditions = $36, manual_status = $37,
+				ws_subprotocol = $38, ws_ignore_accept_header = $39, database_connection_string = $40, database_query = $41,
+				database_password = $42,
 				updated_at = now()
 			WHERE id = $1
 			RETURNING `+monitorColumns,
 			m.ID, m.Name, m.Type, m.Active, m.Interval, m.RetryInterval, m.Timeout,
 			m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers, m.Body, m.BodyEncoding, m.AcceptedStatusCodes,
 			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace, m.ResendInterval, m.ExpiryNotification,
-			m.PushToken, generatedPushToken(m), m.PingCount, m.PingPerRequestTimeout, m.PacketSize, m.DNSResolveType, m.DNSResolveServer))
+			m.PushToken, generatedPushToken(m), m.PingCount, m.PingPerRequestTimeout, m.PacketSize, m.DNSResolveType, m.DNSResolveServer,
+			m.JSONPath, m.JSONPathOperator, m.ExpectedValue, m.Conditions, m.ManualStatus, m.WSSubprotocol, m.WSIgnoreAcceptHeader, m.DatabaseConnectionString, m.DatabaseQuery, m.DatabasePassword))
 		if err := monitorResult(err); err != nil {
 			return m, err
 		}

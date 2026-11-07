@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/conditions"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 )
 
@@ -55,7 +56,55 @@ func (c *Checker) runDNS(ctx context.Context, m monitor.Monitor) monitor.Result 
 			slog.Warn("store DNS result", "monitor", m.ID, "error", err)
 		}
 	}
+	nodes, err := conditions.Parse(m.Conditions)
+	if err != nil {
+		return monitor.Result{Msg: err.Error()}
+	}
+	if len(nodes) > 0 {
+		passed, err := conditions.Any(nodes, "record", dnsRecordValues(answers))
+		if err != nil {
+			return monitor.Result{Msg: err.Error()}
+		}
+		if !passed {
+			// As in Node.js, the message is the records, and the monitor is DOWN.
+			return monitor.Result{Msg: msg}
+		}
+	}
 	return monitor.Result{OK: true, Ping: &ping, Msg: msg}
+}
+
+// dnsRecordValues are what conditions test, as in the Node.js backend: each address or name, each
+// TXT string, the issuer of each CAA record that has one, the host of each MX record, the primary
+// name server of SOA, and the target of each SRV record. A CNAME lookup tests its first answer.
+func dnsRecordValues(answers []dns.RR) []string {
+	var values []string
+	for _, answer := range answers {
+		switch record := answer.(type) {
+		case *dns.A:
+			values = append(values, record.A.String())
+		case *dns.AAAA:
+			values = append(values, record.AAAA.String())
+		case *dns.PTR:
+			values = append(values, dnsName(record.Ptr))
+		case *dns.NS:
+			values = append(values, dnsName(record.Ns))
+		case *dns.TXT:
+			values = append(values, record.Txt...)
+		case *dns.CAA:
+			if record.Tag == "issue" {
+				values = append(values, record.Value)
+			}
+		case *dns.MX:
+			values = append(values, dnsName(record.Mx))
+		case *dns.SOA:
+			return []string{dnsName(record.Ns)}
+		case *dns.SRV:
+			values = append(values, dnsName(record.Target))
+		case *dns.CNAME:
+			return []string{dnsName(record.Target)}
+		}
+	}
+	return values
 }
 
 // dnsServers reads the comma-separated list. An IP address is used as it is, and a hostname,

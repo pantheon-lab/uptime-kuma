@@ -2,6 +2,7 @@ package importer
 
 import (
 	"database/sql"
+	"strings"
 	"testing"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
@@ -87,15 +88,47 @@ func TestConvertMonitorPushPingDNS(t *testing.T) {
 		}
 	})
 
-	t.Run("dns with conditions is skipped", func(t *testing.T) {
-		_, reason := convertMonitor(row(map[string]string{
-			"name":       "conditional",
-			"type":       monitor.TypeDNS,
-			"hostname":   "example.com",
+	t.Run("dns conditions are imported, and checked", func(t *testing.T) {
+		m, reason := convertMonitor(row(map[string]string{
+			"name": "conditional", "type": monitor.TypeDNS, "hostname": "example.com", "interval": "60",
+			"conditions": `[{"type":"expression","andOr":"and","variable":"record","operator":"contains","value":"1.2"}]`,
+		}))
+		if reason != "" || !strings.Contains(string(m.Conditions), `"record"`) {
+			t.Fatalf("imported: %q %s", reason, m.Conditions)
+		}
+		_, reason = convertMonitor(row(map[string]string{
+			"name": "bad", "type": monitor.TypeDNS, "hostname": "example.com", "interval": "60",
 			"conditions": `[{"type":"header"}]`,
 		}))
-		if reason != "unsupported setting: conditions" {
+		if !strings.HasPrefix(reason, "invalid setting: unknown condition type") {
 			t.Fatalf("reason = %q", reason)
+		}
+	})
+
+	t.Run("json query, websocket, manual and databases", func(t *testing.T) {
+		manual := "1"
+		for _, c := range []struct {
+			fields map[string]string
+			check  func(monitor.Monitor) bool
+		}{
+			{map[string]string{"type": monitor.TypeJSONQuery, "url": "https://x.example", "json_path": "status", "json_path_operator": "==", "expected_value": "ok", "accepted_statuscodes_json": `["200-299"]`},
+				func(m monitor.Monitor) bool { return m.JSONPath == "status" && m.ExpectedValue == "ok" }},
+			{map[string]string{"type": monitor.TypeWebSocket, "url": "wss://x.example/ws", "accepted_statuscodes_json": `["1000"]`, "ws_subprotocol": "chat", "ws_ignore_sec_websocket_accept_header": "1"},
+				func(m monitor.Monitor) bool { return m.WSSubprotocol == "chat" && m.WSIgnoreAcceptHeader }},
+			{map[string]string{"type": monitor.TypeManual, "manual_status": manual},
+				func(m monitor.Monitor) bool { return m.ManualStatus != nil && *m.ManualStatus == 1 }},
+			{map[string]string{"type": monitor.TypePostgres, "database_connection_string": "postgres://u:p@db/x", "database_query": "SELECT 2"},
+				func(m monitor.Monitor) bool { return m.DatabaseQuery == "SELECT 2" }},
+			{map[string]string{"type": monitor.TypeMySQL, "database_connection_string": "mysql://u@db/x", "radius_password": "secret"},
+				func(m monitor.Monitor) bool { return m.DatabasePassword == "secret" }},
+			{map[string]string{"type": monitor.TypeRedis, "database_connection_string": "rediss://db:6380", "ignore_tls": "1"},
+				func(m monitor.Monitor) bool { return m.IgnoreTLS }},
+		} {
+			c.fields["name"], c.fields["interval"] = "x", "60"
+			m, reason := convertMonitor(row(c.fields))
+			if reason != "" || !c.check(m) {
+				t.Errorf("%s: %q %+v", c.fields["type"], reason, m)
+			}
 		}
 	})
 

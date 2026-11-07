@@ -363,6 +363,20 @@ var migrations = [][]string{
 		)`,
 		`CREATE INDEX IF NOT EXISTS maintenance_status_page_page_idx ON maintenance_status_page (status_page_id)`,
 	},
+	{
+		// Settings of the json-query, manual, websocket-upgrade, postgres, mysql and redis types,
+		// and the conditions of DNS and MySQL monitors.
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS json_path text NOT NULL DEFAULT ''`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS json_path_operator text NOT NULL DEFAULT '=='`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS expected_value text NOT NULL DEFAULT ''`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS conditions jsonb NOT NULL DEFAULT '[]'`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS manual_status smallint`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS ws_subprotocol text NOT NULL DEFAULT ''`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS ws_ignore_accept_header boolean NOT NULL DEFAULT false`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS database_connection_string text NOT NULL DEFAULT ''`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS database_query text NOT NULL DEFAULT ''`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS database_password text NOT NULL DEFAULT ''`,
+	},
 }
 
 // Migrate brings the schema up to date.

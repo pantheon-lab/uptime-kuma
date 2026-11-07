@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/conditions"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/notify"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
@@ -114,10 +115,7 @@ func (s *Server) afterLogin(ctx context.Context, c *conn) {
 	c.emit("proxyList", []any{})
 	c.emit("dockerHostList", []any{})
 	c.emit("remoteBrowserList", []any{})
-	c.emit("monitorTypeList", map[string]any{
-		monitor.TypeGroup: map[string]any{"supportsConditions": false, "conditionVariables": []any{}},
-		monitor.TypePort:  map[string]any{"supportsConditions": false, "conditionVariables": []any{}},
-	})
+	c.emit("monitorTypeList", monitorTypeList())
 	if s.pages == nil {
 		c.emit("statusPageList", map[string]any{})
 		return
@@ -127,6 +125,19 @@ func (s *Server) afterLogin(ctx context.Context, c *conn) {
 	} else {
 		c.emit("statusPageList", list)
 	}
+}
+
+// monitorTypeList tells the form which types take conditions, and on what.
+func monitorTypeList() map[string]any {
+	out := map[string]any{}
+	for _, kind := range monitor.Types {
+		variables, uses := monitor.ConditionVariables[kind]
+		if variables == nil {
+			variables = []conditions.Variable{}
+		}
+		out[kind] = map[string]any{"supportsConditions": uses, "conditionVariables": variables}
+	}
+	return out
 }
 
 func (s *Server) info(ctx context.Context, full bool) map[string]any {

@@ -377,10 +377,7 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 		}
 		return checked(m)
 	case monitor.TypeDNS:
-		// The Node.js backend passes or fails DNS monitors on their conditions.
-		if conditions := strings.TrimSpace(row["conditions"].String); conditions != "" && conditions != "[]" {
-			return m, "unsupported setting: conditions"
-		}
+		m.Conditions = sourceConditions(row)
 		m.Hostname = row["hostname"].String
 		m.Port = int32(intOf(row["port"]))
 		if row["dns_resolve_type"].String != "" {
@@ -390,7 +387,24 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 			m.DNSResolveServer = row["dns_resolve_server"].String
 		}
 		return checked(m)
-	case monitor.TypeHTTP, monitor.TypeKeyword:
+	case monitor.TypeManual:
+		if row["manual_status"].Valid {
+			status := int16(intOf(row["manual_status"]))
+			m.ManualStatus = &status
+		}
+		return checked(m)
+	case monitor.TypePostgres, monitor.TypeMySQL, monitor.TypeRedis:
+		m.DatabaseConnectionString = strings.TrimSpace(row["database_connection_string"].String)
+		if m.Type != monitor.TypeRedis {
+			m.DatabaseQuery = row["database_query"].String
+		}
+		if m.Type == monitor.TypeMySQL {
+			m.DatabasePassword = row["radius_password"].String
+			m.Conditions = sourceConditions(row)
+		}
+		m.IgnoreTLS = boolOf(row["ignore_tls"])
+		return checked(m)
+	case monitor.TypeHTTP, monitor.TypeKeyword, monitor.TypeJSONQuery, monitor.TypeWebSocket:
 	default:
 		return m, "unsupported monitor type: " + m.Type
 	}
@@ -409,9 +423,20 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 	m.MaxRedirects = int32(intOf(row["maxredirects"]))
 	m.IgnoreTLS = boolOf(row["ignore_tls"])
 	m.ExpiryNotification = boolOf(row["expiry_notification"]) && !m.IgnoreTLS
-	if m.Type == monitor.TypeKeyword {
+	switch m.Type {
+	case monitor.TypeKeyword:
 		m.Keyword = row["keyword"].String
 		m.InvertKeyword = boolOf(row["invert_keyword"])
+	case monitor.TypeJSONQuery:
+		m.JSONPath = row["json_path"].String
+		if op := row["json_path_operator"].String; op != "" {
+			m.JSONPathOperator = op
+		}
+		m.ExpectedValue = row["expected_value"].String
+	case monitor.TypeWebSocket:
+		m.WSSubprotocol = row["ws_subprotocol"].String
+		m.WSIgnoreAcceptHeader = boolOf(row["ws_ignore_sec_websocket_accept_header"])
+		m.ExpiryNotification = false
 	}
 
 	if raw := strings.TrimSpace(row["accepted_statuscodes_json"].String); raw != "" {
@@ -436,6 +461,15 @@ func convertMonitor(row map[string]sql.NullString) (monitor.Monitor, string) {
 		return m, "unsupported setting: authentication method " + authMethod
 	}
 	return checked(m)
+}
+
+// sourceConditions are a monitor's conditions, which the Node.js backend kept as JSON text.
+func sourceConditions(row map[string]sql.NullString) json.RawMessage {
+	raw := strings.TrimSpace(row["conditions"].String)
+	if raw == "" || !json.Valid([]byte(raw)) {
+		return json.RawMessage(`[]`)
+	}
+	return json.RawMessage(raw)
 }
 
 func checked(m monitor.Monitor) (monitor.Monitor, string) {

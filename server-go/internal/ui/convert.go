@@ -47,7 +47,9 @@ func beatsJSON(beats []store.Beat) []map[string]any {
 // Supported monitor types, by the UI's names, which match this service's.
 var supportedTypes = map[string]bool{
 	monitor.TypeHTTP: true, monitor.TypeKeyword: true, monitor.TypePort: true, monitor.TypeGroup: true,
-	monitor.TypePush: true, monitor.TypePing: true, monitor.TypeDNS: true,
+	monitor.TypePush: true, monitor.TypePing: true, monitor.TypeDNS: true, monitor.TypeJSONQuery: true,
+	monitor.TypeManual: true, monitor.TypeWebSocket: true, monitor.TypePostgres: true, monitor.TypeMySQL: true,
+	monitor.TypeRedis: true,
 }
 
 // uiDefaults are fields of the UI's monitor form that this service doesn't have. They're sent
@@ -215,6 +217,17 @@ func (t *monitorTree) monitorJSON(m monitor.Monitor) map[string]any {
 		"dns_resolve_type":         m.DNSResolveType,
 		"dns_resolve_server":       m.DNSResolveServer,
 		"dns_last_result":          m.DNSLastResult,
+
+		"jsonPath":                         m.JSONPath,
+		"jsonPathOperator":                 m.JSONPathOperator,
+		"expectedValue":                    m.ExpectedValue,
+		"conditions":                       conditionsJSON(m.Conditions),
+		"manual_status":                    m.ManualStatus,
+		"wsSubprotocol":                    m.WSSubprotocol,
+		"wsIgnoreSecWebsocketAcceptHeader": m.WSIgnoreAcceptHeader,
+		"databaseConnectionString":         m.DatabaseConnectionString,
+		"databaseQuery":                    m.DatabaseQuery,
+		"radiusPassword":                   m.DatabasePassword,
 	})
 	return out
 }
@@ -310,7 +323,7 @@ type monitorInput struct {
 	BasicAuthUser       string          `json:"basic_auth_user"`
 	BasicAuthPass       string          `json:"basic_auth_pass"`
 	BearerToken         string          `json:"bearer_token"`
-	Conditions          []any           `json:"conditions"`
+	Conditions          json.RawMessage `json:"conditions"`
 	NotificationIDList  map[string]bool `json:"notificationIDList"`
 
 	PushToken             string  `json:"pushToken"`
@@ -319,6 +332,16 @@ type monitorInput struct {
 	PacketSize            flexInt `json:"packetSize"`
 	DNSResolveType        string  `json:"dns_resolve_type"`
 	DNSResolveServer      string  `json:"dns_resolve_server"`
+
+	JSONPath                 *string         `json:"jsonPath"`
+	JSONPathOperator         *string         `json:"jsonPathOperator"`
+	ExpectedValue            json.RawMessage `json:"expectedValue"`
+	ManualStatus             flexInt         `json:"manual_status"`
+	WSSubprotocol            *string         `json:"wsSubprotocol"`
+	WSIgnoreAcceptHeader     bool            `json:"wsIgnoreSecWebsocketAcceptHeader"`
+	DatabaseConnectionString *string         `json:"databaseConnectionString"`
+	DatabaseQuery            *string         `json:"databaseQuery"`
+	RadiusPassword           *string         `json:"radiusPassword"`
 }
 
 // parseMonitor converts the UI's form to a monitor, and returns the notifications to link.
@@ -330,13 +353,15 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 		return m, nil, "", fmt.Errorf("invalid monitor: %w", err)
 	}
 	if !supportedTypes[in.Type] {
-		return m, nil, "", fmt.Errorf("monitor type %q isn't supported yet. Supported types: HTTP(s), HTTP(s) - Keyword, TCP Port, Ping, DNS, Push and Group", in.Type)
+		return m, nil, "", fmt.Errorf("monitor type %q isn't supported yet. Supported types: %s", in.Type, strings.Join(monitor.Types, ", "))
 	}
 	if in.ProxyID.set {
 		return m, nil, "", errors.New("proxies aren't supported yet")
 	}
-	if len(in.Conditions) > 0 {
-		return m, nil, "", errors.New("conditions aren't supported yet")
+	// The form keeps conditions while the type changes, so only the types that use them keep them.
+	conditionsRaw := json.RawMessage(`[]`)
+	if _, uses := monitor.ConditionVariables[in.Type]; uses && len(in.Conditions) > 0 && string(in.Conditions) != "null" {
+		conditionsRaw = in.Conditions
 	}
 
 	m = monitor.New()
@@ -396,8 +421,47 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 		if in.DNSResolveServer != "" {
 			m.DNSResolveServer = strings.TrimSpace(in.DNSResolveServer)
 		}
-	case monitor.TypeHTTP, monitor.TypeKeyword:
+	case monitor.TypeManual:
+		if in.ManualStatus.set {
+			status := int16(in.ManualStatus.value)
+			m.ManualStatus = &status
+		}
+	case monitor.TypePostgres, monitor.TypeMySQL, monitor.TypeRedis:
+		m.DatabaseConnectionString = strings.TrimSpace(text(in.DatabaseConnectionString))
+		if m.Type != monitor.TypeRedis {
+			m.DatabaseQuery = text(in.DatabaseQuery)
+		}
+		if m.Type == monitor.TypeMySQL {
+			m.DatabasePassword = text(in.RadiusPassword)
+		}
+		m.IgnoreTLS = in.IgnoreTLS
+	case monitor.TypeWebSocket:
 		m.URL = strings.TrimSpace(in.URL)
+		m.WSSubprotocol = strings.TrimSpace(text(in.WSSubprotocol))
+		m.WSIgnoreAcceptHeader = in.WSIgnoreAcceptHeader
+		m.IgnoreTLS = in.IgnoreTLS
+		m.AcceptedStatusCodes = []string{"1000"}
+		if len(in.AcceptedStatusCodes) > 0 {
+			m.AcceptedStatusCodes = in.AcceptedStatusCodes
+		}
+		headers, err := parseHeaders(in.Headers)
+		if err != nil {
+			return m, nil, "", err
+		}
+		m.Headers = headers
+		note, err = applyAuth(&m, in)
+		if err != nil {
+			return m, nil, "", err
+		}
+	case monitor.TypeHTTP, monitor.TypeKeyword, monitor.TypeJSONQuery:
+		m.URL = strings.TrimSpace(in.URL)
+		if m.Type == monitor.TypeJSONQuery {
+			m.JSONPath = text(in.JSONPath)
+			if in.JSONPathOperator != nil && *in.JSONPathOperator != "" {
+				m.JSONPathOperator = *in.JSONPathOperator
+			}
+			m.ExpectedValue = rawText(in.ExpectedValue)
+		}
 		if method := strings.ToUpper(strings.TrimSpace(in.Method)); method != "" {
 			m.Method = method
 		}
@@ -431,6 +495,7 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 		}
 	}
 
+	m.Conditions = conditionsRaw
 	m.Normalize()
 	if err := m.Validate(); err != nil {
 		return m, nil, "", err
@@ -448,6 +513,28 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 	}
 	sort.Slice(notificationIDs, func(i, j int) bool { return notificationIDs[i] < notificationIDs[j] })
 	return m, notificationIDs, note, nil
+}
+
+// rawText reads a field the form sends as text, or as a number from a number input.
+func rawText(raw json.RawMessage) string {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	return string(raw)
+}
+
+// conditionsJSON is a monitor's conditions as the form reads them, a list.
+func conditionsJSON(raw json.RawMessage) any {
+	var out any
+	if len(raw) == 0 || json.Unmarshal(raw, &out) != nil || out == nil {
+		return []any{}
+	}
+	return out
 }
 
 // parseHeaders reads the headers field: a JSON object as text, which is how the form's text

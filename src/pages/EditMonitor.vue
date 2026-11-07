@@ -3789,9 +3789,9 @@ message HealthCheckResponse {
                 if (
                     !this.monitor.accepted_statuscodes ||
                     (this.monitor.accepted_statuscodes.length === 1 &&
-                        this.monitor.accepted_statuscodes[0] === defaultValueList.http.accepted_statuscodes)
+                        this.monitor.accepted_statuscodes[0] === defaultValueList.http.accepted_statuscodes[0])
                 ) {
-                    this.monitor.accepted_statuscodes = defaultValueList["websocket-upgrade"].accepted_statuscodes;
+                    this.monitor.accepted_statuscodes = [...defaultValueList["websocket-upgrade"].accepted_statuscodes];
                 }
             }
 
@@ -3806,9 +3806,9 @@ message HealthCheckResponse {
                     !this.monitor.accepted_statuscodes ||
                     (this.monitor.accepted_statuscodes.length === 1 &&
                         this.monitor.accepted_statuscodes[0] ===
-                            defaultValueList["websocket-upgrade"].accepted_statuscodes)
+                            defaultValueList["websocket-upgrade"].accepted_statuscodes[0])
                 ) {
-                    this.monitor.accepted_statuscodes = defaultValueList.http.accepted_statuscodes;
+                    this.monitor.accepted_statuscodes = [...defaultValueList.http.accepted_statuscodes];
                 }
             }
 

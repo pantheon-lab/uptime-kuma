@@ -814,7 +814,7 @@ func TestParseMonitor(t *testing.T) {
 	for name, raw := range map[string]string{
 		"type":       `{"type": "ping", "name": "x"}`,
 		"proxy":      `{"type": "http", "name": "x", "url": "https://a.b", "proxyId": 1}`,
-		"conditions": `{"type": "http", "name": "x", "url": "https://a.b", "conditions": [{"a": 1}]}`,
+		"conditions": `{"type": "dns", "name": "x", "hostname": "a.b", "dns_resolve_server": "1.1.1.1", "conditions": [{"type": "expression", "variable": "x", "operator": "equals", "value": "1"}]}`,
 		"auth":       `{"type": "http", "name": "x", "url": "https://a.b", "authMethod": "ntlm"}`,
 		"headers":    `{"type": "http", "name": "x", "url": "https://a.b", "headers": "not json"}`,
 		"invalid":    `{"type": "http", "name": "", "url": "https://a.b"}`,
@@ -1345,5 +1345,44 @@ func TestPushTokenConflictIsShown(t *testing.T) {
 	r := call("add", map[string]any{"type": "push", "name": "sender", "url": "https://"})
 	if r["ok"] != false || r["msg"] != store.ErrPushTokenTaken.Error() {
 		t.Fatalf("add: %v", r)
+	}
+}
+
+func TestParsePhase4aMonitors(t *testing.T) {
+	m, _, _, err := parseMonitor(json.RawMessage(`{"type": "json-query", "name": "API", "url": "https://a.b/health",
+		"jsonPath": "data.status", "jsonPathOperator": ">=", "expectedValue": 3, "accepted_statuscodes": ["200-299"],
+		"conditions": [{"type": "expression", "variable": "record", "operator": "equals", "value": "x"}]}`))
+	if err != nil || m.JSONPath != "data.status" || m.JSONPathOperator != ">=" || m.ExpectedValue != "3" || string(m.Conditions) != "[]" {
+		t.Fatalf("json-query: %+v %v", m, err)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "mysql", "name": "DB", "databaseConnectionString": " mysql://u@db/x ",
+		"databaseQuery": "SELECT 1", "radiusPassword": "pw",
+		"conditions": [{"type": "expression", "andOr": "and", "variable": "result", "operator": "equals", "value": "1"}]}`))
+	if err != nil || m.DatabaseConnectionString != "mysql://u@db/x" || m.DatabasePassword != "pw" || !strings.Contains(string(m.Conditions), "result") {
+		t.Fatalf("mysql: %+v %v", m, err)
+	}
+	m, _, note, err := parseMonitor(json.RawMessage(`{"type": "websocket-upgrade", "name": "WS", "url": "wss://a.b/ws",
+		"wsSubprotocol": "chat", "wsIgnoreSecWebsocketAcceptHeader": true, "accepted_statuscodes": ["1000"],
+		"authMethod": "bearer", "bearer_token": "t"}`))
+	if err != nil || m.WSSubprotocol != "chat" || !m.WSIgnoreAcceptHeader || m.Headers["Authorization"] != "Bearer t" || note == "" {
+		t.Fatalf("websocket: %+v %v", m, err)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "manual", "name": "M", "manual_status": 0}`))
+	if err != nil || m.ManualStatus == nil || *m.ManualStatus != 0 {
+		t.Fatalf("manual: %+v %v", m, err)
+	}
+	if _, _, _, err := parseMonitor(json.RawMessage(`{"type": "redis", "name": "R", "databaseConnectionString": "http://x"}`)); err == nil {
+		t.Fatal("redis with an http URL was accepted")
+	}
+
+	tree := newMonitorTree([]monitor.Monitor{m}, nil)
+	out := tree.monitorJSON(m)
+	if out["manual_status"] == nil || out["conditions"] == nil {
+		t.Fatalf("monitor JSON: %v", out)
+	}
+	types := monitorTypeList()
+	dns := types[monitor.TypeDNS].(map[string]any)
+	if dns["supportsConditions"] != true || types[monitor.TypeHTTP].(map[string]any)["supportsConditions"] != false {
+		t.Fatalf("monitorTypeList: %v", types)
 	}
 }

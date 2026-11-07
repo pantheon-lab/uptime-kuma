@@ -16,6 +16,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	jsonata "github.com/blues/jsonata-go"
+
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/conditions"
 )
 
 // Supported monitor types, using the Node.js backend's names.
@@ -27,7 +31,28 @@ const (
 	TypePush    = "push"
 	TypePing    = "ping"
 	TypeDNS     = "dns"
+
+	TypeJSONQuery = "json-query"
+	TypeManual    = "manual"
+	TypeWebSocket = "websocket-upgrade"
+	TypePostgres  = "postgres"
+	TypeMySQL     = "mysql"
+	TypeRedis     = "redis"
 )
+
+// Types are every supported type, in the order error messages list them.
+var Types = []string{TypeHTTP, TypeKeyword, TypeJSONQuery, TypePort, TypePing, TypeDNS, TypePush, TypeGroup,
+	TypeManual, TypeWebSocket, TypePostgres, TypeMySQL, TypeRedis}
+
+// JSONQueryOperators compare the result of a JSON query with the expected value.
+var JSONQueryOperators = []string{"==", "!=", "contains", ">", ">=", "<", "<="}
+
+// ConditionVariables are what each type's conditions can test. Types without any don't take
+// conditions.
+var ConditionVariables = map[string][]conditions.Variable{
+	TypeDNS:   {{ID: "record", Operators: conditions.StringOperators}},
+	TypeMySQL: {{ID: "result", Operators: conditions.StringOperators}},
+}
 
 // Beat statuses, using the Node.js backend's values.
 const (
@@ -114,6 +139,28 @@ type Monitor struct {
 	// DNSLastResult is set by the checker, and ignored in input.
 	DNSLastResult string `json:"dnsLastResult"`
 
+	// JSONPath is a JSONata expression, evaluated on the response of a json-query monitor.
+	JSONPath         string `json:"jsonPath"`
+	JSONPathOperator string `json:"jsonPathOperator"`
+	ExpectedValue    string `json:"expectedValue"`
+
+	// Conditions decide whether a DNS or MySQL monitor passes, as the UI sends them.
+	Conditions json.RawMessage `json:"conditions"`
+
+	// ManualStatus is the status a manual monitor reports: UP, DOWN, or nil for PENDING.
+	ManualStatus *int16 `json:"manualStatus"`
+
+	// WSSubprotocol is a comma-separated list of WebSocket subprotocols to ask for.
+	WSSubprotocol string `json:"wsSubprotocol"`
+	// WSIgnoreAcceptHeader accepts a handshake with a wrong Sec-WebSocket-Accept header.
+	WSIgnoreAcceptHeader bool `json:"wsIgnoreSecWebsocketAcceptHeader"`
+
+	// DatabaseConnectionString is a URL, such as postgres://user:password@host/db.
+	DatabaseConnectionString string `json:"databaseConnectionString"`
+	DatabaseQuery            string `json:"databaseQuery"`
+	// DatabasePassword replaces the password in a MySQL connection string, if it's set.
+	DatabasePassword string `json:"databasePassword"`
+
 	// PropagateTrace sends a W3C traceparent header to the target, so that the target's
 	// traces join this one. It's off by default, to not share trace ids with third parties.
 	PropagateTrace bool `json:"propagateTrace"`
@@ -135,6 +182,8 @@ func New() Monitor {
 		PacketSize:            defaultPacketSize,
 		DNSResolveType:        defaultDNSType,
 		DNSResolveServer:      defaultDNSServer,
+		JSONPathOperator:      "==",
+		Conditions:            json.RawMessage(`[]`),
 	}
 }
 
@@ -150,11 +199,24 @@ func (m *Monitor) Normalize() {
 	if m.AcceptedStatusCodes == nil {
 		m.AcceptedStatusCodes = []string{}
 	}
+	if len(m.Conditions) == 0 || string(m.Conditions) == "null" {
+		m.Conditions = json.RawMessage(`[]`)
+	}
+	if m.Type == TypeWebSocket && len(m.AcceptedStatusCodes) == 0 {
+		m.AcceptedStatusCodes = []string{"1000"}
+	}
 }
 
 // Redacted returns a copy without the fields that can hold credentials, for clients
-// that may only read: header values, the body, the push token, and the URL's user info and query.
+// that may only read: header values, the body, the push token, the database password, and the
+// user info and query of the URL and the database connection string.
 func (m Monitor) Redacted() Monitor {
+	if m.DatabasePassword != "" {
+		m.DatabasePassword = redactedValue
+	}
+	if m.DatabaseConnectionString != "" {
+		m.DatabaseConnectionString = redactURL(m.DatabaseConnectionString)
+	}
 	headers := make(map[string]string, len(m.Headers))
 	for name := range m.Headers {
 		headers[name] = redactedValue
@@ -166,17 +228,24 @@ func (m Monitor) Redacted() Monitor {
 	if m.PushToken != "" {
 		m.PushToken = redactedValue
 	}
-	if u, err := url.Parse(m.URL); err == nil && m.URL != "" {
-		u.User = nil
-		if u.RawQuery != "" {
-			u.RawQuery = redactedValue
-		}
-		u.Fragment = ""
-		m.URL = u.String()
-	} else if m.URL != "" {
-		m.URL = redactedValue
+	if m.URL != "" {
+		m.URL = redactURL(m.URL)
 	}
 	return m
+}
+
+// redactURL leaves out a URL's user info, query and fragment, which can hold credentials.
+func redactURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return redactedValue
+	}
+	u.User = nil
+	if u.RawQuery != "" {
+		u.RawQuery = redactedValue
+	}
+	u.Fragment = ""
+	return u.String()
 }
 
 // Validate reports the first problem with the configuration.
@@ -201,11 +270,37 @@ func (m *Monitor) Validate() error {
 		return errors.New("parentId must be a positive integer")
 	}
 
+	if err := m.validateConditions(); err != nil {
+		return err
+	}
+
 	switch m.Type {
 	case TypeGroup:
 		return nil
 	case TypeHTTP:
 		return m.validateHTTP()
+	case TypeJSONQuery:
+		if !slices.Contains(JSONQueryOperators, m.JSONPathOperator) {
+			return fmt.Errorf("jsonPathOperator must be one of %s", strings.Join(JSONQueryOperators, ", "))
+		}
+		if len(m.JSONPath) > maxBodyLen || len(m.ExpectedValue) > maxBodyLen {
+			return errors.New("jsonPath and expectedValue must be at most 1 MB")
+		}
+		if strings.TrimSpace(m.JSONPath) != "" {
+			if _, err := jsonata.Compile(m.JSONPath); err != nil {
+				return fmt.Errorf("jsonPath isn't a valid JSONata expression: %w", err)
+			}
+		}
+		return m.validateHTTP()
+	case TypeManual:
+		if m.ManualStatus != nil && *m.ManualStatus != StatusDown && *m.ManualStatus != StatusUp && *m.ManualStatus != StatusPending {
+			return errors.New("manualStatus must be 0 (down), 1 (up), 2 (pending) or null")
+		}
+		return nil
+	case TypeWebSocket:
+		return m.validateWebSocket()
+	case TypePostgres, TypeMySQL, TypeRedis:
+		return m.validateDatabase()
 	case TypeKeyword:
 		if m.Keyword == "" {
 			return errors.New("keyword is required")
@@ -229,8 +324,60 @@ func (m *Monitor) Validate() error {
 	case TypeDNS:
 		return m.validateDNS()
 	default:
-		return fmt.Errorf("type must be one of %s", strings.Join([]string{TypeHTTP, TypeKeyword, TypePort, TypeGroup, TypePush, TypePing, TypeDNS}, ", "))
+		return fmt.Errorf("type must be one of %s", strings.Join(Types, ", "))
 	}
+}
+
+var (
+	closeCodeRange  = regexp.MustCompile(`^\d{3,4}(-\d{3,4})?$`)
+	databaseSchemes = map[string][]string{
+		TypePostgres: {"postgres", "postgresql"},
+		TypeMySQL:    {"mysql", "mariadb"},
+		TypeRedis:    {"redis", "rediss"},
+	}
+)
+
+func (m *Monitor) validateConditions() error {
+	nodes, err := conditions.Parse(m.Conditions)
+	if err != nil {
+		return err
+	}
+	if len(nodes) == 0 {
+		return nil
+	}
+	variables, found := ConditionVariables[m.Type]
+	if !found {
+		return fmt.Errorf("a %s monitor can't have conditions", m.Type)
+	}
+	return conditions.Validate(nodes, variables)
+}
+
+func (m *Monitor) validateWebSocket() error {
+	u, err := url.Parse(m.URL)
+	if err != nil || (u.Scheme != "ws" && u.Scheme != "wss") || u.Host == "" {
+		return errors.New("url must be a valid ws or wss URL")
+	}
+	if len(m.AcceptedStatusCodes) == 0 {
+		return errors.New("acceptedStatusCodes must not be empty")
+	}
+	for _, code := range m.AcceptedStatusCodes {
+		if !closeCodeRange.MatchString(code) {
+			return fmt.Errorf("invalid status code range %q", code)
+		}
+	}
+	return nil
+}
+
+func (m *Monitor) validateDatabase() error {
+	raw := strings.TrimSpace(m.DatabaseConnectionString)
+	u, err := url.Parse(raw)
+	if raw == "" || err != nil || u.Host == "" || !slices.Contains(databaseSchemes[m.Type], u.Scheme) {
+		return fmt.Errorf("databaseConnectionString must be a URL starting with %s://", databaseSchemes[m.Type][0])
+	}
+	if len(m.DatabaseQuery) > maxBodyLen {
+		return fmt.Errorf("databaseQuery must be at most %d bytes", maxBodyLen)
+	}
+	return nil
 }
 
 func (m *Monitor) validatePing() error {

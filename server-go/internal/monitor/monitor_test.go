@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
@@ -441,5 +442,53 @@ func TestNextPush(t *testing.T) {
 	}
 	if out := upside.Next(&Previous{Status: StatusUp}, Result{Msg: NoHeartbeatMsg}); out.Status != StatusUp {
 		t.Errorf("upside down window: %+v", out)
+	}
+}
+
+func TestValidatePhase4aTypes(t *testing.T) {
+	valid := func(kind string, set func(*Monitor)) Monitor {
+		m := New()
+		m.Name, m.Type = "x", kind
+		set(&m)
+		m.Normalize()
+		return m
+	}
+	for name, c := range map[string]struct {
+		m  Monitor
+		ok bool
+	}{
+		"json query":          {valid(TypeJSONQuery, func(m *Monitor) { m.URL, m.JSONPath, m.ExpectedValue = "https://a.b", "data.status", "ok" }), true},
+		"json query bad path": {valid(TypeJSONQuery, func(m *Monitor) { m.URL, m.JSONPath = "https://a.b", "data[" }), false},
+		"json query bad op":   {valid(TypeJSONQuery, func(m *Monitor) { m.URL, m.JSONPathOperator = "https://a.b", "~=" }), false},
+		"manual":              {valid(TypeManual, func(m *Monitor) {}), true},
+		"manual bad status":   {valid(TypeManual, func(m *Monitor) { s := int16(3); m.ManualStatus = &s }), false},
+		"websocket":           {valid(TypeWebSocket, func(m *Monitor) { m.URL = "wss://a.b/ws" }), true},
+		"websocket http url":  {valid(TypeWebSocket, func(m *Monitor) { m.URL = "https://a.b/ws" }), false},
+		"postgres":            {valid(TypePostgres, func(m *Monitor) { m.DatabaseConnectionString = "postgres://u:p@db:5432/x" }), true},
+		"postgres wrong url":  {valid(TypePostgres, func(m *Monitor) { m.DatabaseConnectionString = "mysql://u:p@db/x" }), false},
+		"mysql":               {valid(TypeMySQL, func(m *Monitor) { m.DatabaseConnectionString = "mysql://u@db/x" }), true},
+		"redis":               {valid(TypeRedis, func(m *Monitor) { m.DatabaseConnectionString = "rediss://db:6380/0" }), true},
+		"redis empty":         {valid(TypeRedis, func(m *Monitor) {}), false},
+		"conditions on http": {valid(TypeHTTP, func(m *Monitor) {
+			m.URL, m.Conditions = "https://a.b", json.RawMessage(`[{"type":"expression","variable":"record","operator":"equals","value":"x"}]`)
+		}), false},
+		"mysql conditions": {valid(TypeMySQL, func(m *Monitor) {
+			m.DatabaseConnectionString, m.Conditions = "mysql://db/x", json.RawMessage(`[{"type":"expression","variable":"result","operator":"equals","value":"1"}]`)
+		}), true},
+		"dns wrong variable": {valid(TypeDNS, func(m *Monitor) {
+			m.Hostname, m.Conditions = "a.b", json.RawMessage(`[{"type":"expression","variable":"result","operator":"equals","value":"1"}]`)
+		}), false},
+	} {
+		if err := c.m.Validate(); (err == nil) != c.ok {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+func TestRedactedHidesDatabaseCredentials(t *testing.T) {
+	m := Monitor{DatabaseConnectionString: "postgres://user:secret@db:5432/x?sslpassword=p", DatabasePassword: "hunter2"}
+	r := m.Redacted()
+	if strings.Contains(r.DatabaseConnectionString, "secret") || strings.Contains(r.DatabaseConnectionString, "sslpassword") || r.DatabasePassword != "***" {
+		t.Fatalf("%+v", r)
 	}
 }
