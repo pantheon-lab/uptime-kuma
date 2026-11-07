@@ -537,7 +537,10 @@ credentials hidden, unlike Uptime Kuma, because alerts go to third parties.
 
 Differences from Uptime Kuma:
 
-- `nostr` and `Webpush` aren't supported.
+- `Webpush` signs with this server's VAPID key pair, made the first time the form asks for it, and never sent to
+  browsers. `kuma-import` copies Uptime Kuma's pair, so that browsers subscribed there keep getting messages.
+- `nostr` sends a NIP-17 private message, gift-wrapped with NIP-59, to each recipient on each relay, and logs in to
+  relays that ask (NIP-42), as Uptime Kuma did.
 - `apprise` runs the `apprise` command, which isn't in the container image.
 - `NOTIFICATION_PROXY` isn't supported.
 - `AlertNow`, `SIGNL4` and `SMSManager` fix bugs: a crash on recovery, an alert ID of `UptimeKuma-undefined`, and
@@ -655,8 +658,9 @@ Database tests are skipped when `TEST_DATABASE_URL` is not set. The importer and
 `TEST_RADIUS`, which `internal/check/network_test.go` describes. `TEST_DOCKER_CONTAINER` names a running container to ask
 the local Docker daemon about, and `TEST_CHROME` is a Chrome or Chromium executable for the real browser monitor. The
 system service test uses this machine's systemd, if it has one. `TEST_MINECRAFT` is a Minecraft server's host:port,
-`TEST_TAILSCALE_PEER` a peer to ping through this machine's tailscaled, and `TEST_GLOBALPING` runs one ping from the
-real Globalping API.
+`TEST_TAILSCALE_PEER` a peer to ping through this machine's tailscaled, `TEST_GLOBALPING` runs one ping from the
+real Globalping API, and `TEST_NOSTR_RELAY` is the `ws://` address of a relay, such as `scsibug/nostr-rs-relay` in
+Docker, which the nostr provider sends to and reads back from.
 
 `internal/e2e/browser/` has scripts that drive the web UI in a browser against the built image. Each says what it needs.
 

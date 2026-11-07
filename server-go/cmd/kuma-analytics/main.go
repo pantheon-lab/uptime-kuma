@@ -17,6 +17,8 @@ import (
 	"syscall"
 	"time"
 
+	webpush "github.com/SherClockHolmes/webpush-go"
+
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/api"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/certs"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
@@ -179,6 +181,12 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	notifyEnv := notify.DefaultEnv(strings.TrimRight(os.Getenv("KUMA_BASE_URL"), "/"))
+	notifyEnv.WebpushKeys = func(ctx context.Context) (string, string, error) {
+		return db.WebpushKeys(ctx, func() (string, string, error) {
+			private, public, err := webpush.GenerateVAPIDKeys()
+			return public, private, err
+		})
+	}
 	dispatcher := notify.NewDispatcher(db, notifyEnv, location, log)
 	defer dispatcher.Close()
 	sched := scheduler.New(checker, writer, concurrency, log)

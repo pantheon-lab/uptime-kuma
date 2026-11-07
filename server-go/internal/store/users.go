@@ -224,3 +224,68 @@ func (s *Store) SaveSettings(ctx context.Context, settings map[string]json.RawMe
 		return nil
 	})
 }
+
+// Settings that hold this server's VAPID key pair for web push.
+const (
+	WebpushPublicKeySetting  = "webpushPublicVapidKey"
+	WebpushPrivateKeySetting = "webpushPrivateVapidKey"
+)
+
+// WebpushKeys returns the VAPID key pair, made with generate the first time. Browsers subscribe
+// with the public key, so it never changes once made: when two requests make one at once, the
+// first to be saved wins.
+func (s *Store) WebpushKeys(ctx context.Context, generate func() (public, private string, err error)) (string, string, error) {
+	read := func() (string, string, error) {
+		var public, private *string
+		err := s.pool.QueryRow(ctx, `
+			SELECT (SELECT value #>> '{}' FROM app_setting WHERE key = $1), (SELECT value #>> '{}' FROM app_setting WHERE key = $2)`,
+			WebpushPublicKeySetting, WebpushPrivateKeySetting).Scan(&public, &private)
+		if err != nil || public == nil || private == nil {
+			return "", "", err
+		}
+		return *public, *private, nil
+	}
+	public, private, err := read()
+	if err != nil {
+		return "", "", fmt.Errorf("read web push keys: %w", err)
+	}
+	if public != "" && private != "" {
+		return public, private, nil
+	}
+	newPublic, newPrivate, err := generate()
+	if err != nil {
+		return "", "", fmt.Errorf("make web push keys: %w", err)
+	}
+	pub, _ := json.Marshal(newPublic)
+	priv, _ := json.Marshal(newPrivate)
+	// Both rows, or neither: a concurrent insert of the same keys makes this one do nothing.
+	if _, err := s.pool.Exec(ctx, `
+		INSERT INTO app_setting (key, value) VALUES ($1, $2), ($3, $4) ON CONFLICT (key) DO NOTHING`,
+		WebpushPublicKeySetting, pub, WebpushPrivateKeySetting, priv); err != nil {
+		return "", "", fmt.Errorf("save web push keys: %w", err)
+	}
+	if public, private, err = read(); err != nil {
+		return "", "", fmt.Errorf("read web push keys: %w", err)
+	}
+	if public == "" || private == "" {
+		return "", "", errors.New("the web push keys are incomplete")
+	}
+	return public, private, nil
+}
+
+// ImportWebpushKeys saves a VAPID key pair from Node.js, so that browsers subscribed there keep
+// receiving messages. It does nothing, and says so, when this server has a pair already.
+func (s *Store) ImportWebpushKeys(ctx context.Context, public, private string) (bool, error) {
+	pub, _ := json.Marshal(public)
+	priv, _ := json.Marshal(private)
+	tag, err := s.pool.Exec(ctx, `
+		INSERT INTO app_setting (key, value)
+		SELECT k, v FROM (VALUES ($1, $2::jsonb), ($3, $4::jsonb)) AS pair (k, v)
+		WHERE NOT EXISTS (SELECT 1 FROM app_setting WHERE key IN ($1, $3))
+		ON CONFLICT (key) DO NOTHING`,
+		WebpushPublicKeySetting, pub, WebpushPrivateKeySetting, priv)
+	if err != nil {
+		return false, fmt.Errorf("import web push keys: %w", err)
+	}
+	return tag.RowsAffected() == 2, nil
+}

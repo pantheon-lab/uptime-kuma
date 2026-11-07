@@ -42,3 +42,31 @@ func TestUpdateNotice(t *testing.T) {
 		t.Fatal("an unknown version is sent")
 	}
 }
+
+func TestWebpushKeyEvents(t *testing.T) {
+	s, fs, _ := newTestServer(t)
+	s.notifyEnv.WebpushKeys = func(context.Context) (string, string, error) { return "the-public", "the-private", nil }
+	fs.settings["webpushPublicVapidKey"] = json.RawMessage(`"the-public"`)
+	fs.settings["webpushPrivateVapidKey"] = json.RawMessage(`"the-private"`)
+	c := &conn{userID: 1, username: "admin", out: make(chan []byte, 256), done: make(chan struct{})}
+	call := func(event string, args ...any) reply {
+		t.Helper()
+		raws := make([]json.RawMessage, len(args))
+		for i, a := range args {
+			raws[i], _ = json.Marshal(a)
+		}
+		r, _ := s.handle(context.Background(), c, event, raws)
+		return r.(reply)
+	}
+	if r := call("getWebpushVapidPublicKey"); r["ok"] != true || r["msg"] != "the-public" {
+		t.Fatalf("public key: %v", r)
+	}
+	data := call("getSettings")["data"].(map[string]any)
+	if _, found := data["webpushPrivateVapidKey"]; found {
+		t.Fatal("the private key is sent to the browser")
+	}
+	call("setSettings", map[string]any{"webpushPublicVapidKey": "replaced", "webpushPrivateVapidKey": "replaced"})
+	if string(fs.settings["webpushPublicVapidKey"]) != `"the-public"` || string(fs.settings["webpushPrivateVapidKey"]) != `"the-private"` {
+		t.Fatal("a page replaced the key pair")
+	}
+}

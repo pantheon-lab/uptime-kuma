@@ -23,13 +23,14 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | 5b    | Settings that take effect, and the Monitor History page             | Done    |
 | 5c    | Importing accounts, status pages and maintenance windows            | Done    |
 | 6a    | The MCP server and the update check                                 | Done    |
-| 6b    | The `nostr` and `Webpush` notification providers                    | Next    |
-| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Planned |
+| 6b    | The `nostr` and `Webpush` notification providers                    | Done    |
+| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Next    |
+| 7     | Logging in with GitHub                                              | Planned |
 
 ## Phase 0: Core (done)
 
 - HTTP, keyword, TCP port and group monitors, with retries and upside-down mode
-- Notifications, except `nostr` and `Webpush`. `apprise` is ported, but its command isn't in the image
+- Notifications. `apprise` is ported, but its command isn't in the image. `nostr` and `Webpush` came in Phase 6b
 - History, charts and uptime stats in TimescaleDB, and a REST API with API keys
 - OpenTelemetry metrics and traces, and Grafana dashboards, instead of `/metrics`
 - `kuma-import`, which copies monitors, notifications and history from MariaDB
@@ -475,8 +476,67 @@ Known limits and differences from Node.js:
 - An MCP request counts against the key's rate limit, and so does each tool call it makes.
 - The update notice links to this fork's tags, not upstream's releases.
 
-### Phase 6b: The nostr and Webpush notification providers (next)
+### Phase 6b: The nostr and Webpush notification providers (done)
 
-### Phase 6c: apprise in the image, and the Cloudflare tunnel (planned)
+- **Webpush:** RFC 8291 encryption and VAPID with `github.com/SherClockHolmes/webpush-go`, with web-push's four-week
+  TTL, as Node.js sent. The VAPID key pair is made the first time the form asks for the public key
+  (`getWebpushVapidPublicKey`), once even when two pages ask at once. The private key is no longer sent to the
+  browser with the other settings, and the settings page can't replace either key. `kuma-import` copies Node.js's
+  pair, unless there's one here, so that subscribed browsers keep receiving.
+- **nostr:** a NIP-17 private message to each recipient, gift-wrapped with NIP-59, using
+  `github.com/nbd-wtf/go-nostr` for keys, NIP-44 encryption and the wrap. Relays are written to with our own small
+  NIP-01 client on `coder/websocket`, which logs in with NIP-42 when a relay asks, because go-nostr's relay client
+  has a data race between closing and its read loop. It succeeds when any relay takes the messages.
+
+Tested with the race detector:
+
+- Webpush against a fake push service that decrypts the message as a browser does and verifies the VAPID token,
+  plus an ended subscription and a missing one
+- nostr against a fake relay that requires NIP-42, unwrapping each message as its recipient, with a relay down
+- the key pair made by racing requests, kept by an import, and copied by `kuma-import`
+- the private key left out of the settings
+
+nostr was also tested against real relay software, `scsibug/nostr-rs-relay` in Docker (`TEST_NOSTR_RELAY`). Against
+the built image (`internal/e2e/browser/notify-6b.mjs`), 4 of 4 steps passed with no page errors: a nostr
+notification set up in the form and tested, then read from that relay with nostr-tools 2.20, the library Node.js
+used, which unwrapped it as the recipient; and the Webpush form's public key, the same each time, with the private
+key absent from the settings.
+
+Not tested: a real browser receiving a Webpush message, which headless Chromium can't subscribe for, and public
+nostr relays.
+
+Known limits and differences from Node.js:
+
+- A relay that can't be reached no longer fails the whole notification, as it did in Node.js, whose connect wasn't
+  caught: the others are still tried, and the error names each relay that failed.
+- The VAPID subject is this fork's repository rather than upstream's.
+
+### Phase 6c: apprise in the image, and the Cloudflare tunnel (next)
 
 Both add programs to an image that is now `FROM scratch`: `apprise` is Python, and the tunnel runs `cloudflared`.
+
+## Phase 7: Logging in with GitHub (planned)
+
+Not in the Node.js server, which only had a password and an authenticator app. Pantheon Lab's team signs in to
+GitHub already, so this lets them log in to Uptime Kuma the same way, and lets access follow GitHub: leaving the
+organization ends it.
+
+- **OAuth with a GitHub App or OAuth App**, configured with `KUMA_GITHUB_CLIENT_ID` and `KUMA_GITHUB_CLIENT_SECRET`.
+  The login page shows "Log in with GitHub" when it's set. The authorization code flow with `state` and PKCE, and a
+  session cookie as with a password.
+- **Who may log in:** members of a GitHub organization, optionally only of some teams, such as
+  `KUMA_GITHUB_ORG=pantheon-lab` and `KUMA_GITHUB_TEAMS=sre,platform`, checked at every login and again when a
+  session is renewed, so that someone removed from the organization is logged out within a day.
+- **Accounts:** this needs more than one account, which Phase 5 left out. The likely design is an account per GitHub
+  user, made at their first login, with the same rights as the password account, since the UI has no roles. Logins
+  and changes would then record who made them.
+- **The password account stays**, as a way in when GitHub is down, and it can be turned off with
+  `KUMA_PASSWORD_LOGIN=false` once GitHub login works.
+- `kuma-import` and the REST API aren't affected. API keys stay as they are.
+
+To decide before it's built:
+
+- Whether everyone who may log in can change everything, or whether some teams only read, which the UI would need
+  read-only views for.
+- Whether two-factor login is left to GitHub, which can require it for the organization.
+- A GitHub App or an OAuth App: an App can be limited to reading organization membership.

@@ -49,6 +49,8 @@ type Env struct {
 	Now       func() time.Time
 	RandBytes func(n int) []byte
 	RandFloat func() float64
+	// WebpushKeys returns this server's VAPID key pair, made the first time it's needed.
+	WebpushKeys func(ctx context.Context) (public, private string, err error)
 }
 
 // DefaultEnv returns the production environment. baseURL is the public URL of this service.

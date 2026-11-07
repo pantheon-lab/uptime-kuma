@@ -366,6 +366,8 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.databaseSize(ctx)
 	case "shrinkDatabase":
 		err = userErr(errShrinkNotNeeded)
+	case "getWebpushVapidPublicKey":
+		r, err = s.webpushPublicKey(ctx)
 	case "getSettings":
 		r, err = s.getSettings(ctx)
 	case "setSettings":
@@ -772,7 +774,9 @@ func (s *Server) getSettings(ctx context.Context) (reply, error) {
 	}
 	data := map[string]any{}
 	for key, value := range settings {
-		data[key] = value
+		if !hiddenSettings[key] {
+			data[key] = value
+		}
 	}
 	data["serverTimezone"] = s.opts.Location.String()
 	if _, found := data["primaryBaseURL"]; !found && s.opts.BaseURL != "" {
@@ -788,7 +792,28 @@ func changed(before, saving map[string]json.RawMessage, key string) bool {
 }
 
 // readOnlySettings are decided by the server's configuration, so they aren't saved.
-var readOnlySettings = map[string]bool{"serverTimezone": true}
+var readOnlySettings = map[string]bool{
+	"serverTimezone": true,
+	// Browsers subscribed with the public key, so a page can't replace the pair.
+	store.WebpushPublicKeySetting:  true,
+	store.WebpushPrivateKeySetting: true,
+}
+
+// hiddenSettings aren't sent to the browser.
+var hiddenSettings = map[string]bool{store.WebpushPrivateKeySetting: true}
+
+// webpushPublicKey answers the Webpush form, which subscribes the browser with it. The key pair
+// is made the first time, as in Node.js.
+func (s *Server) webpushPublicKey(ctx context.Context) (reply, error) {
+	if s.notifyEnv.WebpushKeys == nil {
+		return nil, userErr(errors.New("web push isn't set up on this server"))
+	}
+	public, _, err := s.notifyEnv.WebpushKeys(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return ok("msg", public), nil
+}
 
 func (s *Server) setSettings(ctx context.Context, c *conn, args []json.RawMessage) (reply, error) {
 	var data map[string]json.RawMessage
