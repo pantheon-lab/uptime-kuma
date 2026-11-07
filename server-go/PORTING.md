@@ -7,30 +7,39 @@ Update this file in the same pull request as each phase. Only mark a phase done 
 wasn't. The order of the planned phases is a proposal, and should follow what's actually in use: the dry run of
 `kuma-import` lists every monitor it can't bring over, and why.
 
-| Phase | Scope                                                               | Status |
-| ----- | ------------------------------------------------------------------- | ------ |
-| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done   |
-| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done   |
-| 2     | Push, Ping and DNS monitors                                         | Done   |
-| 3     | Status pages and badges                                             | Done   |
-| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done   |
-| 4b    | Other databases and messaging                                       | Done   |
-| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done   |
-| 4d    | Docker, system and remote browser monitors                          | Done   |
-| 4e    | HTTP options, proxies and domain expiry                             | Done   |
-| 4f    | Globalping, GameDig and Tailscale ping                              | Done   |
-| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done   |
-| 5b    | Settings that take effect, and the Monitor History page             | Done   |
-| 5c    | Importing accounts, status pages and maintenance windows            | Done   |
-| 6a    | The MCP server and the update check                                 | Done   |
-| 6b    | The `nostr` and `Webpush` notification providers                    | Done   |
-| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Done   |
-| 7a    | More than one account, with full and read-only roles                | Done   |
-| 7b    | Logging in with GitHub                                              | Done   |
-| E1    | Managing accounts in the UI                                         | Done   |
-| E2    | The Security page for GitHub accounts                               | Done   |
-| E3    | Encrypting stored secrets                                           | Done   |
-| E4    | Completing the migration from MariaDB                               | Done   |
+| Phase | Scope                                                               | Status  |
+| ----- | ------------------------------------------------------------------- | ------- |
+| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done    |
+| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done    |
+| 2     | Push, Ping and DNS monitors                                         | Done    |
+| 3     | Status pages and badges                                             | Done    |
+| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done    |
+| 4b    | Other databases and messaging                                       | Done    |
+| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done    |
+| 4d    | Docker, system and remote browser monitors                          | Done    |
+| 4e    | HTTP options, proxies and domain expiry                             | Done    |
+| 4f    | Globalping, GameDig and Tailscale ping                              | Done    |
+| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done    |
+| 5b    | Settings that take effect, and the Monitor History page             | Done    |
+| 5c    | Importing accounts, status pages and maintenance windows            | Done    |
+| 6a    | The MCP server and the update check                                 | Done    |
+| 6b    | The `nostr` and `Webpush` notification providers                    | Done    |
+| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Done    |
+| 7a    | More than one account, with full and read-only roles                | Done    |
+| 7b    | Logging in with GitHub                                              | Done    |
+| E1    | Managing accounts in the UI                                         | Done    |
+| E2    | The Security page for GitHub accounts                               | Done    |
+| E3    | Encrypting stored secrets                                           | Done    |
+| E4    | Completing the migration from MariaDB                               | Done    |
+| U1    | Tab titles, unsaved edits, clickable stats, this fork's help links  | Next    |
+| U2    | Filtering events, and grouping alerts in the UI                     | Planned |
+| U3    | Keyboard shortcuts and a command palette                            | Planned |
+| U4    | The Edit Monitor form                                               | Planned |
+| U5    | The monitor's page                                                  | Planned |
+| U6    | Editing many monitors at once                                       | Planned |
+| U7    | Viewers, the first run and phones                                   | Planned |
+| U8    | Bootstrap 5.3 and accessibility                                     | Planned |
+| U9    | Status page incidents and subscriptions                             | Planned |
 
 ## Phase 0: Core (done)
 
@@ -771,3 +780,72 @@ Known limits:
 - `-verify` compares the source's statistics with this service's views. Hours and days before the cutover come
   from the imported statistics on both sides, so it checks the copy there; after it, it checks the beats.
 - Monitors' own settings aren't compared, only their history.
+
+## UI enhancements (planned)
+
+The web UI is upstream's, with the pages added here. These make it easier to use day to day. Each is a pull request
+of its own, in this order, and none changes what the server stores unless it says so.
+
+### U1: Tab titles, unsaved edits, clickable stats, this fork's help links
+
+- Every page sets the tab's title, with the number of monitors down first, such as `(2) api-gateway - Uptime
+Kuma`, so that a background tab shows an outage. Only the status pages and the login set it today.
+- Leaving the Edit Monitor and Edit Maintenance pages with changes not saved asks first, in the app and when the tab
+  is closed.
+- The Up, Down, Maintenance, Unknown and Paused counts on the dashboard filter the monitor list to those monitors.
+- The help links point to this fork's README instead of upstream's wiki, which describes the Node.js server. The
+  reverse proxy text says the UI uses Server-Sent Events on `/api/realtime`, not WebSockets, and the README says how
+  to proxy them.
+
+### U2: Filtering events, and grouping alerts in the UI
+
+- The dashboard's events can be filtered by status, monitor and time range, and Clear All Events moves out of the
+  way, into a menu.
+- Up and down toasts that arrive together are grouped ("12 monitors are down"), and can be muted per monitor or
+  tag.
+
+### U3: Keyboard shortcuts and a command palette
+
+- `/` searches the monitor list, `n` adds a monitor, `g d` goes to the dashboard, `j` and `k` move through the list,
+  `Esc` clears the search, and `?` lists them all.
+- `Ctrl+K` jumps to any monitor, status page, maintenance window or setting.
+
+### U4: The Edit Monitor form
+
+`EditMonitor.vue` is one form of about 4,600 lines.
+
+- A list of the form's sections that stays in view and jumps to each, with advanced settings folded away.
+- A summary of what the monitor will do, such as "Checks https://... every 60 seconds and alerts Slack after 3
+  failures".
+- A component per kind of monitor, so that the form is easier to change.
+
+### U5: The monitor's page
+
+- A chosen date range for the response time chart, beside the fixed periods.
+- A timeline of outages, with when each started, how long it lasted and its error.
+- The 24 hour, 30 day and 1 year uptime choose the chart's range.
+
+### U6: Editing many monitors at once
+
+- Changing the interval, notifications or tags of the selected monitors. Only pausing, resuming and deleting them
+  work today.
+- Importing monitors from CSV or YAML, through the REST API's monitor endpoints.
+- Running a check from the Edit Monitor form and showing its result before saving.
+
+### U7: Viewers, the first run and phones
+
+- A pass through every page as a viewer: no buttons that can only fail, and a note that the page is read-only.
+- A first run that leads through adding a monitor, a notification and a status page, instead of "No Monitors,
+  please add one".
+- The dashboard's counts and the Edit Monitor form's bottom bar on narrow screens.
+
+### U8: Bootstrap 5.3 and accessibility
+
+- Bootstrap 5.3, whose `data-bs-theme` replaces much of the dark theme's own CSS, and Font Awesome 6.
+- States shown by more than colour, focus in the dragged monitor list, the heartbeat bar's contrast, and menus that
+  open from the keyboard.
+
+### U9: Status page incidents and subscriptions
+
+- Incident templates, and banners for coming maintenance windows.
+- Subscribing to a page's updates by email or webhook. This needs the server to store subscribers and send to them.
