@@ -78,6 +78,9 @@ export default {
             showReverseProxyGuide: true,
             faviconUpdateDebounce: null,
             emitter: mitt(),
+            // The monitor list's status filter while a list is shown, and a filter asked of it
+            monitorListFilter: null,
+            monitorListFilterRequest: null,
         };
     },
 

@@ -5,8 +5,12 @@
                 {{ $root.connectionErrorMsg }}
                 <div v-if="$root.showReverseProxyGuide">
                     {{ $t("Using a Reverse Proxy?") }}
-                    <a href="https://github.com/louislam/uptime-kuma/wiki/Reverse-Proxy" target="_blank">
-                        {{ $t("Check how to config it for WebSocket") }}
+                    <a
+                        href="https://github.com/pantheon-lab/uptime-kuma/tree/main/server-go#behind-a-reverse-proxy"
+                        target="_blank"
+                        rel="noopener"
+                    >
+                        {{ $t("reverseProxyGuideLink") }}
                     </a>
                 </div>
             </div>
@@ -96,9 +100,10 @@
 
                             <li>
                                 <a
-                                    href="https://github.com/louislam/uptime-kuma/wiki"
+                                    href="https://github.com/pantheon-lab/uptime-kuma/tree/main/server-go#readme"
                                     class="dropdown-item"
                                     target="_blank"
+                                    rel="noopener"
                                 >
                                     <font-awesome-icon icon="info-circle" />
                                     {{ $t("Help") }}

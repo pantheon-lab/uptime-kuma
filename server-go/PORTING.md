@@ -31,8 +31,8 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | E2    | The Security page for GitHub accounts                               | Done    |
 | E3    | Encrypting stored secrets                                           | Done    |
 | E4    | Completing the migration from MariaDB                               | Done    |
-| U1    | Tab titles, unsaved edits, clickable stats, this fork's help links  | Next    |
-| U2    | Filtering events, and grouping alerts in the UI                     | Planned |
+| U1    | Tab titles, unsaved edits, clickable stats, this fork's help links  | Done    |
+| U2    | Filtering events, and grouping alerts in the UI                     | Next    |
 | U3    | Keyboard shortcuts and a command palette                            | Planned |
 | U4    | The Edit Monitor form                                               | Planned |
 | U5    | The monitor's page                                                  | Planned |
@@ -786,16 +786,33 @@ Known limits:
 The web UI is upstream's, with the pages added here. These make it easier to use day to day. Each is a pull request
 of its own, in this order, and none changes what the server stores unless it says so.
 
-### U1: Tab titles, unsaved edits, clickable stats, this fork's help links
+### U1: Tab titles, unsaved edits, clickable stats, this fork's help links (done)
 
-- Every page sets the tab's title, with the number of monitors down first, such as `(2) api-gateway - Uptime
-Kuma`, so that a background tab shows an outage. Only the status pages and the login set it today.
+- Every page of the app sets the tab's title (`src/page-title.ts`), with the number of monitors down first, such as
+  `(2) api-gateway - Uptime Kuma`, so that a background tab shows an outage: the monitor's name on its page and
+  Edit page, the settings page under Settings, and "Log in" while the login form is shown. Status pages and `/`
+  keep setting their own.
 - Leaving the Edit Monitor and Edit Maintenance pages with changes not saved asks first, in the app and when the tab
-  is closed.
-- The Up, Down, Maintenance, Unknown and Paused counts on the dashboard filter the monitor list to those monitors.
-- The help links point to this fork's README instead of upstream's wiki, which describes the Node.js server. The
-  reverse proxy text says the UI uses Server-Sent Events on `/api/realtime`, not WebSockets, and the README says how
-  to proxy them.
+  is closed (`src/mixins/unsaved-changes.js`). The form is recorded once it has loaded, and again after saving, so
+  that loading and the defaults filled in don't count as changes. A failed save of a monitor now keeps the form as
+  it was, instead of loading the saved monitor over the changes.
+- The Up, Down, Maintenance and Paused counts on the dashboard filter the monitor list to those monitors, keeping
+  the tags chosen, and the count shows as pressed while its filter is the list's; clicking it again shows all. On
+  phones it opens the list. Unknown isn't a filter, as the list can't pick out monitors without a beat.
+- The help links point to this fork's README instead of upstream's wiki: Help, the reverse proxy guide, maintenance
+  windows and badges. The README has a new "Behind a reverse proxy" section, which says the UI uses Server-Sent
+  Events on `/api/realtime`, not WebSockets, with an nginx example.
+
+Tested: `src/page-title.ts` with unit tests. In headless Chromium against the built image
+(`internal/e2e/browser/ui-u1.mjs`), 14 of 14 steps passed with no page errors: the login form's title; adding
+monitors and leaving without being asked; the title counting the monitor down, and naming a monitor and a settings
+page; the Down, Up and Paused counts filtering the list and showing all again; an unchanged Edit page leaving without
+asking; a changed one asking, staying when told to and leaving when told to; saving and then leaving without
+asking; closing the tab with a change asking; a new maintenance window asking only after a change, and an existing
+one not asking without one; a phone's count opening the filtered list; and the reverse proxy link. Checked by eye in
+the light and dark themes.
+
+Not tested: a monitor's save failing on the server, which keeps the form now; the nginx example, which wasn't run.
 
 ### U2: Filtering events, and grouping alerts in the UI
 

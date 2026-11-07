@@ -437,6 +437,30 @@ instead, as Cloudflare recommends for containers, and needs no port open:
 
 Then set Trust Proxy under Settings > Reverse Proxy, and `KUMA_BASE_URL` to the public hostname.
 
+### Behind a reverse proxy
+
+The web UI gets its live updates as Server-Sent Events from `GET /api/realtime`, a response that stays open, and
+sends everything else as ordinary requests. It doesn't use WebSockets, so no `Upgrade` headers are needed. The
+proxy must pass the stream on as it comes instead of holding it back: the service sends `X-Accel-Buffering: no`,
+which nginx follows, and Caddy and Traefik pass event streams on at once already. The service writes to the stream
+at least every 25 seconds, so a read timeout of a minute or more is enough. With nginx:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:3002;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_read_timeout 120s;
+}
+```
+
+Then set Trust Proxy under Settings > Reverse Proxy, so that status pages' domains and links use
+`X-Forwarded-Host` and `X-Forwarded-Proto`, and `KUMA_BASE_URL` to the public address. The login cookie is marked
+`Secure` when `X-Forwarded-Proto` is `https`, with or without Trust Proxy.
+
 ## API
 
 The API is described by an OpenAPI document at `GET /api/v1/openapi.json`, which you can load

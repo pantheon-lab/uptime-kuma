@@ -7,31 +7,24 @@
 
             <div class="shadow-box big-padding text-center mb-3">
                 <div class="row">
-                    <div class="col">
-                        <h3>{{ $t("Up") }}</h3>
-                        <span class="num" :class="$root.stats.up === 0 && 'text-secondary'">
-                            {{ $root.stats.up }}
-                        </span>
-                    </div>
-                    <div class="col">
-                        <h3>{{ $t("Down") }}</h3>
-                        <span class="num" :class="$root.stats.down > 0 ? 'text-danger' : 'text-secondary'">
-                            {{ $root.stats.down }}
-                        </span>
-                    </div>
-                    <div class="col">
-                        <h3>{{ $t("Maintenance") }}</h3>
-                        <span class="num" :class="$root.stats.maintenance > 0 ? 'text-maintenance' : 'text-secondary'">
-                            {{ $root.stats.maintenance }}
-                        </span>
-                    </div>
-                    <div class="col">
-                        <h3>{{ $t("Unknown") }}</h3>
-                        <span class="num text-secondary">{{ $root.stats.unknown }}</span>
-                    </div>
-                    <div class="col">
-                        <h3>{{ $t("pauseDashboardHome") }}</h3>
-                        <span class="num text-secondary">{{ $root.stats.pause }}</span>
+                    <div v-for="stat in quickStats" :key="stat.key" class="col">
+                        <button
+                            v-if="stat.filter"
+                            type="button"
+                            class="stat"
+                            :class="{ active: isStatFiltered(stat) }"
+                            :data-testid="`quick-stat-${stat.key}`"
+                            :aria-pressed="isStatFiltered(stat)"
+                            :title="$t('quickStatFilter', [stat.label])"
+                            @click="filterByStat(stat)"
+                        >
+                            <span class="h3 d-block">{{ stat.label }}</span>
+                            <span class="num" :class="stat.numClass">{{ stat.count }}</span>
+                        </button>
+                        <div v-else class="stat" :data-testid="`quick-stat-${stat.key}`">
+                            <h3>{{ stat.label }}</h3>
+                            <span class="num" :class="stat.numClass">{{ stat.count }}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -117,6 +110,7 @@ import Status from "../components/Status.vue";
 import Datetime from "../components/Datetime.vue";
 import Pagination from "v-pagination-3";
 import Confirm from "../components/Confirm.vue";
+import { DOWN, MAINTENANCE, UP } from "../util";
 
 export default {
     components: {
@@ -152,6 +146,52 @@ export default {
         tableColumnCount() {
             return this.showGroupColumn ? 5 : 4;
         },
+
+        /**
+         * The counts at the top, with the monitor list's filter each one applies
+         * @returns {object[]} Counts
+         */
+        quickStats() {
+            const stats = this.$root.stats;
+            return [
+                {
+                    key: "up",
+                    label: this.$t("Up"),
+                    count: stats.up,
+                    numClass: stats.up === 0 && "text-secondary",
+                    filter: { status: [UP], active: null },
+                },
+                {
+                    key: "down",
+                    label: this.$t("Down"),
+                    count: stats.down,
+                    numClass: stats.down > 0 ? "text-danger" : "text-secondary",
+                    filter: { status: [DOWN], active: null },
+                },
+                {
+                    key: "maintenance",
+                    label: this.$t("Maintenance"),
+                    count: stats.maintenance,
+                    numClass: stats.maintenance > 0 ? "text-maintenance" : "text-secondary",
+                    filter: { status: [MAINTENANCE], active: null },
+                },
+                {
+                    // Monitors without a beat yet, which the list's filter can't pick out
+                    key: "unknown",
+                    label: this.$t("Unknown"),
+                    count: stats.unknown,
+                    numClass: "text-secondary",
+                    filter: null,
+                },
+                {
+                    key: "pause",
+                    label: this.$t("pauseDashboardHome"),
+                    count: stats.pause,
+                    numClass: "text-secondary",
+                    filter: { status: null, active: [false] },
+                },
+            ];
+        },
     },
     watch: {
         perPage() {
@@ -183,6 +223,35 @@ export default {
     },
 
     methods: {
+        /**
+         * Whether the monitor list shows only what this count counts
+         * @param {object} stat A quick stat
+         * @returns {boolean} Whether its filter is the list's
+         */
+        isStatFiltered(stat) {
+            const current = this.$root.monitorListFilter;
+            if (!current || !stat.filter) {
+                return false;
+            }
+            const same = (a, b) => JSON.stringify(a?.length ? a : null) === JSON.stringify(b?.length ? b : null);
+            return same(current.status, stat.filter.status) && same(current.active, stat.filter.active);
+        },
+
+        /**
+         * Show only the monitors this count counts, or all of them again
+         * @param {object} stat A quick stat
+         * @returns {void}
+         */
+        filterByStat(stat) {
+            this.$root.monitorListFilterRequest = this.isStatFiltered(stat)
+                ? { status: null, active: null }
+                : { ...stat.filter };
+            // On phones the list is a page of its own
+            if (this.$root.isMobile) {
+                this.$router.push("/list");
+            }
+        },
+
         /**
          * Returns the group (parent) name for a monitor, or empty string if none.
          * @param {number} monitorID - The monitor ID.
@@ -313,6 +382,31 @@ export default {
     color: $primary;
     font-weight: bold;
     display: block;
+}
+
+.stat {
+    display: block;
+    width: 100%;
+    padding: 6px 0;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    color: inherit;
+}
+
+button.stat {
+    cursor: pointer;
+    transition: background-color ease-in-out 0.15s;
+
+    &:hover,
+    &:focus-visible {
+        background-color: rgba($primary, 0.08);
+    }
+
+    &.active {
+        background-color: rgba($primary, 0.15);
+        box-shadow: inset 0 0 0 2px rgba($primary, 0.5);
+    }
 }
 
 .shadow-box {

@@ -11,6 +11,7 @@ import { i18n } from "./i18n";
 import { FontAwesomeIcon } from "./icon.js";
 import datetime from "./mixins/datetime";
 import mobile from "./mixins/mobile";
+import pageTitle from "./mixins/page-title";
 import publicMixin from "./mixins/public";
 import socket from "./mixins/socket";
 import theme from "./mixins/theme";
@@ -22,7 +23,7 @@ import { initDayjs, loadToastSettings } from "./util-frontend";
 initDayjs();
 
 const app = createApp({
-    mixins: [socket, theme, mobile, datetime, publicMixin, lang],
+    mixins: [socket, theme, mobile, datetime, publicMixin, lang, pageTitle],
     data() {
         return {
             appName: appName,

@@ -12,7 +12,7 @@
                     <i18n-t keypath="Badge Link Generator Helptext" tag="p" class="form-text mb-3">
                         <template #documentation>
                             <a
-                                href="https://github.com/louislam/uptime-kuma/wiki/Badge"
+                                href="https://github.com/pantheon-lab/uptime-kuma/tree/main/server-go#badges"
                                 target="_blank"
                                 rel="noopener noreferrer"
                             >

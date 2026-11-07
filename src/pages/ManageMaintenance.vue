@@ -87,7 +87,11 @@
             </div>
 
             <div class="text-center mt-3" style="font-size: 13px">
-                <a href="https://github.com/louislam/uptime-kuma/wiki/Maintenance" target="_blank">
+                <a
+                    href="https://github.com/pantheon-lab/uptime-kuma/tree/main/server-go#maintenance-windows"
+                    target="_blank"
+                    rel="noopener"
+                >
                     {{ $t("Learn More") }}
                 </a>
             </div>

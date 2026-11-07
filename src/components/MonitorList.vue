@@ -363,6 +363,16 @@ export default {
                 this.selectedMonitors = {};
             }
         },
+        filterState: {
+            handler(state) {
+                this.$root.monitorListFilter = state;
+            },
+            deep: true,
+            immediate: true,
+        },
+        "$root.monitorListFilterRequest"() {
+            this.applyFilterRequest();
+        },
     },
     created() {
         this.rowRefs = new Map();
@@ -371,11 +381,13 @@ export default {
         window.addEventListener("scroll", this.onScroll);
         window.addEventListener("resize", this.onListScroll);
         this.onListScroll();
+        this.applyFilterRequest();
     },
     updated() {
         this.measureRows();
     },
     beforeUnmount() {
+        this.$root.monitorListFilter = null;
         window.removeEventListener("scroll", this.onScroll);
         window.removeEventListener("resize", this.onListScroll);
     },
@@ -459,6 +471,26 @@ export default {
          */
         updateFilter(newFilter) {
             this.filterState = newFilter;
+        },
+        /**
+         * Apply the status filter asked for elsewhere, such as by the dashboard's counts,
+         * keeping the tags chosen
+         * @returns {void}
+         */
+        applyFilterRequest() {
+            const request = this.$root.monitorListFilterRequest;
+            if (!request) {
+                return;
+            }
+            this.$root.monitorListFilterRequest = null;
+            this.filterState = {
+                ...this.filterState,
+                status: request.status,
+                active: request.active,
+            };
+            if (this.$refs.monitorList) {
+                this.$refs.monitorList.scrollTop = 0;
+            }
         },
         /**
          * Toggle collapse state for all group monitors

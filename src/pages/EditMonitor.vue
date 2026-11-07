@@ -3279,6 +3279,7 @@ import isFQDN from "validator/lib/isFQDN";
 import isIP from "validator/lib/isIP";
 import HiddenInput from "../components/HiddenInput.vue";
 import EditMonitorConditions from "../components/EditMonitorConditions.vue";
+import unsavedChanges from "../mixins/unsaved-changes";
 
 const toast = useToast();
 
@@ -3375,6 +3376,7 @@ export default {
         VueMultiselect,
         EditMonitorConditions,
     },
+    mixins: [unsavedChanges],
 
     data() {
         return {
@@ -3700,7 +3702,12 @@ message HealthCheckResponse {
                     const proxy = this.$root.proxyList.find((proxy) => proxy.default);
 
                     if (proxy) {
+                        // The default proxy arriving isn't a change of the user's
+                        const clean = !this.hasUnsavedChanges();
                         this.monitor.proxyId = proxy.id;
+                        if (clean) {
+                            this.takeUnsavedSnapshot();
+                        }
                     }
                 }
             }
@@ -4012,6 +4019,19 @@ message HealthCheckResponse {
         this.kafkaSaslMechanismOptions = kafkaSaslMechanismOptions;
     },
     methods: {
+        /**
+         * What saving the form stores, for asking before leaving with changes
+         * @returns {object} The form's state
+         */
+        unsavedState() {
+            return {
+                monitor: this.monitor,
+                newTags: this.$refs.tagsManager?.newTags,
+                deleteTags: this.$refs.tagsManager?.deleteTags,
+                draftGroupName: this.draftGroupName,
+            };
+        },
+
         loadPM2ProcessList() {
             this.pm2ProcessLoading = true;
             this.pm2ProcessError = "";
@@ -4073,6 +4093,7 @@ message HealthCheckResponse {
                         this.monitor.notificationIDList[this.$root.notificationList[i].id] = true;
                     }
                 }
+                this.takeUnsavedSnapshot();
             } else if (this.isEdit || this.isClone) {
                 this.$root.getSocket().emit("getMonitor", this.$route.params.id, (res) => {
                     if (res.ok) {
@@ -4140,6 +4161,7 @@ message HealthCheckResponse {
                         if (this.monitor.type === "pm2") {
                             this.loadPM2ProcessList();
                         }
+                        this.takeUnsavedSnapshot();
                     } else {
                         this.$root.toastError(res.msg);
                     }
@@ -4418,6 +4440,7 @@ message HealthCheckResponse {
                             await this.startParentGroupMonitor();
                         }
                         this.processing = false;
+                        this.forgetUnsavedChanges();
                         this.$router.push("/dashboard/" + res.monitorID);
                     } else {
                         this.processing = false;
@@ -4431,7 +4454,10 @@ message HealthCheckResponse {
                 this.$root.getSocket().emit("editMonitor", this.monitor, (res) => {
                     this.processing = false;
                     this.$root.toastRes(res);
-                    this.init();
+                    // Reload what was saved. After a failure, keep the form as it is, to fix and save again.
+                    if (res.ok) {
+                        this.init();
+                    }
 
                     // Start the new parent monitor after edit is done
                     if (createdNewParent) {

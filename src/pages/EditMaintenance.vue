@@ -501,6 +501,7 @@ import Datepicker from "@vuepic/vue-datepicker";
 import { timezoneList } from "../util-frontend";
 import cronstrue from "cronstrue/i18n";
 import Confirm from "../components/Confirm.vue";
+import unsavedChanges from "../mixins/unsaved-changes";
 
 export default {
     components: {
@@ -508,6 +509,7 @@ export default {
         Datepicker,
         Confirm,
     },
+    mixins: [unsavedChanges],
 
     data() {
         return {
@@ -777,6 +779,19 @@ export default {
     },
     methods: {
         /**
+         * What saving the form stores, for asking before leaving with changes
+         * @returns {object} The form's state
+         */
+        unsavedState() {
+            return {
+                maintenance: this.maintenance,
+                affectedMonitors: this.affectedMonitors.map((m) => m?.id),
+                selectedStatusPages: this.selectedStatusPages.map((p) => p?.id),
+                showOnAllPages: this.showOnAllPages,
+            };
+        },
+
+        /**
          * Load the list of holiday calendars
          * @returns {void}
          */
@@ -857,6 +872,7 @@ export default {
                     holidayMode: "none",
                     holidayCountries: [],
                 };
+                this.takeUnsavedSnapshot();
             } else if (this.isEdit || this.isClone) {
                 this.$root.getSocket().emit("getMaintenance", this.$route.params.id, (res) => {
                     if (res.ok) {
@@ -866,6 +882,15 @@ export default {
                             this.maintenance.id = undefined; // Remove id when cloning as we want a new id
                             this.maintenance.title = this.$t("cloneOf", [this.maintenance.title]);
                         }
+
+                        // The form is loaded once its monitors and status pages are
+                        let loading = 2;
+                        const loaded = () => {
+                            loading--;
+                            if (loading === 0) {
+                                this.takeUnsavedSnapshot();
+                            }
+                        };
 
                         this.$root.getSocket().emit("getMonitorMaintenance", this.$route.params.id, (res) => {
                             if (res.ok) {
@@ -877,6 +902,7 @@ export default {
                             } else {
                                 this.$root.toastError(res.msg);
                             }
+                            loaded();
                         });
 
                         this.$root.getSocket().emit("getMaintenanceStatusPage", this.$route.params.id, (res) => {
@@ -893,6 +919,7 @@ export default {
                             } else {
                                 this.$root.toastError(res.msg);
                             }
+                            loaded();
                         });
                     } else {
                         this.$root.toastError(res.msg);
@@ -977,6 +1004,7 @@ export default {
                                 this.$root.toastRes(res);
                                 this.processing = false;
                                 this.$root.getMaintenanceList();
+                                this.forgetUnsavedChanges();
                                 this.$router.push("/maintenance");
                             });
                         });
@@ -992,7 +1020,7 @@ export default {
                             await this.addMaintenanceStatusPage(res.maintenanceID, () => {
                                 this.processing = false;
                                 this.$root.toastRes(res);
-                                this.init();
+                                this.forgetUnsavedChanges();
                                 this.$router.push("/maintenance");
                             });
                         });
