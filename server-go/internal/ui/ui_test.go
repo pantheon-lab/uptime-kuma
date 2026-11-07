@@ -7,14 +7,18 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/holidays"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/maintenance"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/notify"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
@@ -28,6 +32,14 @@ type fakeStore struct {
 	monitors map[int32]monitor.Monitor
 	nextID   int32
 	settings map[string]json.RawMessage
+
+	windows   map[int32]maintenance.Window
+	links     map[int32][]int32
+	overrides []holidays.Override
+
+	tags        []store.Tag
+	monitorTags map[int32][]store.MonitorTag
+	tlsInfo     map[int32]string
 }
 
 func newFakeStore() *fakeStore {
@@ -222,6 +234,197 @@ func (f *fakeStore) AllMonitorNotificationIDs(context.Context) (map[int32][]int3
 	return map[int32][]int32{}, nil
 }
 
+func (f *fakeStore) ListTags(context.Context) ([]store.Tag, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.tags), nil
+}
+
+func (f *fakeStore) CreateTag(_ context.Context, name, color string) (store.Tag, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	tag := store.Tag{ID: int32(len(f.tags) + 1), Name: name, Color: color}
+	f.tags = append(f.tags, tag)
+	return tag, nil
+}
+
+func (f *fakeStore) UpdateTag(_ context.Context, tag store.Tag) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.tags {
+		if f.tags[i].ID == tag.ID {
+			f.tags[i] = tag
+			return nil
+		}
+	}
+	return store.ErrNotFound
+}
+
+func (f *fakeStore) DeleteTag(_ context.Context, id int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	before := len(f.tags)
+	f.tags = slices.DeleteFunc(f.tags, func(t store.Tag) bool { return t.ID == id })
+	if len(f.tags) == before {
+		return store.ErrNotFound
+	}
+	for monitorID, list := range f.monitorTags {
+		f.monitorTags[monitorID] = slices.DeleteFunc(list, func(t store.MonitorTag) bool { return t.TagID == id })
+	}
+	return nil
+}
+
+func (f *fakeStore) AddMonitorTag(_ context.Context, tagID, monitorID int32, value string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, t := range f.tags {
+		if t.ID == tagID {
+			if f.monitorTags == nil {
+				f.monitorTags = map[int32][]store.MonitorTag{}
+			}
+			f.monitorTags[monitorID] = append(f.monitorTags[monitorID],
+				store.MonitorTag{TagID: tagID, MonitorID: monitorID, Value: value, Name: t.Name, Color: t.Color})
+			return nil
+		}
+	}
+	return store.ErrNotFound
+}
+
+func (f *fakeStore) UpdateMonitorTag(_ context.Context, tagID, monitorID int32, value string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i, t := range f.monitorTags[monitorID] {
+		if t.TagID == tagID {
+			f.monitorTags[monitorID][i].Value = value
+			return nil
+		}
+	}
+	return store.ErrNotFound
+}
+
+func (f *fakeStore) DeleteMonitorTag(_ context.Context, tagID, monitorID int32, value string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.monitorTags[monitorID] = slices.DeleteFunc(f.monitorTags[monitorID], func(t store.MonitorTag) bool {
+		return t.TagID == tagID && t.Value == value
+	})
+	return nil
+}
+
+func (f *fakeStore) AllMonitorTags(context.Context) (map[int32][]store.MonitorTag, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := map[int32][]store.MonitorTag{}
+	for id, list := range f.monitorTags {
+		out[id] = slices.Clone(list)
+	}
+	return out, nil
+}
+
+func (f *fakeStore) AllTLSInfo(context.Context) (map[int32]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return maps.Clone(f.tlsInfo), nil
+}
+
+func (f *fakeStore) ListMaintenances(context.Context) ([]maintenance.Window, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []maintenance.Window
+	for _, w := range f.windows {
+		out = append(out, w)
+	}
+	return out, nil
+}
+
+func (f *fakeStore) GetMaintenance(_ context.Context, id int32) (maintenance.Window, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	w, found := f.windows[id]
+	if !found {
+		return w, store.ErrNotFound
+	}
+	return w, nil
+}
+
+func (f *fakeStore) CreateMaintenance(_ context.Context, w maintenance.Window) (maintenance.Window, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.windows == nil {
+		f.windows = map[int32]maintenance.Window{}
+	}
+	w.ID = int32(len(f.windows) + 1)
+	f.windows[w.ID] = w
+	return w, nil
+}
+
+func (f *fakeStore) UpdateMaintenance(_ context.Context, w maintenance.Window) (maintenance.Window, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, found := f.windows[w.ID]; !found {
+		return w, store.ErrNotFound
+	}
+	f.windows[w.ID] = w
+	return w, nil
+}
+
+func (f *fakeStore) SetMaintenanceActive(_ context.Context, id int32, active bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	w, found := f.windows[id]
+	if !found {
+		return store.ErrNotFound
+	}
+	w.Active = active
+	f.windows[id] = w
+	return nil
+}
+
+func (f *fakeStore) DeleteMaintenance(_ context.Context, id int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.windows, id)
+	return nil
+}
+
+func (f *fakeStore) SetMaintenanceMonitors(_ context.Context, id int32, monitors []int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.links == nil {
+		f.links = map[int32][]int32{}
+	}
+	f.links[id] = monitors
+	return nil
+}
+
+func (f *fakeStore) MaintenanceMonitorLinks(context.Context) (map[int32][]int32, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return maps.Clone(f.links), nil
+}
+
+func (f *fakeStore) HolidayOverrides(context.Context) ([]holidays.Override, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.overrides), nil
+}
+
+func (f *fakeStore) SetHolidayOverride(_ context.Context, o holidays.Override) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.overrides = append(f.overrides, o)
+	return nil
+}
+
+func (f *fakeStore) DeleteHolidayOverride(_ context.Context, country, date string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.overrides = slices.DeleteFunc(f.overrides, func(o holidays.Override) bool {
+		return o.Country == country && o.Date == date
+	})
+	return nil
+}
+
 type fakeScheduler struct {
 	mu       sync.Mutex
 	upserted []monitor.Monitor
@@ -244,7 +447,13 @@ func (f *fakeScheduler) Remove(_ context.Context, id int32) error {
 func newTestServer(t *testing.T) (*Server, *fakeStore, *httptest.Server) {
 	t.Helper()
 	fs := newFakeStore()
-	s := New(fs, &fakeScheduler{}, notify.DefaultEnv(""), slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Version: "1.2.3"})
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	calendar, err := holidays.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := maintenance.NewService(fs, calendar, time.UTC, log)
+	s := New(fs, &fakeScheduler{}, notify.DefaultEnv(""), log, Options{Version: "1.2.3", Maintenance: service})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	ts := httptest.NewServer(mux)
@@ -726,5 +935,301 @@ func TestCloseEndsStreams(t *testing.T) {
 	case <-finished:
 	case <-time.After(5 * time.Second):
 		t.Fatal("the stream stayed open")
+	}
+}
+
+func TestParseWindow(t *testing.T) {
+	s, _, _ := newTestServer(t)
+	w, err := s.parseWindow(json.RawMessage(`{
+		"title": " Patch ", "strategy": "recurring-day-of-month", "active": 1, "intervalDay": "1",
+		"dateRange": ["2026-01-01T00:00", null], "timeRange": [{"hours": 2, "minutes": 5}, {"hours": 3, "minutes": 0}],
+		"weekdays": [], "daysOfMonth": [15, "lastDay1"], "cron": "30 3 * * *", "durationMinutes": 60,
+		"timezoneOption": "Asia/Hong_Kong", "holidayMode": "exclude", "holidayCountries": ["hk", "CN", "HK"]
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.Title != "Patch" || !w.Active || w.StartTime != "02:05" || w.EndTime != "03:00" || w.EndDate != "" ||
+		!slices.Equal(w.DaysOfMonth, []int{15, -1}) || !slices.Equal(w.HolidayCountries, []string{"HK", "CN"}) {
+		t.Fatalf("window: %+v", w)
+	}
+	out := s.windowJSON(w, time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC))
+	if out["holidayMode"] != "exclude" || out["timezone"] != "Asia/Hong_Kong" || out["timezoneOffset"] != "+08:00" ||
+		out["daysOfMonth"].([]any)[1] != "lastDay1" {
+		t.Fatalf("json: %v", out)
+	}
+	// Slots are on the window's own clock.
+	slots := out["timeslotList"].([]map[string]any)
+	if len(slots) != 1 || !strings.HasSuffix(slots[0]["startDate"].(string), "T02:05:00") {
+		t.Fatalf("slots: %v", slots)
+	}
+
+	// Holidays don't apply to windows without recurring days.
+	w, err = s.parseWindow(json.RawMessage(`{"title": "m", "strategy": "manual", "holidayMode": "include", "holidayCountries": ["HK"]}`))
+	if err != nil || w.HolidayMode != "" || w.HolidayCountries != nil {
+		t.Fatalf("manual: %+v %v", w, err)
+	}
+	for name, raw := range map[string]string{
+		"country": `{"title": "x", "strategy": "recurring-interval", "intervalDay": 1, "timeRange": [{"hours": 1}, {"hours": 2}], "holidayMode": "exclude", "holidayCountries": ["XX"]}`,
+		"none":    `{"title": "x", "strategy": "recurring-interval", "intervalDay": 1, "timeRange": [{"hours": 1}, {"hours": 2}], "holidayMode": "exclude"}`,
+		"day":     `{"title": "x", "strategy": "recurring-day-of-month", "timeRange": [{"hours": 1}, {"hours": 2}], "daysOfMonth": ["lastDay9"]}`,
+		"cron":    `{"title": "x", "strategy": "cron", "cron": "30 3 * * *", "durationMinutes": 5, "holidayMode": "include", "holidayCountries": ["HK"]}`,
+	} {
+		if _, err := s.parseWindow(json.RawMessage(raw)); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestMaintenanceEvents(t *testing.T) {
+	s, fs, _ := newTestServer(t)
+	ctx := context.Background()
+	c := &conn{userID: 1, out: make(chan []byte, 256), done: make(chan struct{})}
+	call := func(event string, args ...any) reply {
+		t.Helper()
+		raws := make([]json.RawMessage, len(args))
+		for i, a := range args {
+			raws[i], _ = json.Marshal(a)
+		}
+		r, known := s.handle(ctx, c, event, raws)
+		if !known {
+			t.Fatalf("%s: unknown event", event)
+		}
+		return r.(reply)
+	}
+
+	group := monitor.New()
+	group.Name, group.Type = "G", monitor.TypeGroup
+	group, _ = fs.CreateMonitor(ctx, group)
+	child := monitor.New()
+	child.Name, child.Type, child.URL, child.ParentID = "C", monitor.TypeHTTP, "https://a.b", &group.ID
+	child, _ = fs.CreateMonitor(ctx, child)
+
+	r := call("addMaintenance", map[string]any{"title": "M", "strategy": "manual", "active": 1})
+	if r["ok"] != true {
+		t.Fatalf("add: %v", r)
+	}
+	id := r["maintenanceID"].(int32)
+	if r := call("addMaintenanceStatusPage", id, []any{}); r["ok"] != true {
+		t.Fatalf("no status pages: %v", r)
+	}
+	if r := call("addMaintenanceStatusPage", id, []any{map[string]any{"id": 1}}); r["ok"] != false {
+		t.Fatalf("status pages: %v", r)
+	}
+
+	// A window on a group covers what's below it.
+	if s.maintenance.UnderMaintenance(child.ID) {
+		t.Fatal("covered before linking")
+	}
+	if r := call("addMonitorMaintenance", id, []any{map[string]any{"id": group.ID}}); r["ok"] != true {
+		t.Fatalf("link: %v", r)
+	}
+	if !s.maintenance.UnderMaintenance(group.ID) || !s.maintenance.UnderMaintenance(child.ID) {
+		t.Fatal("group and child should be under maintenance")
+	}
+	if r := call("getMonitorMaintenance", id); len(r["monitors"].([]map[string]any)) != 1 {
+		t.Fatalf("monitors: %v", r)
+	}
+	if r := call("getMonitor", child.ID); r["monitor"].(map[string]any)["maintenance"] != true {
+		t.Fatalf("flag: %v", r)
+	}
+
+	if r := call("pauseMaintenance", id); r["ok"] != true || s.maintenance.UnderMaintenance(child.ID) {
+		t.Fatalf("pause: %v", r)
+	}
+	if r := call("resumeMaintenance", id); r["ok"] != true || !s.maintenance.UnderMaintenance(child.ID) {
+		t.Fatalf("resume: %v", r)
+	}
+	if r := call("getMaintenance", 99); r["ok"] != false {
+		t.Fatalf("missing: %v", r)
+	}
+	if r := call("deleteMaintenance", id); r["ok"] != true || s.maintenance.UnderMaintenance(child.ID) {
+		t.Fatalf("delete: %v", r)
+	}
+}
+
+func TestHolidayEvents(t *testing.T) {
+	s, _, _ := newTestServer(t)
+	ctx := context.Background()
+	c := &conn{userID: 1, out: make(chan []byte, 256), done: make(chan struct{})}
+	call := func(event string, args ...any) reply {
+		t.Helper()
+		raws := make([]json.RawMessage, len(args))
+		for i, a := range args {
+			raws[i], _ = json.Marshal(a)
+		}
+		r, known := s.handle(ctx, c, event, raws)
+		if !known {
+			t.Fatalf("%s: unknown event", event)
+		}
+		return r.(reply)
+	}
+	list := func() []holidays.Holiday {
+		t.Helper()
+		return call("getHolidays", "HK", 2026)["holidays"].([]holidays.Holiday)
+	}
+	find := func(date string) *holidays.Holiday {
+		for _, h := range list() {
+			if h.Date == date {
+				return &h
+			}
+		}
+		return nil
+	}
+
+	if r := call("getHolidayCountries"); len(r["countries"].([]holidays.Country)) < 200 {
+		t.Fatalf("countries: %v", r["source"])
+	}
+	if r := call("getHolidays", "XX", 2026); r["ok"] != false {
+		t.Fatalf("unknown country: %v", r)
+	}
+	if len(list()) != 17 {
+		t.Fatalf("HK 2026: %d", len(list()))
+	}
+
+	if r := call("addCustomHoliday", "hk", "2026-04-08", "Office closed"); r["ok"] != true {
+		t.Fatalf("add: %v", r)
+	}
+	if h := find("2026-04-08"); h == nil || h.Source != "custom" || h.Name != "Office closed" {
+		t.Fatalf("custom: %+v", h)
+	}
+	if r := call("addCustomHoliday", "HK", "not a date", "x"); r["ok"] != false {
+		t.Fatalf("bad date: %v", r)
+	}
+	if r := call("removeHoliday", "HK", "2026-04-08"); r["ok"] != true || find("2026-04-08") != nil {
+		t.Fatalf("remove custom: %v", r)
+	}
+
+	// A bundled date is hidden, not lost, and can come back.
+	if r := call("removeHoliday", "HK", "2026-04-03"); r["ok"] != true {
+		t.Fatalf("remove bundled: %v", r)
+	}
+	if h := find("2026-04-03"); h == nil || !h.Removed {
+		t.Fatalf("removed: %+v", h)
+	}
+	day := time.Date(2026, 4, 3, 0, 0, 0, 0, time.UTC)
+	if s.maintenance.Calendar().IsHoliday(day, []string{"HK"}) {
+		t.Fatal("removed date still counts")
+	}
+	if r := call("restoreHoliday", "HK", "2026-04-03"); r["ok"] != true || !s.maintenance.Calendar().IsHoliday(day, []string{"HK"}) {
+		t.Fatalf("restore: %v", r)
+	}
+	if r := call("removeHoliday", "HK", "2026-04-09"); r["ok"] != false {
+		t.Fatalf("remove what isn't there: %v", r)
+	}
+	if r := call("getUpcomingHolidays", []string{"HK"}); r["ok"] != true {
+		t.Fatalf("upcoming: %v", r)
+	}
+}
+
+func TestTagEvents(t *testing.T) {
+	s, fs, _ := newTestServer(t)
+	ctx := context.Background()
+	c := &conn{userID: 1, out: make(chan []byte, 256), done: make(chan struct{})}
+	s.mu.Lock()
+	s.conns["test"] = c
+	s.mu.Unlock()
+	call := func(event string, args ...any) reply {
+		t.Helper()
+		raws := make([]json.RawMessage, len(args))
+		for i, a := range args {
+			raws[i], _ = json.Marshal(a)
+		}
+		r, known := s.handle(ctx, c, event, raws)
+		if !known {
+			t.Fatalf("%s: unknown event", event)
+		}
+		return r.(reply)
+	}
+	pushed := func(event string) bool {
+		found := false
+		for {
+			select {
+			case frame := <-c.out:
+				found = found || strings.Contains(string(frame), `["`+event+`"`)
+			default:
+				return found
+			}
+		}
+	}
+	m := monitor.New()
+	m.Name, m.Type, m.URL = "Site", monitor.TypeHTTP, "https://a.b"
+	m, _ = fs.CreateMonitor(ctx, m)
+
+	if r := call("getTags"); len(r["tags"].([]store.Tag)) != 0 {
+		t.Fatalf("no tags yet: %v", r)
+	}
+	r := call("addTag", map[string]any{"name": " prod ", "color": "#ff0000", "new": true})
+	tag, isTag := r["tag"].(store.Tag)
+	if r["ok"] != true || !isTag || tag.Name != "prod" {
+		t.Fatalf("add: %v", r)
+	}
+	if r := call("addTag", map[string]any{"name": "", "color": "#ff0000"}); r["ok"] != false {
+		t.Fatalf("empty name: %v", r)
+	}
+
+	if r := call("addMonitorTag", tag.ID, m.ID, nil); r["msg"] != "successAdded" {
+		t.Fatalf("attach: %v", r)
+	}
+	if r := call("addMonitorTag", tag.ID, m.ID, "eu"); r["ok"] != true {
+		t.Fatalf("attach with a value: %v", r)
+	}
+	if !pushed("updateMonitorIntoList") {
+		t.Fatal("monitor update not pushed")
+	}
+	if r := call("addMonitorTag", 99, m.ID, ""); r["ok"] != false {
+		t.Fatalf("missing tag: %v", r)
+	}
+	tags := call("getMonitor", m.ID)["monitor"].(map[string]any)["tags"].([]store.MonitorTag)
+	if len(tags) != 2 || tags[0].TagID != tag.ID || tags[1].Value != "eu" || tags[0].Color != "#ff0000" {
+		t.Fatalf("monitor tags: %+v", tags)
+	}
+	data, _ := json.Marshal(tags[1])
+	for _, field := range []string{`"tag_id"`, `"monitor_id"`, `"value":"eu"`, `"name":"prod"`} {
+		if !strings.Contains(string(data), field) {
+			t.Errorf("%s missing from %s", field, data)
+		}
+	}
+
+	// Renaming shows on the monitors that carry it.
+	pushed("")
+	if r := call("editTag", map[string]any{"id": tag.ID, "name": "production", "color": "#00ff00"}); r["msg"] != "Saved." {
+		t.Fatalf("edit: %v", r)
+	}
+	if !pushed("updateMonitorIntoList") {
+		t.Fatal("rename not pushed")
+	}
+	if r := call("editTag", map[string]any{"id": 99, "name": "x", "color": "y"}); r["msg"] != "tagNotFound" {
+		t.Fatalf("edit missing: %v", r)
+	}
+	if r := call("deleteMonitorTag", tag.ID, m.ID, "eu"); r["ok"] != true {
+		t.Fatalf("detach: %v", r)
+	}
+	if tags := call("getMonitor", m.ID)["monitor"].(map[string]any)["tags"].([]store.MonitorTag); len(tags) != 1 {
+		t.Fatalf("after detach: %+v", tags)
+	}
+	pushed("")
+	if r := call("deleteTag", tag.ID); r["ok"] != true {
+		t.Fatalf("delete: %v", r)
+	}
+	if !pushed("updateMonitorIntoList") {
+		t.Fatal("delete not pushed")
+	}
+	if tags := call("getMonitor", m.ID)["monitor"].(map[string]any)["tags"].([]store.MonitorTag); len(tags) != 0 {
+		t.Fatalf("after delete: %+v", tags)
+	}
+}
+
+func TestExpiryNotificationField(t *testing.T) {
+	m, _, _, err := parseMonitor(json.RawMessage(`{"type": "http", "name": "x", "url": "https://a.b", "expiryNotification": true}`))
+	if err != nil || !m.ExpiryNotification {
+		t.Fatalf("on: %+v %v", m, err)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "http", "name": "x", "url": "https://a.b", "expiryNotification": true, "ignoreTls": true}`))
+	if err != nil || m.ExpiryNotification {
+		t.Fatalf("with ignoreTls: %+v %v", m, err)
+	}
+	if out := newMonitorTree(nil, nil).monitorJSON(monitor.Monitor{ExpiryNotification: true}); out["expiryNotification"] != true {
+		t.Fatalf("json: %v", out["expiryNotification"])
 	}
 }

@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/holidays"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/maintenance"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/notify"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
@@ -57,6 +59,27 @@ type Store interface {
 	DeleteNotification(ctx context.Context, id int32) error
 	SetMonitorNotifications(ctx context.Context, monitorID int32, ids []int32) error
 	AllMonitorNotificationIDs(ctx context.Context) (map[int32][]int32, error)
+
+	ListTags(ctx context.Context) ([]store.Tag, error)
+	CreateTag(ctx context.Context, name, color string) (store.Tag, error)
+	UpdateTag(ctx context.Context, tag store.Tag) error
+	DeleteTag(ctx context.Context, id int32) error
+	AddMonitorTag(ctx context.Context, tagID, monitorID int32, value string) error
+	UpdateMonitorTag(ctx context.Context, tagID, monitorID int32, value string) error
+	DeleteMonitorTag(ctx context.Context, tagID, monitorID int32, value string) error
+	AllMonitorTags(ctx context.Context) (map[int32][]store.MonitorTag, error)
+	AllTLSInfo(ctx context.Context) (map[int32]string, error)
+
+	ListMaintenances(ctx context.Context) ([]maintenance.Window, error)
+	GetMaintenance(ctx context.Context, id int32) (maintenance.Window, error)
+	CreateMaintenance(ctx context.Context, w maintenance.Window) (maintenance.Window, error)
+	UpdateMaintenance(ctx context.Context, w maintenance.Window) (maintenance.Window, error)
+	SetMaintenanceActive(ctx context.Context, id int32, active bool) error
+	DeleteMaintenance(ctx context.Context, id int32) error
+	SetMaintenanceMonitors(ctx context.Context, maintenanceID int32, monitorIDs []int32) error
+	MaintenanceMonitorLinks(ctx context.Context) (map[int32][]int32, error)
+	SetHolidayOverride(ctx context.Context, o holidays.Override) error
+	DeleteHolidayOverride(ctx context.Context, country, date string) error
 }
 
 // Scheduler runs checks. Upsert starts, restarts or stops a monitor as its Active field says.
@@ -78,6 +101,8 @@ type Options struct {
 	BaseURL string
 	// Location is the server's timezone.
 	Location *time.Location
+	// Maintenance tracks maintenance windows and holds the holiday calendars. Required.
+	Maintenance *maintenance.Service
 	// SetupWindow is how long after start the first account may be created. Zero means 10 minutes.
 	SetupWindow time.Duration
 }
@@ -92,6 +117,8 @@ type Server struct {
 	now       func() time.Time
 	started   time.Time
 	limiter   *loginLimiter
+	// maintenance tracks maintenance windows.
+	maintenance *maintenance.Service
 
 	setupMu sync.Mutex
 
@@ -112,17 +139,25 @@ func New(s Store, scheduler Scheduler, notifyEnv *notify.Env, log *slog.Logger, 
 	if opts.Version == "" {
 		opts.Version = "dev"
 	}
-	return &Server{
-		store:     s,
-		scheduler: scheduler,
-		notifyEnv: notifyEnv,
-		log:       log,
-		opts:      opts,
-		now:       time.Now,
-		started:   time.Now(),
-		limiter:   newLoginLimiter(),
-		conns:     map[string]*conn{},
+	server := &Server{
+		maintenance: opts.Maintenance,
+		store:       s,
+		scheduler:   scheduler,
+		notifyEnv:   notifyEnv,
+		log:         log,
+		opts:        opts,
+		now:         time.Now,
+		started:     time.Now(),
+		limiter:     newLoginLimiter(),
+		conns:       map[string]*conn{},
 	}
+	// A window started or ended, so open pages show its new status.
+	opts.Maintenance.OnChange(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), handlerTimeout)
+		defer cancel()
+		server.broadcastMaintenanceList(ctx)
+	})
+	return server
 }
 
 // Register adds the UI's routes to mux.

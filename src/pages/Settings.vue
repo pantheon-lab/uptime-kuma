@@ -96,6 +96,9 @@ export default {
                 tags: {
                     title: this.$t("Tags"),
                 },
+                holidays: {
+                    title: this.$t("Holidays"),
+                },
                 "monitor-history": {
                     title: this.$t("Monitor History"),
                 },

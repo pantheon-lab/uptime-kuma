@@ -1,6 +1,9 @@
 package monitor
 
-import "strings"
+import (
+	"crypto/tls"
+	"strings"
+)
 
 const maxMsgBytes = 4096
 
@@ -12,6 +15,8 @@ type Result struct {
 	// Pending reports PENDING directly, without using up a retry. Groups use it when they
 	// are empty or a child is pending.
 	Pending bool
+	// TLS is the connection's state, if the check made an HTTPS request.
+	TLS *tls.ConnectionState
 }
 
 // Previous is what the next beat needs from the last one. A nil *Previous means
@@ -86,6 +91,17 @@ func (m *Monitor) Next(prev *Previous, result Result) Outcome {
 		out.Important = IsImportant(prev.Status, out.Status)
 	}
 	m.applyNotify(prev, &out)
+	return out
+}
+
+// MaintenanceMsg is the message of a beat made under maintenance, as in the Node.js backend.
+const MaintenanceMsg = "Monitor under maintenance"
+
+// Maintenance is the beat for a monitor under maintenance, which isn't checked. Entering or
+// leaving maintenance is an event, but never an alert, and retries start again afterwards.
+func (m *Monitor) Maintenance(prev *Previous) Outcome {
+	out := Outcome{Status: StatusMaintenance, Msg: MaintenanceMsg}
+	out.Important = prev == nil || IsImportant(prev.Status, out.Status)
 	return out
 }
 

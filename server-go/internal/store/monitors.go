@@ -24,7 +24,7 @@ var (
 
 const monitorColumns = `id, name, type, active, interval_seconds, retry_interval_seconds, timeout_seconds,
 	max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
-	max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval`
+	max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval, expiry_notification`
 
 // aggregateRefreshTimeout allows for rebuilding every bucket a deleted monitor touched.
 const (
@@ -39,7 +39,7 @@ func scanMonitor(row pgx.Row) (monitor.Monitor, error) {
 	var m monitor.Monitor
 	err := row.Scan(&m.ID, &m.Name, &m.Type, &m.Active, &m.Interval, &m.RetryInterval, &m.Timeout,
 		&m.MaxRetries, &m.UpsideDown, &m.URL, &m.Method, &m.Headers, &m.Body, &m.BodyEncoding, &m.AcceptedStatusCodes,
-		&m.MaxRedirects, &m.IgnoreTLS, &m.Keyword, &m.InvertKeyword, &m.Hostname, &m.Port, &m.ParentID, &m.PropagateTrace, &m.ResendInterval)
+		&m.MaxRedirects, &m.IgnoreTLS, &m.Keyword, &m.InvertKeyword, &m.Hostname, &m.Port, &m.ParentID, &m.PropagateTrace, &m.ResendInterval, &m.ExpiryNotification)
 	return m, err
 }
 
@@ -166,12 +166,12 @@ func (s *Store) CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 		created, err := scanMonitor(tx.QueryRow(ctx, `
 			INSERT INTO monitor (name, type, active, interval_seconds, retry_interval_seconds, timeout_seconds,
 				max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
-				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval, expiry_notification)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
 			RETURNING `+monitorColumns,
 			m.Name, m.Type, m.Active, m.Interval, m.RetryInterval, m.Timeout,
 			m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers, m.Body, m.BodyEncoding, m.AcceptedStatusCodes,
-			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace, m.ResendInterval))
+			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace, m.ResendInterval, m.ExpiryNotification))
 		return created, monitorResult(err)
 	})
 }
@@ -188,12 +188,12 @@ func (s *Store) UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 				timeout_seconds = $7, max_retries = $8, upside_down = $9, url = $10, method = $11, headers = $12,
 				body = $13, body_encoding = $14, accepted_status_codes = $15, max_redirects = $16, ignore_tls = $17,
 				keyword = $18, invert_keyword = $19, hostname = $20, port = $21, parent_id = $22, propagate_trace = $23,
-				resend_interval = $24, updated_at = now()
+				resend_interval = $24, expiry_notification = $25, updated_at = now()
 			WHERE id = $1
 			RETURNING `+monitorColumns,
 			m.ID, m.Name, m.Type, m.Active, m.Interval, m.RetryInterval, m.Timeout,
 			m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers, m.Body, m.BodyEncoding, m.AcceptedStatusCodes,
-			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace, m.ResendInterval))
+			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace, m.ResendInterval, m.ExpiryNotification))
 		if err := monitorResult(err); err != nil {
 			return m, err
 		}

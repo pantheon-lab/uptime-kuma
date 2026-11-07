@@ -295,3 +295,48 @@ func TestWriterCloseFlushes(t *testing.T) {
 		t.Errorf("flushed %v", ids)
 	}
 }
+
+type switchableMaintenance struct{ on atomic.Bool }
+
+func (m *switchableMaintenance) UnderMaintenance(int32) bool { return m.on.Load() }
+
+type countingNotifier struct{ count atomic.Int32 }
+
+func (n *countingNotifier) Notify(monitor.Monitor, store.Beat) { n.count.Add(1) }
+
+func TestMaintenanceSkipsChecksAndAlerts(t *testing.T) {
+	sink := &fakeSink{}
+	var checks atomic.Int32
+	checker := checkFunc(func(context.Context, monitor.Monitor) monitor.Result {
+		checks.Add(1)
+		return monitor.Result{Msg: "boom"}
+	})
+	window := &switchableMaintenance{}
+	window.on.Store(true)
+	notifier := &countingNotifier{}
+	s := New(checker, sink, 10, quiet)
+	s.SetNotifier(notifier)
+	s.SetMaintenance(window)
+	defer s.Stop()
+
+	s.Upsert(monitor.Monitor{ID: 1, Active: true, Interval: 1})
+	waitFor(t, "two maintenance beats", func() bool { return len(sink.snapshot()) >= 2 })
+	beats := sink.snapshot()
+	if beats[0].Status != monitor.StatusMaintenance || beats[0].Msg != monitor.MaintenanceMsg || !beats[0].Important || beats[1].Important {
+		t.Fatalf("beats: %+v", beats[:2])
+	}
+	if checks.Load() != 0 || notifier.count.Load() != 0 {
+		t.Fatalf("under maintenance: %d checks, %d alerts", checks.Load(), notifier.count.Load())
+	}
+
+	// When the window ends, checks resume, and a failure alerts.
+	window.on.Store(false)
+	waitFor(t, "a down beat", func() bool {
+		beats := sink.snapshot()
+		return beats[len(beats)-1].Status == monitor.StatusDown
+	})
+	waitFor(t, "the alert", func() bool { return notifier.count.Load() >= 1 })
+	if checks.Load() == 0 {
+		t.Fatal("no check after the window")
+	}
+}

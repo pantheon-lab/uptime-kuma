@@ -69,8 +69,10 @@ type Monitor struct {
 	AcceptedStatusCodes []string          `json:"acceptedStatusCodes"`
 	MaxRedirects        int32             `json:"maxRedirects"`
 	IgnoreTLS           bool              `json:"ignoreTls"`
-	Keyword             string            `json:"keyword"`
-	InvertKeyword       bool              `json:"invertKeyword"`
+	// ExpiryNotification alerts before the certificate expires. It has no effect with IgnoreTLS.
+	ExpiryNotification bool   `json:"expiryNotification"`
+	Keyword            string `json:"keyword"`
+	InvertKeyword      bool   `json:"invertKeyword"`
 
 	Hostname string `json:"hostname"`
 	Port     int32  `json:"port"`

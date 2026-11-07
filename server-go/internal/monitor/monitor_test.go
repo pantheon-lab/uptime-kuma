@@ -253,3 +253,28 @@ func TestResendInterval(t *testing.T) {
 		t.Errorf("recovery: %+v", out)
 	}
 }
+
+func TestMaintenanceOutcome(t *testing.T) {
+	m := New()
+	for _, tc := range []struct {
+		prev      *Previous
+		important bool
+	}{
+		{nil, true},
+		{&Previous{Status: StatusUp}, true},
+		{&Previous{Status: StatusDown, Retries: 3, DownCount: 2}, true},
+		{&Previous{Status: StatusMaintenance}, false},
+	} {
+		out := m.Maintenance(tc.prev)
+		if out.Status != StatusMaintenance || out.Important != tc.important || out.Notify || out.Retries != 0 || out.DownCount != 0 {
+			t.Errorf("prev %+v: %+v", tc.prev, out)
+		}
+	}
+	// Leaving maintenance: a failure alerts, a recovery doesn't.
+	if out := m.Next(&Previous{Status: StatusMaintenance}, Result{OK: false}); !out.Notify {
+		t.Errorf("maintenance to down: %+v", out)
+	}
+	if out := m.Next(&Previous{Status: StatusMaintenance}, Result{OK: true}); out.Notify || !out.Important {
+		t.Errorf("maintenance to up: %+v", out)
+	}
+}

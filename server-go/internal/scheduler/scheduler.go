@@ -3,6 +3,7 @@ package scheduler
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
@@ -52,6 +53,10 @@ type Scheduler struct {
 	slots   chan struct{}
 	// notifier is optional, and set before Start.
 	notifier Notifier
+	// maintenance is optional, and set before Start.
+	maintenance Maintenance
+	// certificates is optional, and set before Start.
+	certificates Certificates
 
 	mu      sync.Mutex
 	stopped bool
@@ -82,6 +87,22 @@ func New(checker Checker, sink Sink, concurrency int, log *slog.Logger) *Schedul
 
 // SetNotifier sets where alerts go. Call it before Start.
 func (s *Scheduler) SetNotifier(n Notifier) { s.notifier = n }
+
+// Maintenance says which monitors are under maintenance.
+type Maintenance interface {
+	UnderMaintenance(monitorID int32) bool
+}
+
+// SetMaintenance sets what decides maintenance. Call it before Start.
+func (s *Scheduler) SetMaintenance(m Maintenance) { s.maintenance = m }
+
+// Certificates takes the TLS connection of a check. It mustn't block.
+type Certificates interface {
+	Observe(m monitor.Monitor, state *tls.ConnectionState)
+}
+
+// SetCertificates sets what receives TLS connections. Call it before Start.
+func (s *Scheduler) SetCertificates(c Certificates) { s.certificates = c }
 
 // Start begins checking monitors, spreading first checks over each interval so a
 // restart doesn't check everything in the same second. previous holds the last
@@ -211,6 +232,24 @@ func (s *Scheduler) run(ctx context.Context, m monitor.Monitor, delay time.Durat
 		}
 		scheduled := time.Now()
 
+		// Under maintenance, the target isn't checked: the beat says so, and never alerts.
+		if s.maintenance != nil && s.maintenance.UnderMaintenance(m.ID) {
+			out := m.Maintenance(state)
+			state = &monitor.Previous{Status: out.Status, Retries: out.Retries, DownCount: out.DownCount}
+			s.sink.Add(store.Beat{
+				MonitorID: m.ID,
+				Time:      time.Now().UTC().Truncate(time.Microsecond),
+				Status:    out.Status,
+				Msg:       out.Msg,
+				Important: out.Important,
+			})
+			metrics.SetMonitorUp(m.ID, m.Name, s.groupName(m), false)
+			wait := max(time.Millisecond, time.Duration(m.Interval)*time.Second-time.Since(scheduled))
+			due = time.Now().Add(wait)
+			timer.Reset(wait)
+			continue
+		}
+
 		select {
 		case <-ctx.Done():
 			return state
@@ -236,6 +275,10 @@ func (s *Scheduler) run(ctx context.Context, m monitor.Monitor, delay time.Durat
 			span.SetAttributes(attribute.Bool("monitor.check.cancelled", true))
 			span.End()
 			return state
+		}
+
+		if result.TLS != nil && s.certificates != nil {
+			s.certificates.Observe(m, result.TLS)
 		}
 
 		out := m.Next(state, result)

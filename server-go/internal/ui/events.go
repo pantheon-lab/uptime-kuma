@@ -50,9 +50,6 @@ var errNotLoggedIn = errors.New("You are not logged in.")
 // emptyReplies answer events that the UI sends on its own when a page opens, for features
 // this service doesn't have yet. An error would show a toast on every page load.
 var emptyReplies = map[string]func() any{
-	"getTags":                  func() any { return ok("tags", []any{}) },
-	"getMaintenanceList":       func() any { return ok() },
-	"getMonitorMaintenance":    func() any { return ok("monitors", []any{}) },
 	"getMaintenanceStatusPage": func() any { return ok("statusPages", []any{}) },
 	"getAPIKeyList":            func() any { return ok() },
 	"getDatabaseSize":          func() any { return ok("size", 0) },
@@ -107,7 +104,11 @@ func (s *Server) afterLogin(ctx context.Context, c *conn) {
 		s.log.Error("send monitor list", "error", err)
 	}
 	c.emit("info", s.info(ctx, true))
-	c.emit("maintenanceList", map[string]any{})
+	if list, err := s.maintenanceList(ctx); err != nil {
+		s.log.Error("send maintenance list", "error", err)
+	} else {
+		c.emit("maintenanceList", list)
+	}
 	if err := s.sendNotificationList(ctx, c); err != nil {
 		s.log.Error("send notification list", "error", err)
 	}
@@ -157,7 +158,12 @@ func (s *Server) monitorTree(ctx context.Context) (*monitorTree, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newMonitorTree(monitors, links), nil
+	tree := newMonitorTree(monitors, links)
+	if tree.tags, err = s.store.AllMonitorTags(ctx); err != nil {
+		return nil, err
+	}
+	tree.underMaintenance = s.maintenance.UnderMaintenanceSet()
+	return tree, nil
 }
 
 func (s *Server) sendMonitorList(ctx context.Context, c *conn) error {
@@ -250,9 +256,23 @@ func (s *Server) sendDashboardLists(ctx context.Context, c *conn) {
 	stats, err := s.stats(ctx)
 	if err != nil {
 		s.log.Error("send stats", "error", err)
+	} else {
+		c.emit("stats", stats)
+	}
+	certificates, err := s.store.AllTLSInfo(ctx)
+	if err != nil {
+		s.log.Error("send certificates", "error", err)
 		return
 	}
-	c.emit("stats", stats)
+	for id, info := range certificates {
+		c.emit("certInfo", id, info)
+	}
+}
+
+// BroadcastCertInfo tells open pages about a monitor's new certificate information. The UI
+// expects it as JSON text.
+func (s *Server) BroadcastCertInfo(monitorID int32, info string) {
+	s.broadcast(encodeMessage("certInfo", monitorID, info))
 }
 
 // handle runs one event. hasReply is false for events this server doesn't know.
@@ -319,6 +339,56 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.deleteNotification(ctx, args)
 	case "testNotification":
 		r, err = s.testNotification(ctx, args)
+	case "getTags":
+		r, err = s.getTags(ctx)
+	case "addTag":
+		r, err = s.addTag(ctx, args)
+	case "editTag":
+		r, err = s.editTag(ctx, args)
+	case "deleteTag":
+		r, err = s.deleteTag(ctx, args)
+	case "addMonitorTag":
+		r, err = s.changeMonitorTag(ctx, args, s.store.AddMonitorTag, "successAdded")
+	case "editMonitorTag":
+		r, err = s.changeMonitorTag(ctx, args, s.store.UpdateMonitorTag, "successEdited")
+	case "deleteMonitorTag":
+		r, err = s.changeMonitorTag(ctx, args, s.store.DeleteMonitorTag, "successDeleted")
+	case "getMaintenanceList":
+		var list map[string]any
+		if list, err = s.maintenanceList(ctx); err == nil {
+			c.emit("maintenanceList", list)
+			r = ok()
+		}
+	case "getMaintenance":
+		r, err = s.getMaintenance(ctx, args)
+	case "addMaintenance":
+		r, err = s.saveMaintenance(ctx, args, false)
+	case "editMaintenance":
+		r, err = s.saveMaintenance(ctx, args, true)
+	case "addMonitorMaintenance":
+		r, err = s.setMaintenanceMonitors(ctx, args)
+	case "addMaintenanceStatusPage":
+		r, err = s.setMaintenanceStatusPages(args)
+	case "getMonitorMaintenance":
+		r, err = s.getMaintenanceMonitors(ctx, args)
+	case "pauseMaintenance":
+		r, err = s.setMaintenanceActive(ctx, args, false)
+	case "resumeMaintenance":
+		r, err = s.setMaintenanceActive(ctx, args, true)
+	case "deleteMaintenance":
+		r, err = s.deleteMaintenance(ctx, args)
+	case "getHolidayCountries":
+		r = s.holidayCountries()
+	case "getHolidays":
+		r, err = s.listHolidays(args)
+	case "getUpcomingHolidays":
+		r, err = s.upcoming(args)
+	case "addCustomHoliday":
+		r, err = s.addCustomHoliday(ctx, args)
+	case "removeHoliday":
+		r, err = s.removeHoliday(ctx, args)
+	case "restoreHoliday":
+		r, err = s.restoreHoliday(ctx, args)
 	default:
 		return nil, false
 	}
@@ -379,6 +449,7 @@ func (s *Server) addMonitor(ctx context.Context, args []json.RawMessage) (reply,
 	if err := s.store.SetMonitorNotifications(ctx, created.ID, notificationIDs); err != nil {
 		return nil, userErr(fmt.Errorf("the monitor was added, but its notifications weren't: %w", err))
 	}
+	s.maintenance.Changed() // A new monitor may be in a group under maintenance.
 	s.scheduler.Upsert(created)
 	s.broadcastMonitors(ctx, created.ID)
 	s.log.Info("monitor added from the web UI", "monitor", created.ID)
@@ -413,6 +484,7 @@ func (s *Server) editMonitor(ctx context.Context, args []json.RawMessage) (reply
 	if err := s.store.SetMonitorNotifications(ctx, updated.ID, notificationIDs); err != nil {
 		return nil, userErr(fmt.Errorf("the monitor was saved, but its notifications weren't: %w", err))
 	}
+	s.maintenance.Changed() // It may have moved to another group.
 	s.scheduler.Upsert(updated)
 	s.broadcastMonitors(ctx, updated.ID)
 	s.log.Info("monitor changed from the web UI", "monitor", updated.ID)

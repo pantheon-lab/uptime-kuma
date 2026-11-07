@@ -220,7 +220,7 @@ func TestImportsMonitorsFaithfully(t *testing.T) {
 	if report.SkippedByReason["unsupported monitor type"] != 2 {
 		t.Errorf("by reason: %+v", report.SkippedByReason)
 	}
-	if report.DroppedSettings["cacheBust"] != 1 || report.DroppedSettings["resendInterval"] != 0 || report.DroppedSettings["certificateExpiryNotification"] != 5 || report.DroppedSettings["saveResponse"] != 0 || report.WithAlerts != 2 {
+	if report.DroppedSettings["cacheBust"] != 1 || report.DroppedSettings["resendInterval"] != 0 || report.DroppedSettings["certificateExpiryNotification"] != 0 || report.DroppedSettings["saveResponse"] != 0 || report.WithAlerts != 2 {
 		t.Errorf("reported losses: %+v, alerts %d", report.DroppedSettings, report.WithAlerts)
 	}
 
@@ -593,5 +593,50 @@ func TestImportsResendInterval(t *testing.T) {
 	f.run(t, true, false)
 	if n := f.count(t, "SELECT resend_interval FROM monitor WHERE id = $1", f.targetID(t, 1)); n != 5 {
 		t.Fatalf("resend interval: %d", n)
+	}
+}
+
+func TestImportsTagsAndCertificateAlerts(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	f.monitor(t, 1, "Secure", "http", map[string]any{"url": "https://example.com", "expiry_notification": 1})
+	f.monitor(t, 2, "Ignored", "http", map[string]any{"url": "https://example.com", "expiry_notification": 1, "ignore_tls": 1})
+	f.monitor(t, 3, "Unsupported", "ping", map[string]any{"hostname": "example.com"})
+	f.exec(t, "INSERT INTO tag (id, name, color) VALUES (7, 'prod', '#ff0000'), (8, 'eu', '#00ff00')")
+	f.exec(t, "INSERT INTO monitor_tag (monitor_id, tag_id, value) VALUES (1, 7, ''), (1, 8, 'west'), (3, 7, '')")
+
+	dry := f.run(t, false, false)
+	if dry.Tags != 2 || dry.TagLinks != 2 {
+		t.Fatalf("dry run: %d tags, %d links", dry.Tags, dry.TagLinks)
+	}
+	if n := f.count(t, "SELECT count(*) FROM tag"); n != 0 {
+		t.Fatalf("dry run wrote %d tags", n)
+	}
+
+	// Twice, because importing again must duplicate nothing.
+	f.run(t, true, false)
+	report := f.run(t, true, false)
+	if report.TagLinks != 2 {
+		t.Fatalf("links: %d", report.TagLinks)
+	}
+	if n := f.count(t, "SELECT count(*) FROM tag"); n != 2 {
+		t.Fatalf("%d tags", n)
+	}
+	secure := f.targetID(t, 1)
+	all, err := f.target.AllMonitorTags(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tags := all[secure]; len(tags) != 2 || tags[0].Name != "eu" || tags[0].Value != "west" || tags[1].Color != "#ff0000" {
+		t.Fatalf("tags: %+v", tags)
+	}
+
+	m, err := f.target.GetMonitor(ctx, secure)
+	if err != nil || !m.ExpiryNotification {
+		t.Fatalf("secure: %+v %v", m, err)
+	}
+	m, err = f.target.GetMonitor(ctx, f.targetID(t, 2))
+	if err != nil || m.ExpiryNotification {
+		t.Fatalf("with ignored TLS: %+v %v", m, err)
 	}
 }
