@@ -51,7 +51,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: analytics
-          image: {{ printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) }}
+          image: {{ include "uptime-kuma.appImage" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http

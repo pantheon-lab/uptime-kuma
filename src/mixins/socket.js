@@ -72,14 +72,6 @@ export default {
             proxyList: [],
             connectionErrorMsg: `${this.$t("Cannot connect to the socket server.")} ${this.$t("Reconnecting...")}`,
             showReverseProxyGuide: true,
-            cloudflared: {
-                cloudflareTunnelToken: "",
-                installed: null,
-                running: false,
-                message: "",
-                errorMessage: "",
-                currentPassword: "",
-            },
             faviconUpdateDebounce: null,
             emitter: mitt(),
         };
@@ -355,13 +347,6 @@ export default {
 
                 this.socket.firstConnect = false;
             });
-
-            // cloudflared
-            socket.on("cloudflared_installed", (res) => (this.cloudflared.installed = res));
-            socket.on("cloudflared_running", (res) => (this.cloudflared.running = res));
-            socket.on("cloudflared_message", (res) => (this.cloudflared.message = res));
-            socket.on("cloudflared_errorMessage", (res) => (this.cloudflared.errorMessage = res));
-            socket.on("cloudflared_token", (res) => (this.cloudflared.cloudflareTunnelToken = res));
 
             socket.on("initServerTimezone", () => {
                 socket.emit("initServerTimezone", dayjs.tz.guess());

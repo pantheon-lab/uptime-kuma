@@ -1673,5 +1673,8 @@
     "holidayDataSource": "Bundled data: {source}. For countries with regions, only national holidays are included. Governments can announce changes after this data was made, so check important dates.",
     "serverTimezoneFromEnv": "Set with {0} on the server.",
     "databaseSize": "Database size: {0}",
-    "databaseSizeDescriptionPostgres": "PostgreSQL frees space on its own: monitor history older than the days above is dropped a day at a time, and clearing statistics frees their space at once."
+    "databaseSizeDescriptionPostgres": "PostgreSQL frees space on its own: monitor history older than the days above is dropped a day at a time, and clearing statistics frees their space at once.",
+    "cloudflaredSidecar": "This server doesn't start cloudflared itself. Run Cloudflare's cloudflared beside it instead, as Cloudflare recommends for containers, and point the tunnel's public hostname at this server.",
+    "cloudflaredSidecarHow": "With Docker Compose, set {token} and run {profile}. With the Helm chart, set {helm} and the tunnel token.",
+    "cloudflaredSidecarGuide": "How to set up a Cloudflare Tunnel"
 }

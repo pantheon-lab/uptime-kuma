@@ -42,6 +42,18 @@ services:
       # first, because API keys and the admin token are bearer credentials.
       - "${API_BIND:-127.0.0.1}:3002:3002"
 
+  # Cloudflare Tunnel, off unless started with --profile tunnel. Create the tunnel in Cloudflare's
+  # dashboard, point its public hostname at http://analytics:3002, and set CLOUDFLARE_TUNNEL_TOKEN.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.7
+    profiles: [tunnel]
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - analytics
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.116.1
     restart: unless-stopped

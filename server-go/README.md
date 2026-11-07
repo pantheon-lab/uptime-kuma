@@ -8,8 +8,8 @@ percentiles and dashboard stats over REST, plus new beats over Server-Sent Event
 status pages and badges, exports traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
 **Status:** this is now the only backend, because the Node.js server and MariaDB support have
-been removed. It isn't feature complete. Not built yet: more than one account, and the integrations listed in
-[`PORTING.md`](PORTING.md).
+been removed. It isn't feature complete. Not built yet: more than one account, and logging in with GitHub, which
+[`PORTING.md`](PORTING.md) plans.
 
 [PORTING.md](PORTING.md) records what has moved from the Node.js server, phase by phase, and what's left.
 
@@ -339,6 +339,7 @@ docker compose up --build
 | `KUMA_INITIAL_ADMIN_PASSWORD`      | not set          | The password of that account, which must pass the same checks as at setup                       |
 | `KUMA_DISABLE_LEAK_PASSWORD_CHECK` | `false`          | Stops checking new passwords against Pwned Passwords, for servers without internet access       |
 | `KUMA_UPDATE_CHECK_URL`            | GitHub's tags    | Where the update check lists releases, or `off`                                                 |
+| `CLOUDFLARE_TUNNEL_TOKEN`          | not set          | In `compose.yaml`, the token of the Cloudflare Tunnel that the `tunnel` profile runs            |
 | `DOCKER_TLS_DIR_PATH`              | not set          | Client certificates for `https://` Docker hosts, in a directory per host                        |
 
 To deploy on Kubernetes, use the Helm chart in [`charts/uptime-kuma`](charts/uptime-kuma/README.md), which
@@ -350,6 +351,26 @@ would both run every check.
 The service speaks plain HTTP, so keep it on a private network or behind a TLS proxy. Browsers
 can't set headers on `EventSource`, so `/api/v1/events` is meant for a proxy or server-side
 client until login moves over.
+
+### The apprise image
+
+The image holds only the two programs. The `apprise` notification provider runs the Python `apprise` command, so
+it's in a second image, the Dockerfile's `apprise` target, published with an `-apprise` suffix on every tag, such
+as `ghcr.io/pantheon-lab/uptime-kuma:1.2.3-apprise`, and about 120 MB larger. Use it only for apprise. In the
+Helm chart, set `image.apprise=true`; to build it, `docker build --target apprise .`.
+
+### Cloudflare Tunnel
+
+This service doesn't start `cloudflared` itself, as Uptime Kuma did. Cloudflare's own `cloudflared` runs beside it
+instead, as Cloudflare recommends for containers, and needs no port open:
+
+1. In Cloudflare's dashboard, under Networks > Tunnels, create a tunnel and copy its token.
+2. Add a public hostname to it, for the service `http://analytics:3002` with Docker Compose, or
+   `http://<release>-uptime-kuma-analytics:3002` with the Helm chart.
+3. With Docker Compose, set `CLOUDFLARE_TUNNEL_TOKEN` and run `docker compose --profile tunnel up -d`. With the Helm
+   chart, set `cloudflared.enabled=true` and `cloudflared.token`, or `cloudflared.existingSecret`.
+
+Then set Trust Proxy under Settings > Reverse Proxy, and `KUMA_BASE_URL` to the public hostname.
 
 ## API
 
@@ -541,7 +562,7 @@ Differences from Uptime Kuma:
   browsers. `kuma-import` copies Uptime Kuma's pair, so that browsers subscribed there keep getting messages.
 - `nostr` sends a NIP-17 private message, gift-wrapped with NIP-59, to each recipient on each relay, and logs in to
   relays that ask (NIP-42), as Uptime Kuma did.
-- `apprise` runs the `apprise` command, which isn't in the container image.
+- `apprise` runs the `apprise` command, which is only in the `-apprise` image.
 - `NOTIFICATION_PROXY` isn't supported.
 - `AlertNow`, `SIGNL4` and `SMSManager` fix bugs: a crash on recovery, an alert ID of `UptimeKuma-undefined`, and
   `gateway=undefined`.
