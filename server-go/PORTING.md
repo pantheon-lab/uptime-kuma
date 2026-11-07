@@ -12,8 +12,8 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | 0     | Core: checks, notifications, history, web UI, login, deployment | Done    |
 | 1     | Maintenance windows and public holidays, tags, TLS certificates | Done    |
 | 2     | Push, Ping and DNS monitors                                     | Done    |
-| 3     | Status pages and badges                                         | Next    |
-| 4     | Remaining monitor types                                         | Planned |
+| 3     | Status pages and badges                                         | Done    |
+| 4     | Remaining monitor types                                         | Next    |
 | 5     | Accounts and administration                                     | Planned |
 | 6     | Integrations                                                    | Planned |
 
@@ -74,13 +74,38 @@ Known limits and differences from Node.js:
 - Ping's packet size is the data size, as with the `ping` command, but the numeric output setting is ignored.
 - Records come in the order the resolver sends them, so a round-robin answer changes the message between checks.
 
-## Phase 3: Status pages and badges (planned)
+## Phase 3: Status pages and badges (done)
 
-- Public status pages, with incidents, the RSS feed and custom domains
-- Linking maintenance windows to status pages, which makes the options in the maintenance form work
-- Badges under `/api/badge/:id/...`
+- **Status pages:** made, edited and deleted in the UI, with groups, logos, themes, custom CSS, footers, analytics,
+  tags and certificate expiry. The page's HTML is rendered with its data, as in Node.js.
+- **Incidents:** posting, editing, resolving, unpinning and deleting, and the paged history.
+- **RSS feed**, **custom domains**, the **entry page** setting, and the manifest for installing a page as an app.
+- **Maintenance windows on status pages:** the status page options in the maintenance form now work.
+- **Badges:** status, uptime, ping, average response, response and certificate expiry for monitors, and the overall
+  state of a page. A port of badge-maker draws the same SVG, which tests compare with badge-maker's own output.
+- The Helm chart's ingress can list the custom domains, in `ingress.statusPageHosts`.
 
-This is the largest phase.
+Tested with the race detector against TimescaleDB, including a test that drives the UI's realtime events and the public
+routes on a real database. Upstream's Playwright specs for status pages, incident history, public pages and badges
+were ported and pass in headless Chromium against the built image: `internal/e2e/browser/status-pages.mjs`.
+
+Not tested: custom domains through a real proxy or ingress, and installing on Kubernetes. Upstream's maintenance spec
+passes only with the browser in the server's timezone, the Phase 1 limit, which Node.js has too.
+
+Known limits and differences from Node.js:
+
+- The REST API has no routes for status pages or incidents, and `kuma-import` doesn't copy them yet (Phase 5).
+- Public answers are kept for up to a minute, rather than 5. Browsers are told to ask again each time, which fixes
+  edits not showing until the cache expired.
+- A monitor's address on a page leaves out any user name and password in it.
+- Logos are stored in the database, rather than in the data directory, and must be up to 2 MB.
+- A logo must be a PNG, or an http(s) address or a path; Node.js took any text.
+- Matomo's address is used without its scheme, which makes it work: Node.js made `//https://...`.
+- A ping badge with no beats is N/A, where Node.js showed `NaNms`. The status and response badges of a monitor without
+  beats are N/A, where Node.js answered an error.
+- Custom domains must be plain host names, and are lower-cased.
+- Fixed in the UI: a public page showed "?" as its overall status, and grey status pills, because an upstream change
+  had made it stop recording each monitor's newest beat.
 
 ## Phase 4: Remaining monitor types (planned)
 

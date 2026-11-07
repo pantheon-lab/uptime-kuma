@@ -175,6 +175,8 @@ func run(log *slog.Logger) error {
 		BaseURL:     strings.TrimRight(os.Getenv("KUMA_BASE_URL"), "/"),
 		Location:    location,
 		Maintenance: maintenanceService,
+		StatusPages: db,
+		IndexHTML:   webui.IndexHTML(),
 	})
 	go uiServer.Run(ctx, hub)
 	certService.OnChange(uiServer.BroadcastCertInfo)

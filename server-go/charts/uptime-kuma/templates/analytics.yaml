@@ -180,10 +180,14 @@ spec:
   tls:
     - hosts:
         - {{ .Values.ingress.host | quote }}
+        {{- range .Values.ingress.statusPageHosts }}
+        - {{ . | quote }}
+        {{- end }}
       secretName: {{ .Values.ingress.tlsSecretName }}
   {{- end }}
   rules:
-    - host: {{ .Values.ingress.host | quote }}
+    {{- range prepend .Values.ingress.statusPageHosts .Values.ingress.host }}
+    - host: {{ . | quote }}
       http:
         paths:
           - path: /
@@ -193,4 +197,5 @@ spec:
                 name: {{ $name }}
                 port:
                   name: http
+    {{- end }}
 {{- end }}

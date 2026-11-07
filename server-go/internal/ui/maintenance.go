@@ -341,9 +341,9 @@ func (s *Server) setMaintenanceMonitors(ctx context.Context, args []json.RawMess
 	return okI18n("successAdded"), nil
 }
 
-// setMaintenanceStatusPages succeeds when there's nothing to link, because the form always sends
-// this after saving, and this service has no status pages to link yet.
-func (s *Server) setMaintenanceStatusPages(args []json.RawMessage) (reply, error) {
+// noMaintenanceStatusPages succeeds when there's nothing to link, because the form always sends
+// this after saving, on a server without status pages.
+func (s *Server) noMaintenanceStatusPages(args []json.RawMessage) (reply, error) {
 	var pages []json.RawMessage
 	if err := arg(args, 1, &pages); err != nil {
 		return nil, userErr(err)

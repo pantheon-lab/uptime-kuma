@@ -24,8 +24,17 @@ func Built() bool {
 	return hasIndex(mustSub(embedded))
 }
 
-// Mount returns a handler that sends /api/ and /healthz to api and everything else to the
-// frontend. Without a built frontend it returns api unchanged.
+// IndexHTML returns the frontend's index.html, or nil without a built frontend.
+func IndexHTML() []byte {
+	data, err := fs.ReadFile(mustSub(embedded), "index.html")
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+// Mount returns a handler that sends /api/, /healthz, status pages, uploaded logos and / itself
+// to api, and everything else to the frontend. Without a built frontend it returns api unchanged.
 func Mount(api http.Handler) http.Handler {
 	return mount(api, mustSub(embedded))
 }
@@ -50,6 +59,11 @@ func mount(api http.Handler, fsys fs.FS) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/api/", api)
 	mux.Handle("/healthz", api)
+	// Status pages are rendered with their data, and / decides between a custom domain's
+	// status page and the entry page.
+	for _, pattern := range []string{"/status", "/status/", "/status-page", "/upload/", "GET /{$}"} {
+		mux.Handle(pattern, api)
+	}
 	mux.Handle("/", &files{fsys: fsys})
 	return mux
 }

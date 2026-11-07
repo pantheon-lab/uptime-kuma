@@ -2,10 +2,9 @@
 // (compatible with the better-auth client the UI uses), first-run setup, and the realtime
 // protocol under /api/realtime that replaced Socket.IO.
 //
-// It covers what the dashboard needs for HTTP, keyword, TCP port and group monitors and their
-// notifications. Events for features this service doesn't have yet, such as status pages,
-// maintenance windows and tags, get an empty answer when the UI asks for them on page load,
-// and a "not supported yet" error otherwise.
+// It also serves what visitors see without logging in: status pages, rendered with their data,
+// their feeds and badges. Events for features this service doesn't have yet get an empty answer
+// when the UI asks for them on page load, and a "not supported yet" error otherwise.
 package ui
 
 import (
@@ -105,6 +104,11 @@ type Options struct {
 	Maintenance *maintenance.Service
 	// SetupWindow is how long after start the first account may be created. Zero means 10 minutes.
 	SetupWindow time.Duration
+	// StatusPages stores status pages. Without it, they aren't supported.
+	StatusPages StatusPageStore
+	// IndexHTML is the web UI's index.html, which status pages are rendered into. Without it,
+	// /status/ answers 404, and the data is still at /api/status-page/.
+	IndexHTML []byte
 }
 
 // Server serves the UI's API.
@@ -119,6 +123,9 @@ type Server struct {
 	limiter   *loginLimiter
 	// maintenance tracks maintenance windows.
 	maintenance *maintenance.Service
+	// pages is nil when status pages aren't supported.
+	pages StatusPageStore
+	cache *publicCache
 
 	setupMu sync.Mutex
 
@@ -150,11 +157,14 @@ func New(s Store, scheduler Scheduler, notifyEnv *notify.Env, log *slog.Logger, 
 		started:     time.Now(),
 		limiter:     newLoginLimiter(),
 		conns:       map[string]*conn{},
+		pages:       opts.StatusPages,
+		cache:       newPublicCache(),
 	}
 	// A window started or ended, so open pages show its new status.
 	opts.Maintenance.OnChange(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), handlerTimeout)
 		defer cancel()
+		server.cache.clear()
 		server.broadcastMaintenanceList(ctx)
 	})
 	return server
@@ -171,6 +181,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/auth/", s.authNotSupported)
 	mux.HandleFunc("GET /api/realtime/stream", s.stream)
 	mux.HandleFunc("POST /api/realtime/send", s.sameOrigin(s.send))
+	if s.pages != nil {
+		s.registerPublic(mux)
+	} else {
+		mux.HandleFunc("GET /{$}", s.root)
+	}
 }
 
 // Run sends new beats and refreshed stats to logged-in browsers until ctx ends.

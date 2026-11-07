@@ -36,6 +36,12 @@ func get(t *testing.T, h http.Handler, method, target, acceptEncoding string) *h
 	return rec
 }
 
+func TestIndexHTMLWithoutFrontend(t *testing.T) {
+	if !Built() && IndexHTML() != nil {
+		t.Fatal("index.html without a built frontend")
+	}
+}
+
 func TestMountWithoutFrontendReturnsAPI(t *testing.T) {
 	h := mount(api, fstest.MapFS{".gitkeep": {}})
 	if rec := get(t, h, "GET", "/", ""); rec.Code != http.StatusTeapot {
@@ -55,7 +61,12 @@ func TestMountRoutes(t *testing.T) {
 		{name: "unknown api route stays in api", method: "GET", target: "/api/nope", wantStatus: http.StatusTeapot, wantAPI: true},
 		{name: "api post", method: "POST", target: "/api/v1/beats", wantStatus: http.StatusTeapot, wantAPI: true},
 		{name: "healthz", method: "GET", target: "/healthz", wantStatus: http.StatusTeapot, wantAPI: true},
-		{name: "root", method: "GET", target: "/", wantStatus: 200, wantBody: "<html>app</html>", wantCache: "no-cache"},
+		{name: "root goes to the api, which picks the entry page", method: "GET", target: "/", wantStatus: http.StatusTeapot, wantAPI: true},
+		{name: "status page", method: "GET", target: "/status/main", wantStatus: http.StatusTeapot, wantAPI: true},
+		{name: "default status page", method: "GET", target: "/status", wantStatus: http.StatusTeapot, wantAPI: true},
+		{name: "old status page path", method: "GET", target: "/status-page", wantStatus: http.StatusTeapot, wantAPI: true},
+		{name: "uploaded logo", method: "GET", target: "/upload/logo1.png", wantStatus: http.StatusTeapot, wantAPI: true},
+		{name: "index.html itself", method: "GET", target: "/index.html", wantStatus: 200, wantBody: "<html>app</html>"},
 		{name: "spa route", method: "GET", target: "/dashboard/12", wantStatus: 200, wantBody: "<html>app</html>", wantCache: "no-cache"},
 		{name: "static file", method: "GET", target: "/favicon.ico", wantStatus: 200, wantBody: "icon", wantCache: "no-cache"},
 		{name: "missing file", method: "GET", target: "/missing.js", wantStatus: 404},
@@ -66,7 +77,7 @@ func TestMountRoutes(t *testing.T) {
 		{name: "spa route compressed", method: "GET", target: "/settings", acceptEncoding: "gzip", wantStatus: 200, wantBody: "gzipped index", wantEncoding: "gzip"},
 		{name: "path traversal is redirected to the clean path", method: "GET", target: "/../../etc/passwd", wantStatus: http.StatusTemporaryRedirect},
 		{name: "outside path is an app route", method: "GET", target: "/etc/passwd", wantStatus: 200, wantBody: "<html>app</html>"},
-		{name: "post to ui", method: "POST", target: "/", wantStatus: http.StatusMethodNotAllowed},
+		{name: "post to ui", method: "POST", target: "/settings", wantStatus: http.StatusMethodNotAllowed},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

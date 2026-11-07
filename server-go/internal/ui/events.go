@@ -50,10 +50,9 @@ var errNotLoggedIn = errors.New("You are not logged in.")
 // emptyReplies answer events that the UI sends on its own when a page opens, for features
 // this service doesn't have yet. An error would show a toast on every page load.
 var emptyReplies = map[string]func() any{
-	"getMaintenanceStatusPage": func() any { return ok("statusPages", []any{}) },
-	"getAPIKeyList":            func() any { return ok() },
-	"getDatabaseSize":          func() any { return ok("size", 0) },
-	"checkApprise":             func() any { return false },
+	"getAPIKeyList":   func() any { return ok() },
+	"getDatabaseSize": func() any { return ok("size", 0) },
+	"checkApprise":    func() any { return false },
 }
 
 // arg decodes argument i into v. A missing argument leaves v as it is.
@@ -119,7 +118,15 @@ func (s *Server) afterLogin(ctx context.Context, c *conn) {
 		monitor.TypeGroup: map[string]any{"supportsConditions": false, "conditionVariables": []any{}},
 		monitor.TypePort:  map[string]any{"supportsConditions": false, "conditionVariables": []any{}},
 	})
-	c.emit("statusPageList", map[string]any{})
+	if s.pages == nil {
+		c.emit("statusPageList", map[string]any{})
+		return
+	}
+	if list, err := s.statusPageList(ctx); err != nil {
+		s.log.Error("send status page list", "error", err)
+	} else {
+		c.emit("statusPageList", list)
+	}
 }
 
 func (s *Server) info(ctx context.Context, full bool) map[string]any {
@@ -368,7 +375,17 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 	case "addMonitorMaintenance":
 		r, err = s.setMaintenanceMonitors(ctx, args)
 	case "addMaintenanceStatusPage":
-		r, err = s.setMaintenanceStatusPages(args)
+		if s.pages == nil {
+			r, err = s.noMaintenanceStatusPages(args)
+		} else {
+			r, err = s.setMaintenanceStatusPages(ctx, args)
+		}
+	case "getMaintenanceStatusPage":
+		if s.pages == nil {
+			r = ok("statusPages", []any{})
+		} else {
+			r, err = s.getMaintenanceStatusPages(ctx, args)
+		}
 	case "getMonitorMaintenance":
 		r, err = s.getMaintenanceMonitors(ctx, args)
 	case "pauseMaintenance":
@@ -390,11 +407,18 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 	case "restoreHoliday":
 		r, err = s.restoreHoliday(ctx, args)
 	default:
-		return nil, false
+		if s.pages == nil {
+			return nil, false
+		}
+		handler, found := statusPageEvents[event]
+		if !found {
+			return nil, false
+		}
+		r, err = handler(s, ctx, args)
 	}
 	if err != nil {
 		if !errors.Is(err, store.ErrNotFound) && !errors.Is(err, store.ErrInvalidParent) &&
-			!errors.Is(err, store.ErrPushTokenTaken) && !isUserError(err) {
+			!errors.Is(err, store.ErrPushTokenTaken) && !errors.Is(err, store.ErrSlugTaken) && !isUserError(err) {
 			s.log.Error("realtime event failed", "event", event, "error", err)
 			return fail(errors.New("internal error, see the server log")), true
 		}
@@ -717,6 +741,7 @@ func (s *Server) setSettings(ctx context.Context, c *conn, args []json.RawMessag
 	if err := s.store.SaveSettings(ctx, toSave); err != nil {
 		return nil, err
 	}
+	s.cache.clear() // The entry page or trusting a proxy may have changed.
 	c.emit("info", s.info(ctx, true))
 	return okI18n("Saved."), nil
 }
