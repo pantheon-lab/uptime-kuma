@@ -36,7 +36,11 @@ Everything else answers "This isn't supported by this server yet". In particular
 - Form settings this service doesn't have, such as certificate expiry notifications, aren't saved.
 - Of **Settings > General**, the server timezone comes from `KUMA_TIMEZONE` and can't be changed there. The DNS cache,
   Prometheus and "API and MCP" switches are gone: the image has no nscd, OpenTelemetry replaces `/metrics`, and the
-  REST API is always on, guarded by its keys. The update check under About isn't built yet.
+  REST API and MCP server are always on, guarded by their keys.
+- **Settings > About** shows a notice when this fork has a newer release: a `v1.2.3` tag in
+  [pantheon-lab/uptime-kuma](https://github.com/pantheon-lab/uptime-kuma/tags), read from GitHub's API every 48
+  hours. Pre-releases such as `v1.3.0-beta.1` count when "Also check beta release" is ticked, and nothing is asked
+  when "Show update if available" isn't. `KUMA_UPDATE_CHECK_URL=off` stops it altogether.
 - Changes made through the REST API reach open browsers only when they reload.
 
 Sessions are a random token in an `HttpOnly`, `SameSite=Lax` cookie, `Secure` behind HTTPS (the proxy must
@@ -334,6 +338,7 @@ docker compose up --build
 | `KUMA_INITIAL_ADMIN_USERNAME`      | not set          | With the password, creates the account at start if there's none. Ignored once there's one       |
 | `KUMA_INITIAL_ADMIN_PASSWORD`      | not set          | The password of that account, which must pass the same checks as at setup                       |
 | `KUMA_DISABLE_LEAK_PASSWORD_CHECK` | `false`          | Stops checking new passwords against Pwned Passwords, for servers without internet access       |
+| `KUMA_UPDATE_CHECK_URL`            | GitHub's tags    | Where the update check lists releases, or `off`                                                 |
 | `DOCKER_TLS_DIR_PATH`              | not set          | Client certificates for `https://` Docker hosts, in a directory per host                        |
 
 To deploy on Kubernetes, use the Helm chart in [`charts/uptime-kuma`](charts/uptime-kuma/README.md), which
@@ -350,6 +355,25 @@ client until login moves over.
 
 The API is described by an OpenAPI document at `GET /api/v1/openapi.json`, which you can load
 into Swagger UI, Postman or a client generator.
+
+### MCP
+
+`/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server over Streamable HTTP, for AI
+assistants. Its tools are the API's read-only operations, such as `listMonitors`, `getMonitor`, `getBeats` and
+`getStats`, with their parameters. It needs an API key, like the API, and each tool asks the API with that key, so
+the key's scopes and rate limit apply: give the assistant a key with only the `:read` scopes it needs. It can't
+change anything.
+
+```json
+{
+  "mcpServers": {
+    "uptime-kuma": {
+      "url": "https://kuma.example.com/mcp",
+      "headers": { "Authorization": "Bearer kuma_..." }
+    }
+  }
+}
+```
 
 ### API keys
 

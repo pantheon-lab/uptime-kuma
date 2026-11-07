@@ -23,11 +23,13 @@ import (
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/domains"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/holidays"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/maintenance"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/mcp"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/notify"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/scheduler"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/telemetry"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/ui"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/updates"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/webui"
 )
 
@@ -214,7 +216,26 @@ func run(log *slog.Logger) error {
 	} else {
 		passwordLeaked = ui.PwnedPasswords(nil, ui.PwnedPasswordsURL)
 	}
+	var updateChecker *updates.Checker
+	if url := os.Getenv("KUMA_UPDATE_CHECK_URL"); url != "off" {
+		if url == "" {
+			url = updates.DefaultURL
+		}
+		updateChecker = updates.New(url, nil, func(ctx context.Context) (bool, bool, error) {
+			settings, err := db.Settings(ctx)
+			if err != nil {
+				return false, false, err
+			}
+			// As in the UI, checking is on until it's turned off, and betas are off.
+			check, beta := true, false
+			_ = json.Unmarshal(settings["checkUpdate"], &check)
+			_ = json.Unmarshal(settings["checkBeta"], &beta)
+			return check, beta, nil
+		}, log)
+		go updateChecker.Run(ctx)
+	}
 	uiServer := ui.New(db, sched, notifyEnv, log, ui.Options{
+		Updates:        updateChecker,
 		PasswordLeaked: passwordLeaked,
 		Version:        version,
 		BaseURL:        strings.TrimRight(os.Getenv("KUMA_BASE_URL"), "/"),
@@ -237,6 +258,13 @@ func run(log *slog.Logger) error {
 	routes.Handle("/api/v1/", restAPI)
 	routes.Handle("/healthz", restAPI)
 	routes.Handle("/api/push/", restAPI)
+	mcpHandler, err := mcp.Handler(mcp.Options{
+		API: restAPI, OpenAPI: api.OpenAPI(), Version: version, Authenticate: apiServer.Authenticate,
+	})
+	if err != nil {
+		return err
+	}
+	routes.Handle("/mcp", mcpHandler)
 	uiServer.Register(routes)
 
 	server := &http.Server{

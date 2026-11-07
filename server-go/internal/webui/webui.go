@@ -59,6 +59,7 @@ func mount(api http.Handler, fsys fs.FS) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/api/", api)
 	mux.Handle("/healthz", api)
+	mux.Handle("/mcp", api)
 	// Status pages are rendered with their data, / decides between a custom domain's status
 	// page and the entry page, screenshots come from the database, and robots.txt follows a setting.
 	for _, pattern := range []string{"/status", "/status/", "/status-page", "/upload/", "/screenshots/", "/robots.txt", "GET /{$}"} {

@@ -100,6 +100,12 @@ type Store interface {
 	ResourceStore
 }
 
+// Updates knows the newest release.
+type Updates interface {
+	Latest() string
+	Recheck()
+}
+
 // Scheduler runs checks. Upsert starts, restarts or stops a monitor as its Active field says.
 type Scheduler interface {
 	Upsert(m monitor.Monitor)
@@ -130,6 +136,8 @@ type Options struct {
 	// PasswordLeaked reports whether a new password is a known leaked one, which is then
 	// refused. Without it, passwords aren't checked. See PwnedPasswords.
 	PasswordLeaked func(ctx context.Context, password string) (bool, error)
+	// Updates knows the newest release, for the UI's update notice. Without it there's none.
+	Updates Updates
 	// IndexHTML is the web UI's index.html, which status pages are rendered into. Without it,
 	// /status/ answers 404, and the data is still at /api/status-page/.
 	IndexHTML []byte

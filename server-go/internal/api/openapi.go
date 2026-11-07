@@ -12,3 +12,6 @@ func (s *Server) openAPI(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(openAPISpec)
 }
+
+// OpenAPI returns the API's OpenAPI document.
+func OpenAPI() []byte { return openAPISpec }
