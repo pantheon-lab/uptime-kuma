@@ -245,3 +245,199 @@ CREATE TABLE `proxy` (
   `created_date` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+-- The account, status page and maintenance tables below were created by running the knex init and
+-- migrations of the Node.js backend at 921745bf^ on MariaDB 11, and dumped with SHOW CREATE TABLE.
+
+CREATE TABLE `user` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `username` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `password` varchar(255) DEFAULT NULL,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `timezone` varchar(150) DEFAULT NULL,
+  `twofa_secret` varchar(64) DEFAULT NULL,
+  `twofa_status` tinyint(1) NOT NULL DEFAULT 0,
+  `twofa_last_token` varchar(6) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_username_unique` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE `better_auth_user` (
+  `id` varchar(255) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `emailVerified` tinyint(1) NOT NULL,
+  `image` varchar(255) DEFAULT NULL,
+  `createdAt` timestamp NOT NULL,
+  `updatedAt` timestamp NOT NULL,
+  `username` varchar(255) DEFAULT NULL,
+  `displayUsername` varchar(255) DEFAULT NULL,
+  `role` text DEFAULT NULL,
+  `banned` tinyint(1) DEFAULT NULL,
+  `banReason` text DEFAULT NULL,
+  `banExpires` timestamp NULL DEFAULT NULL,
+  `twoFactorEnabled` tinyint(1) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `better_auth_user_username_unique` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE `better_auth_account` (
+  `id` varchar(255) NOT NULL,
+  `userId` varchar(255) NOT NULL,
+  `accountId` varchar(255) NOT NULL,
+  `providerId` varchar(255) NOT NULL,
+  `accessToken` varchar(255) DEFAULT NULL,
+  `refreshToken` varchar(255) DEFAULT NULL,
+  `accessTokenExpiresAt` timestamp NULL DEFAULT NULL,
+  `refreshTokenExpiresAt` timestamp NULL DEFAULT NULL,
+  `scope` varchar(255) DEFAULT NULL,
+  `idToken` varchar(255) DEFAULT NULL,
+  `password` varchar(255) DEFAULT NULL,
+  `createdAt` timestamp NOT NULL,
+  `updatedAt` timestamp NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `better_auth_account_userid_foreign` (`userId`),
+  CONSTRAINT `better_auth_account_userid_foreign` FOREIGN KEY (`userId`) REFERENCES `better_auth_user` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE `better_auth_twoFactor` (
+  `id` varchar(255) NOT NULL,
+  `secret` varchar(255) NOT NULL,
+  `backupCodes` varchar(255) NOT NULL,
+  `verified` tinyint(1) NOT NULL,
+  `userId` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `better_auth_twofactor_userid_foreign` (`userId`),
+  CONSTRAINT `better_auth_twofactor_userid_foreign` FOREIGN KEY (`userId`) REFERENCES `better_auth_user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE `setting` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `key` varchar(200) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `value` text DEFAULT NULL,
+  `type` varchar(20) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `setting_key_unique` (`key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE `status_page` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `slug` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `icon` varchar(255) NOT NULL,
+  `theme` varchar(30) NOT NULL,
+  `published` tinyint(1) NOT NULL DEFAULT 1,
+  `search_engine_index` tinyint(1) NOT NULL DEFAULT 1,
+  `show_tags` tinyint(1) NOT NULL DEFAULT 0,
+  `password` varchar(255) DEFAULT NULL,
+  `created_date` datetime NOT NULL DEFAULT current_timestamp(),
+  `modified_date` datetime NOT NULL DEFAULT current_timestamp(),
+  `footer_text` text DEFAULT NULL,
+  `custom_css` text DEFAULT NULL,
+  `show_powered_by` tinyint(1) NOT NULL DEFAULT 1,
+  `analytics_id` varchar(255) DEFAULT NULL,
+  `show_certificate_expiry` tinyint(1) NOT NULL DEFAULT 0,
+  `auto_refresh_interval` int(10) unsigned DEFAULT 300,
+  `analytics_script_url` varchar(255) DEFAULT NULL,
+  `analytics_type` varchar(255) DEFAULT NULL,
+  `show_only_last_heartbeat` tinyint(1) NOT NULL DEFAULT 0,
+  `rss_title` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `status_page_slug_unique` (`slug`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE `status_page_cname` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `status_page_id` int(10) unsigned DEFAULT NULL,
+  `domain` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `status_page_cname_domain_unique` (`domain`),
+  KEY `status_page_cname_status_page_id_foreign` (`status_page_id`),
+  CONSTRAINT `status_page_cname_status_page_id_foreign` FOREIGN KEY (`status_page_id`) REFERENCES `status_page` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE `group` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `created_date` datetime NOT NULL DEFAULT current_timestamp(),
+  `public` tinyint(1) NOT NULL DEFAULT 0,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `weight` int(11) NOT NULL DEFAULT 1000,
+  `status_page_id` int(10) unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE `monitor_group` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `monitor_id` int(10) unsigned NOT NULL,
+  `group_id` int(10) unsigned NOT NULL,
+  `weight` int(11) NOT NULL DEFAULT 1000,
+  `send_url` tinyint(1) NOT NULL DEFAULT 0,
+  `custom_url` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `monitor_group_group_id_foreign` (`group_id`),
+  KEY `fk` (`monitor_id`,`group_id`),
+  CONSTRAINT `monitor_group_group_id_foreign` FOREIGN KEY (`group_id`) REFERENCES `group` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `monitor_group_monitor_id_foreign` FOREIGN KEY (`monitor_id`) REFERENCES `monitor` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE `incident` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) NOT NULL,
+  `content` text NOT NULL,
+  `style` varchar(30) NOT NULL DEFAULT 'warning',
+  `created_date` datetime NOT NULL DEFAULT current_timestamp(),
+  `last_updated_date` datetime DEFAULT NULL,
+  `pin` tinyint(1) NOT NULL DEFAULT 1,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `status_page_id` int(10) unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE `maintenance` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `title` varchar(150) NOT NULL,
+  `description` text NOT NULL,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `strategy` varchar(50) NOT NULL DEFAULT 'single',
+  `start_date` datetime DEFAULT NULL,
+  `end_date` datetime DEFAULT NULL,
+  `start_time` time DEFAULT NULL,
+  `end_time` time DEFAULT NULL,
+  `weekdays` varchar(250) DEFAULT '[]',
+  `days_of_month` text DEFAULT NULL,
+  `interval_day` int(11) DEFAULT NULL,
+  `cron` text DEFAULT NULL,
+  `timezone` varchar(255) DEFAULT NULL,
+  `duration` int(11) DEFAULT NULL,
+  `last_start_date` datetime DEFAULT NULL,
+  `user_id` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `maintenance_active_index` (`active`),
+  KEY `manual_active` (`strategy`,`active`),
+  KEY `maintenance_user_id_foreign` (`user_id`),
+  CONSTRAINT `maintenance_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `better_auth_user` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE `monitor_maintenance` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `monitor_id` int(10) unsigned NOT NULL,
+  `maintenance_id` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `maintenance_id_index2` (`maintenance_id`),
+  KEY `monitor_id_index` (`monitor_id`),
+  CONSTRAINT `monitor_maintenance_maintenance_id_foreign` FOREIGN KEY (`maintenance_id`) REFERENCES `maintenance` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `monitor_maintenance_monitor_id_foreign` FOREIGN KEY (`monitor_id`) REFERENCES `monitor` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE `maintenance_status_page` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `status_page_id` int(10) unsigned NOT NULL,
+  `maintenance_id` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `maintenance_status_page_maintenance_id_foreign` (`maintenance_id`),
+  KEY `maintenance_status_page_status_page_id_foreign` (`status_page_id`),
+  CONSTRAINT `maintenance_status_page_maintenance_id_foreign` FOREIGN KEY (`maintenance_id`) REFERENCES `maintenance` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `maintenance_status_page_status_page_id_foreign` FOREIGN KEY (`status_page_id`) REFERENCES `status_page` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;

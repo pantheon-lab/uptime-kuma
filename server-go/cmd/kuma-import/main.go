@@ -1,4 +1,5 @@
-// Command kuma-import copies monitors and history from an Uptime Kuma MariaDB database. It's a
+// Command kuma-import copies monitors, history, the account, status pages and maintenance
+// windows from an Uptime Kuma MariaDB database. It's a
 // dry run unless -apply is set. Connection details come from the environment, so that passwords
 // don't show up in process listings or shell history.
 package main
@@ -47,7 +48,10 @@ func run(apply, activate bool, log *slog.Logger) error {
 	}
 	defer func() { _ = source.Close() }()
 
-	options := importer.Options{Source: source, Activate: activate, Log: log}
+	options := importer.Options{
+		Source: source, Activate: activate, Log: log,
+		AuthSecret: os.Getenv("SOURCE_AUTH_SECRET"), DataDir: os.Getenv("SOURCE_DATA_DIR"),
+	}
 	if apply {
 		databaseURL := os.Getenv("DATABASE_URL")
 		if databaseURL == "" {

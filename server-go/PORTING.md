@@ -7,22 +7,22 @@ Update this file in the same pull request as each phase. Only mark a phase done 
 wasn't. The order of the planned phases is a proposal, and should follow what's actually in use: the dry run of
 `kuma-import` lists every monitor it can't bring over, and why.
 
-| Phase | Scope                                                               | Status  |
-| ----- | ------------------------------------------------------------------- | ------- |
-| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done    |
-| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done    |
-| 2     | Push, Ping and DNS monitors                                         | Done    |
-| 3     | Status pages and badges                                             | Done    |
-| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done    |
-| 4b    | Other databases and messaging                                       | Done    |
-| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done    |
-| 4d    | Docker, system and remote browser monitors                          | Done    |
-| 4e    | HTTP options, proxies and domain expiry                             | Done    |
-| 4f    | Globalping, GameDig and Tailscale ping                              | Done    |
-| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done    |
-| 5b    | Settings that take effect, and the Monitor History page             | Done    |
-| 5c    | Importing accounts, status pages and maintenance windows            | Next    |
-| 6     | Integrations                                                        | Planned |
+| Phase | Scope                                                               | Status |
+| ----- | ------------------------------------------------------------------- | ------ |
+| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done   |
+| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done   |
+| 2     | Push, Ping and DNS monitors                                         | Done   |
+| 3     | Status pages and badges                                             | Done   |
+| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done   |
+| 4b    | Other databases and messaging                                       | Done   |
+| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done   |
+| 4d    | Docker, system and remote browser monitors                          | Done   |
+| 4e    | HTTP options, proxies and domain expiry                             | Done   |
+| 4f    | Globalping, GameDig and Tailscale ping                              | Done   |
+| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done   |
+| 5b    | Settings that take effect, and the Monitor History page             | Done   |
+| 5c    | Importing accounts, status pages and maintenance windows            | Done   |
+| 6     | Integrations                                                        | Next   |
 
 ## Phase 0: Core (done)
 
@@ -101,7 +101,7 @@ passes only with the browser in the server's timezone, the Phase 1 limit, which 
 
 Known limits and differences from Node.js:
 
-- The REST API has no routes for status pages or incidents, and `kuma-import` doesn't copy them yet (Phase 5).
+- The REST API has no routes for status pages or incidents. `kuma-import` copies them since Phase 5c.
 - Public answers are kept for up to a minute, rather than 5. Browsers are told to ask again each time, which fixes
   edits not showing until the cache expired.
 - A monitor's address on a page leaves out any user name and password in it.
@@ -389,11 +389,54 @@ Known limits and differences from Node.js:
 - Beats are dropped a whole day at a time, so up to a day more than the setting is kept.
 - `apiEnabled` doesn't turn the REST API off, as existing keys would stop working. The keys guard it instead.
 
-### Phase 5c: Importing accounts, status pages and maintenance windows (next)
+### Phase 5c: Importing the account, status pages and maintenance windows (done)
 
-- The account from MariaDB, with its password hash and two-factor key, and status pages and maintenance windows
+- **The account**, from better-auth's tables: the username, the scrypt password hash as it is, and the authenticator
+  key, which better-auth encrypted with XChaCha20-Poly1305 under its secret. `SOURCE_AUTH_SECRET` gives that secret.
+  Without it, an account with two-factor login on isn't imported, as the password alone would then log in. It's only
+  imported when there's no account here. When nobody logged in since better-auth arrived, the account is still in
+  the older `user` table, as Node.js moved it at the next login: its bcrypt hash is imported, and the first login
+  here replaces it with scrypt.
+- **Status pages** with their settings, groups and monitors, incidents, custom domains and uploaded logos, which
+  are files in the Node.js data directory, read from `SOURCE_DATA_DIR`.
+- **Maintenance windows** with their monitors and status pages. The dates, times of day, days and cron are
+  converted to this service's fields. A window set to the server's timezone gets the Node.js server's timezone
+  setting, so that it keeps its times.
+- Each page and window is copied once, and remembered in `status_page_import` and `maintenance_import`, so that
+  imports can run again without overwriting changes made here.
 
-## Phase 6: Integrations (planned)
+Tested with the race detector, against MariaDB and TimescaleDB. The source tables for these came from running the
+knex init and migrations of the Node.js backend at `921745bf^` on MariaDB, and are in the importer's test schema.
+The two-factor key in the tests was encrypted with better-auth's own `symmetricEncrypt`, and codes from it were
+checked against better-auth's `createOTP`. The tests cover:
+
+- an account refused without the secret or with a wrong one, imported with it, and not imported again
+- the older table's account
+- pages with an uploaded logo, a logo address, a missing logo file, a slug already used, and a domain already used
+- monitors that weren't imported
+- incidents
+- each kind of window, and an invalid one
+- links to monitors and pages
+- running again, and copying a page again after deleting it
+
+End to end (`internal/e2e/browser/import-5c.mjs`), a source database was created by those migrations and filled
+with an account made by better-auth's own hashing and encryption, a status page with a logo, an incident and a
+window. `kuma-import` from the built image refused the account without `SOURCE_AUTH_SECRET` and imported it with
+it. Then in headless Chromium, 4 of 4 steps passed with no page errors: setup wasn't offered, the login took the
+password and a code from the imported key, the window kept its timezone, and the status page showed the logo,
+incident, monitor and footer.
+
+Not tested: a database from a real Node.js server, as opposed to one its migrations made and the tests filled.
+
+Known limits and differences from Node.js:
+
+- Only the first account is imported. Node.js used only one.
+- Backup codes aren't imported, as this service has none.
+- Changes made in Node.js to a page or window after it was copied aren't picked up. Delete it here and import again.
+- A page's `published`, `password` and `search_engine_index` columns aren't imported. Node.js didn't use them.
+- Other settings, such as `primaryBaseURL`, still aren't imported.
+
+## Phase 6: Integrations (next)
 
 - The MCP server, the Cloudflare tunnel and backup upload
 - The update check

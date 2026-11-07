@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/scrypt"
 	"golang.org/x/text/unicode/norm"
 )
@@ -40,7 +41,16 @@ func hashPassword(password string) (string, error) {
 	return saltText + ":" + hex.EncodeToString(key), nil
 }
 
+// isBcrypt reports a hash from the user table of Node.js before better-auth, which kuma-import
+// copies when nobody logged in since. The first login replaces it.
+func isBcrypt(hash string) bool {
+	return strings.HasPrefix(hash, "$2")
+}
+
 func verifyPassword(hash, password string) bool {
+	if isBcrypt(hash) {
+		return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
+	}
 	saltText, keyText, ok := strings.Cut(hash, ":")
 	if !ok || saltText == "" {
 		return false

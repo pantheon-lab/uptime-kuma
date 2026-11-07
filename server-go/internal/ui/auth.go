@@ -174,6 +174,15 @@ func (s *Server) signIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if isBcrypt(user.PasswordHash) {
+		if upgraded, err := hashPassword(body.Password); err == nil {
+			err = s.store.UpgradePasswordHash(r.Context(), user.ID, user.PasswordHash, upgraded)
+			if err != nil {
+				s.log.Warn("replace the imported password hash", "error", err)
+			}
+		}
+	}
+
 	remember := body.RememberMe == nil || *body.RememberMe
 	if user.TOTPEnabled {
 		if err := s.startChallenge(r.Context(), w, r, user.ID, remember); err != nil {

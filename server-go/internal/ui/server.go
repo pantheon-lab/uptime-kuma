@@ -28,6 +28,7 @@ type Store interface {
 	CreateFirstUser(ctx context.Context, username, passwordHash string) (store.User, error)
 	UserByUsername(ctx context.Context, username string) (store.User, error)
 	SetPassword(ctx context.Context, userID int32, passwordHash string, keep []byte) error
+	UpgradePasswordHash(ctx context.Context, userID int32, old, hash string) error
 	StartTOTPSetup(ctx context.Context, userID int32, secret []byte) error
 	EnableTOTP(ctx context.Context, userID int32, secret []byte, step int64, keep []byte) error
 	DisableTOTP(ctx context.Context, userID int32) error

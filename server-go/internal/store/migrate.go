@@ -441,6 +441,20 @@ var migrations = [][]string{
 			expires_at timestamptz NOT NULL
 		)`,
 	},
+	{
+		// Status pages and maintenance windows copied by kuma-import. Each is copied once, and
+		// deleting it here deletes its row, so that the next import copies it again.
+		`CREATE TABLE IF NOT EXISTS status_page_import (
+			source_id integer PRIMARY KEY,
+			status_page_id integer NOT NULL UNIQUE REFERENCES status_page (id) ON DELETE CASCADE,
+			imported_at timestamptz NOT NULL DEFAULT now()
+		)`,
+		`CREATE TABLE IF NOT EXISTS maintenance_import (
+			source_id integer PRIMARY KEY,
+			maintenance_id integer NOT NULL UNIQUE REFERENCES maintenance (id) ON DELETE CASCADE,
+			imported_at timestamptz NOT NULL DEFAULT now()
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.
