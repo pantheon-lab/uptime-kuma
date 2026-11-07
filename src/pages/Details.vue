@@ -144,6 +144,17 @@
                     </button>
                 </div>
                 <button
+                    v-if="isFailing"
+                    type="button"
+                    class="btn btn-outline-danger me-2"
+                    data-testid="ai-prompt"
+                    :title="$t('aiPromptButtonHelp')"
+                    @click="$refs.aiPrompt.show([monitor.id])"
+                >
+                    <font-awesome-icon icon="robot" />
+                    {{ $t("aiPromptButton") }}
+                </button>
+                <button
                     type="button"
                     class="btn btn-normal"
                     data-testid="mute-toasts"
@@ -394,6 +405,8 @@
                 </div>
             </div>
 
+            <AIPromptDialog ref="aiPrompt" />
+
             <Confirm ref="confirmPause" :yes-text="$t('Yes')" :no-text="$t('No')" @yes="pauseMonitor">
                 {{ $t("pauseMonitorMsg") }}
             </Confirm>
@@ -461,7 +474,8 @@ import Pagination from "v-pagination-3";
 const PingChart = defineAsyncComponent(() => import("../components/PingChart.vue"));
 import Tag from "../components/Tag.vue";
 import CertificateInfo from "../components/CertificateInfo.vue";
-import { getMonitorRelativeURL } from "../util.ts";
+import { DOWN, PENDING, getMonitorRelativeURL } from "../util.ts";
+import AIPromptDialog from "../components/AIPromptDialog.vue";
 import { URL } from "whatwg-url";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
@@ -488,6 +502,7 @@ export default {
         CertificateInfo,
         PrismEditor,
         ScreenshotDialog,
+        AIPromptDialog,
     },
     data() {
         return {
@@ -520,6 +535,15 @@ export default {
          */
         toastsMuted() {
             return this.$root.toastMuted.monitors.includes(this.monitor.id);
+        },
+
+        /**
+         * Whether the monitor is failing: down or pending. A group is down when a monitor in it is.
+         * @returns {boolean} Whether it is
+         */
+        isFailing() {
+            const beat = this.$root.lastHeartbeatList[this.monitor.id];
+            return !!this.monitor.active && !!beat && (beat.status === DOWN || beat.status === PENDING);
         },
 
         monitor() {

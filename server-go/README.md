@@ -38,6 +38,19 @@ role; a GitHub account's role follows its teams. Removing a GitHub account lasts
 still in the teams. No change may leave no admin who can log in, and admins can't remove or demote themselves. Each
 change is logged with who made it.
 
+### A prompt for an AI agent
+
+When a monitor is down or pending, its page has **Prompt for an AI agent**, and when any are down the dashboard has
+one for all of them. It writes up the failure in Markdown, to copy or download and give to an agent such as Claude
+Code: what the monitor checks and how often, its state and since when, the latest message, the recent checks and
+status changes, uptime, the certificate, the trace ID of the latest failed check, which leads to its trace in Tempo,
+and commands to reproduce the check, such as `curl`, `dig`, `openssl s_client` or `nc`. For several monitors, it
+asks first whether they share a cause.
+
+It's built in the browser from an allowlist of the monitor's fields, so passwords, tokens, header values, bodies,
+connection strings, push tokens and keys never go in. User names, passwords and query values whose names look like
+secrets are removed from addresses and messages, and the commands say where to put them back.
+
 ### Logging in with GitHub
 
 With a GitHub OAuth App, the login page offers "Log in with GitHub". Membership of the organization's teams decides

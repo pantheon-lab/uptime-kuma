@@ -23,7 +23,7 @@ const beatTimeFormat = "2006-01-02 15:04:05.000"
 // beatJSON is a beat as the UI reads it. Pushed beats use monitorID and listed ones
 // monitor_id, so both are set.
 func beatJSON(b store.Beat) map[string]any {
-	return map[string]any{
+	out := map[string]any{
 		"monitorID":  b.MonitorID,
 		"monitor_id": b.MonitorID,
 		"status":     b.Status,
@@ -35,6 +35,11 @@ func beatJSON(b store.Beat) map[string]any {
 		"retries":    b.Retries,
 		"down_count": b.DownCount,
 	}
+	// A failed check's trace, which the prompt for an AI agent points to
+	if b.TraceID != "" {
+		out["traceId"] = b.TraceID
+	}
+	return out
 }
 
 func beatsJSON(beats []store.Beat) []map[string]any {

@@ -34,6 +34,7 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | U1    | Tab titles, unsaved edits, clickable stats, this fork's help links  | Done    |
 | U2    | Filtering events, and grouping alerts in the UI                     | Done    |
 | U3    | Keyboard shortcuts and a command palette                            | Done    |
+| UA    | A prompt for an AI agent to trace a failing monitor                 | Done    |
 | U4    | The Edit Monitor form                                               | Planned |
 | U5    | The monitor's page                                                  | Planned |
 | U6    | Editing many monitors at once                                       | Planned |
@@ -861,6 +862,35 @@ Tested: the shortcuts and the palette's search with unit tests. In headless Chro
 before logging in. The test polls for Bootstrap's dialogs, as Playwright's `waitFor` didn't see them open.
 
 Not tested: `⌘K` on a Mac, `/` on a phone, and a viewer's palette.
+
+### UA: A prompt for an AI agent to trace a failing monitor (done)
+
+Asked for during U3: when a monitor fails, write up the failure for an AI agent, so that it can trace the issue.
+
+- **Prompt for an AI agent** on the page of a monitor that is down or pending, viewers included, and on the dashboard
+  for every monitor down, leaving out a group when a monitor in it is down too (`src/components/AIPromptDialog.vue`).
+  It shows the prompt, to copy or download as Markdown.
+- The prompt (`src/ai-prompt.ts`) asks the agent to find what's failing, reproduce the check, follow it into the
+  service's code, logs and traces, and give the cause, the fix and how to confirm it, asking before changing
+  anything. It has the monitor's settings that bear on the check, its state and since when, the latest message, the
+  last 20 checks and 10 status changes, the response time and uptime, the certificate, the group's failing monitors,
+  the trace ID of the latest failed check, and commands to reproduce the check by type: `curl`, `dig`,
+  `openssl s_client`, `nc`, `ping`, `traceroute`, `docker` and `grpcurl`. For several monitors, it asks first whether
+  they share a cause.
+- Secrets stay out: only an allowlist of fields goes in, header names without values, a database's host and port
+  without its connection string, and addresses and messages without credentials or secret-looking query values.
+- The server now sends a failed beat's trace ID to the UI (`traceId`), which it already stored. An all-zero one,
+  from a check that wasn't traced, isn't given.
+
+Tested: the prompt with unit tests, including that none of nine kinds of secret on a monitor reach it, and the trace ID
+in beats with the race detector. In headless Chromium against the built image (`internal/e2e/browser/ai-prompt.mjs`),
+8 of 8 steps passed with no page errors: a monitor that's up not offering it; a failing HTTP monitor with a password
+in its address, a token in its query, an `Authorization` header, a body and basic auth offering it, the prompt having
+the failure, the commands and a real trace ID, and none of the five secrets; copying and downloading it; and the
+dashboard's prompt for two monitors down. U1 to U3's tests passed again.
+
+Not tested: a prompt given to an agent; the commands for Docker, gRPC and the databases, which the unit tests cover
+for the databases only; and copying without the clipboard API, over plain HTTP.
 
 ### U4: The Edit Monitor form
 

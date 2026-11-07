@@ -29,6 +29,25 @@
                 </div>
             </div>
 
+            <div
+                v-if="downMonitorIDs.length > 0"
+                class="shadow-box down-banner mb-3 d-flex flex-wrap align-items-center gap-2"
+                data-testid="down-banner"
+            >
+                <font-awesome-icon icon="exclamation-circle" class="text-danger" />
+                <span class="me-auto">{{ $t("monitorsDownBanner", downMonitorIDs.length) }}</span>
+                <button
+                    type="button"
+                    class="btn btn-sm btn-outline-danger"
+                    data-testid="ai-prompt-all"
+                    :title="$t('aiPromptButtonHelp')"
+                    @click="$refs.aiPrompt.show(downMonitorIDs)"
+                >
+                    <font-awesome-icon icon="robot" />
+                    {{ $t("aiPromptButton") }}
+                </button>
+            </div>
+
             <div class="shadow-box table-shadow-box table-wrapper">
                 <div class="events-toolbar mb-3">
                     <h2 class="h5 mb-0 me-auto">{{ $t("Events") }}</h2>
@@ -164,6 +183,8 @@
     >
         {{ $t("clearAllEventsMsg") }}
     </Confirm>
+    <!-- Only on the dashboard: a monitor's page, shown below, has its own -->
+    <AIPromptDialog v-if="$route.name === 'DashboardHome'" ref="aiPrompt" />
     <router-view ref="child" />
 </template>
 
@@ -172,6 +193,7 @@ import Status from "../components/Status.vue";
 import Datetime from "../components/Datetime.vue";
 import Pagination from "v-pagination-3";
 import Confirm from "../components/Confirm.vue";
+import AIPromptDialog from "../components/AIPromptDialog.vue";
 import { DOWN, MAINTENANCE, PENDING, UP } from "../util";
 
 const EVENT_FILTER_KEY = "dashboardEventFilter";
@@ -202,6 +224,7 @@ export default {
         Status,
         Pagination,
         Confirm,
+        AIPromptDialog,
     },
     props: {
         calculatedHeight: {
@@ -230,6 +253,23 @@ export default {
         },
         tableColumnCount() {
             return this.showGroupColumn ? 5 : 4;
+        },
+
+        /**
+         * The monitors down now, leaving out groups when a monitor in them is down too, as the
+         * group is down because of it
+         * @returns {number[]} Monitor ids
+         */
+        downMonitorIDs() {
+            // At most once a second, as the counts are, not on every beat
+            this.$root.heartbeatVersion;
+            const raw = this.$root.lastBeatRaw;
+            const down = Object.values(this.$root.monitorList).filter((m) => m.active && raw[m.id]?.status === DOWN);
+            const downIDs = new Set(down.map((m) => m.id));
+            return down
+                .filter((m) => m.type !== "group" || !(m.childrenIDs ?? []).some((id) => downIDs.has(id)))
+                .sort((a, b) => (a.pathName || a.name).localeCompare(b.pathName || b.name))
+                .map((m) => m.id);
         },
 
         statusOptions() {
@@ -628,6 +668,10 @@ table {
 
 .table-wrapper {
     overflow-x: auto;
+}
+
+.down-banner {
+    padding: 12px 20px;
 }
 
 .events-toolbar {

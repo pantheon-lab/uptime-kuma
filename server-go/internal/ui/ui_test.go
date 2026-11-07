@@ -923,6 +923,13 @@ func TestBeatJSON(t *testing.T) {
 	if b["time"] != "2026-01-02 02:04:05.006" || b["monitorID"] != int32(3) || b["monitor_id"] != int32(3) {
 		t.Fatalf("beat: %v", b)
 	}
+	if _, found := b["traceId"]; found {
+		t.Fatalf("a beat without a trace has a traceId: %v", b)
+	}
+	failed := beatJSON(store.Beat{MonitorID: 3, Status: 0, TraceID: "4bf92f3577b34da6a3ce929d0e0e4736"})
+	if failed["traceId"] != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Fatalf("failed beat: %v", failed)
+	}
 }
 
 func TestAcceptsGzip(t *testing.T) {
