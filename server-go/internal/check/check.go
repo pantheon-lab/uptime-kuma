@@ -54,6 +54,10 @@ type Checker struct {
 	// dockerHosts and browsers are optional, and set before checks start.
 	dockerHosts DockerHostReader
 	browsers    BrowserStore
+	proxies     ProxyReader
+	// extra holds the transports of monitors with options, and tokens their OAuth2 tokens.
+	extra  transports
+	tokens oauthTokens
 }
 
 // Child is what a group needs to know about one of its direct children.
@@ -88,6 +92,11 @@ func New(groups GroupReader) *Checker {
 func (c *Checker) Close() {
 	c.verified.CloseIdleConnections()
 	c.insecure.CloseIdleConnections()
+	c.extra.mu.Lock()
+	for _, t := range c.extra.byID {
+		t.CloseIdleConnections()
+	}
+	c.extra.mu.Unlock()
 }
 
 // Run performs one check, bounded by the monitor's timeout.
@@ -212,10 +221,8 @@ func (c *Checker) runPort(ctx context.Context, m monitor.Monitor) monitor.Result
 }
 
 func (c *Checker) runHTTP(ctx context.Context, m monitor.Monitor, timeout time.Duration) monitor.Result {
-	var body io.Reader
 	contentType := ""
 	if strings.TrimSpace(m.Body) != "" {
-		body = strings.NewReader(m.Body)
 		switch m.BodyEncoding {
 		case "form":
 			contentType = "application/x-www-form-urlencoded"
@@ -225,37 +232,61 @@ func (c *Checker) runHTTP(ctx context.Context, m monitor.Monitor, timeout time.D
 			contentType = "application/json"
 		}
 	}
-
-	req, err := http.NewRequestWithContext(ctx, m.Method, m.URL, body)
+	target := m.URL
+	if m.CacheBust {
+		target = cacheBustURL(target)
+	}
+	transport, err := c.transportFor(ctx, m)
 	if err != nil {
 		return monitor.Result{Msg: err.Error()}
 	}
-	req.Header.Set("Accept", acceptHeader)
-	req.Header.Set("User-Agent", userAgent)
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	for name, value := range m.Headers {
-		req.Header.Set(name, value)
-	}
+	client := http.Client{Transport: roundTripper(transport, m), CheckRedirect: redirectPolicy(m.MaxRedirects)}
 
 	// Only the host goes on the span: URLs can carry credentials, and the query string
 	// and headers can carry tokens.
 	span := trace.SpanFromContext(ctx)
+	newRequest := func(freshToken bool) (*http.Request, error) {
+		var body io.Reader
+		if contentType != "" {
+			body = strings.NewReader(m.Body)
+		}
+		req, err := http.NewRequestWithContext(ctx, m.Method, target, body)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Accept", acceptHeader)
+		req.Header.Set("User-Agent", userAgent)
+		if contentType != "" {
+			req.Header.Set("Content-Type", contentType)
+		}
+		// Headers the monitor sets replace the login's, as in Node.js.
+		if err := c.authorize(ctx, req, m, freshToken); err != nil {
+			return nil, err
+		}
+		for name, value := range m.Headers {
+			req.Header.Set(name, value)
+		}
+		if m.PropagateTrace {
+			propagation.TraceContext{}.Inject(ctx, propagation.HeaderCarrier(req.Header))
+		}
+		return req.WithContext(httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutHeaders()))), nil
+	}
+	req, err := newRequest(false)
+	if err != nil {
+		return monitor.Result{Msg: err.Error()}
+	}
 	span.SetAttributes(attribute.String("server.address", req.URL.Hostname()), attribute.String("http.request.method", m.Method))
-	if m.PropagateTrace {
-		propagation.TraceContext{}.Inject(ctx, propagation.HeaderCarrier(req.Header))
-	}
-	req = req.WithContext(httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutHeaders())))
-
-	transport := c.verified
-	if m.IgnoreTLS {
-		transport = c.insecure
-	}
-	client := http.Client{Transport: transport, CheckRedirect: redirectPolicy(m.MaxRedirects)}
 
 	start := time.Now()
 	res, err := client.Do(req)
+	if err == nil && res.StatusCode == http.StatusUnauthorized && m.AuthMethod == "oauth2-cc" {
+		// The token may have been revoked, so a new one gets one more try, as in Node.js.
+		_ = res.Body.Close()
+		if req, err = newRequest(true); err != nil {
+			return monitor.Result{Msg: err.Error()}
+		}
+		res, err = client.Do(req)
+	}
 	if err != nil {
 		return monitor.Result{Msg: requestError(err, timeout)}
 	}
@@ -270,9 +301,23 @@ func (c *Checker) runHTTP(ctx context.Context, m monitor.Monitor, timeout time.D
 	ping := elapsedMs(start)
 
 	if !m.Accepts(res.StatusCode) {
-		return monitor.Result{TLS: tlsState, Msg: fmt.Sprintf("Request failed with status code %d", res.StatusCode)}
+		result := monitor.Result{TLS: tlsState, Msg: fmt.Sprintf("Request failed with status code %d", res.StatusCode)}
+		if m.SaveErrorResponse {
+			result.Response = savedResponse(m, data)
+		}
+		return result
 	}
+	result := c.httpResult(m, res, data, ping)
+	result.TLS = tlsState
+	// As in Node.js, an accepted response is only kept if error responses are too.
+	if m.SaveResponse && m.SaveErrorResponse {
+		result.Response = savedResponse(m, data)
+	}
+	return result
+}
 
+// httpResult decides an accepted response's result by the monitor's type.
+func (c *Checker) httpResult(m monitor.Monitor, res *http.Response, data []byte, ping float64) monitor.Result {
 	reason := strings.TrimSpace(strings.TrimPrefix(res.Status, strconv.Itoa(res.StatusCode)))
 	if reason == "" {
 		reason = http.StatusText(res.StatusCode)
@@ -281,12 +326,14 @@ func (c *Checker) runHTTP(ctx context.Context, m monitor.Monitor, timeout time.D
 
 	switch m.Type {
 	case monitor.TypeHTTP:
-		return monitor.Result{OK: true, TLS: tlsState, Ping: &ping, Msg: msg}
+		return monitor.Result{OK: true, Ping: &ping, Msg: msg}
 	case monitor.TypeJSONQuery:
 		result := evaluateJSONQuery(data, m)
-		result.TLS = tlsState
 		if result.OK {
 			result.Ping = &ping
+		} else if m.RetryOnlyOnStatusCodeFailure && strings.Contains(result.Msg, "JSON query does not pass") {
+			// The status was accepted, so retrying wouldn't help.
+			result.NoRetry = true
 		}
 		return result
 	}
@@ -297,13 +344,13 @@ func (c *Checker) runHTTP(ctx context.Context, m monitor.Monitor, timeout time.D
 		if found {
 			state = "is"
 		}
-		return monitor.Result{OK: true, TLS: tlsState, Ping: &ping, Msg: fmt.Sprintf("%s, keyword %s found", msg, state)}
+		return monitor.Result{OK: true, Ping: &ping, Msg: fmt.Sprintf("%s, keyword %s found", msg, state)}
 	}
 	state := "not"
 	if found {
 		state = "present"
 	}
-	return monitor.Result{TLS: tlsState, Msg: fmt.Sprintf("%s, but keyword is %s in [%s]", msg, state, snippet(data))}
+	return monitor.Result{Msg: fmt.Sprintf("%s, but keyword is %s in [%s]", msg, state, snippet(data))}
 }
 
 func redirectPolicy(limit int32) func(*http.Request, []*http.Request) error {

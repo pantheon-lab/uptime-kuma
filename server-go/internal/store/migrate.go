@@ -401,6 +401,28 @@ var migrations = [][]string{
 			taken_at timestamptz NOT NULL DEFAULT now()
 		)`,
 	},
+	{
+		// Proxies, which monitors name in settings, and the expiry dates of their domains.
+		`CREATE TABLE IF NOT EXISTS proxy (
+			id serial PRIMARY KEY,
+			protocol text NOT NULL,
+			host text NOT NULL,
+			port integer NOT NULL,
+			auth boolean NOT NULL DEFAULT false,
+			username text NOT NULL DEFAULT '',
+			password text NOT NULL DEFAULT '',
+			active boolean NOT NULL DEFAULT true,
+			is_default boolean NOT NULL DEFAULT false,
+			created_at timestamptz NOT NULL DEFAULT now()
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS proxy_one_default_idx ON proxy (is_default) WHERE is_default`,
+		`CREATE TABLE IF NOT EXISTS domain_expiry (
+			domain text PRIMARY KEY,
+			expiry timestamptz,
+			last_check timestamptz,
+			last_notified_days integer
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.

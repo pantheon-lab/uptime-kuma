@@ -25,6 +25,8 @@ type Beat struct {
 	DownCount int32     `json:"downCount"`
 	// TraceID is set on failed beats, and links to the check's trace.
 	TraceID string `json:"traceId,omitempty"`
+	// Response is the body an HTTP monitor saved for notification templates. It isn't stored.
+	Response *string `json:"-"`
 }
 
 // ChartPoint is one aggregated chart bucket.

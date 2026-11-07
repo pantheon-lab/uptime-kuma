@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/domains"
 )
 
 // ListDockerHosts returns the Docker hosts by id.
@@ -202,4 +203,127 @@ func (s *Store) ImportRemoteBrowser(ctx context.Context, b check.RemoteBrowser) 
 	b.ID = 0
 	saved, err := s.SaveRemoteBrowser(ctx, b)
 	return saved.ID, err
+}
+
+const proxyColumns = `id, protocol, host, port, auth, username, password, active, is_default`
+
+func scanProxy(row pgx.Row) (check.Proxy, error) {
+	var p check.Proxy
+	err := row.Scan(&p.ID, &p.Protocol, &p.Host, &p.Port, &p.Auth, &p.Username, &p.Password, &p.Active, &p.Default)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return p, ErrNotFound
+	}
+	return p, err
+}
+
+// ListProxies returns the proxies by id.
+func (s *Store) ListProxies(ctx context.Context) ([]check.Proxy, error) {
+	rows, err := s.pool.Query(ctx, `SELECT `+proxyColumns+` FROM proxy ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("list proxies: %w", err)
+	}
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (check.Proxy, error) { return scanProxy(r) })
+}
+
+// Proxy returns one proxy or ErrNotFound.
+func (s *Store) Proxy(ctx context.Context, id int32) (check.Proxy, error) {
+	return scanProxy(s.pool.QueryRow(ctx, `SELECT `+proxyColumns+` FROM proxy WHERE id = $1`, id))
+}
+
+// SaveProxy adds a proxy, or replaces the one with p.ID if it isn't zero. A default proxy stops
+// another being the default. applyExisting puts it on every HTTP monitor, whose ids it returns.
+func (s *Store) SaveProxy(ctx context.Context, p check.Proxy, applyExisting bool) (check.Proxy, []int32, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return p, nil, fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if p.Default {
+		if _, err := tx.Exec(ctx, `UPDATE proxy SET is_default = false WHERE is_default AND id <> $1`, p.ID); err != nil {
+			return p, nil, fmt.Errorf("clear default proxy: %w", err)
+		}
+	}
+	if p.ID == 0 {
+		p, err = scanProxy(tx.QueryRow(ctx, `INSERT INTO proxy (protocol, host, port, auth, username, password, active, is_default)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING `+proxyColumns,
+			p.Protocol, p.Host, p.Port, p.Auth, p.Username, p.Password, p.Active, p.Default))
+	} else {
+		p, err = scanProxy(tx.QueryRow(ctx, `UPDATE proxy SET protocol = $2, host = $3, port = $4, auth = $5, username = $6,
+			password = $7, active = $8, is_default = $9 WHERE id = $1 RETURNING `+proxyColumns,
+			p.ID, p.Protocol, p.Host, p.Port, p.Auth, p.Username, p.Password, p.Active, p.Default))
+	}
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return p, nil, err
+		}
+		return p, nil, fmt.Errorf("save proxy: %w", err)
+	}
+	var changed []int32
+	if applyExisting {
+		rows, err := tx.Query(ctx, `UPDATE monitor SET settings = settings || jsonb_build_object('proxyId', $1::int), updated_at = now()
+			WHERE type IN ('http', 'keyword', 'json-query') AND settings->'proxyId' IS DISTINCT FROM to_jsonb($1::int)
+			RETURNING id`, p.ID)
+		if err != nil {
+			return p, nil, fmt.Errorf("apply proxy: %w", err)
+		}
+		if changed, err = pgx.CollectRows(rows, pgx.RowTo[int32]); err != nil {
+			return p, nil, fmt.Errorf("apply proxy: %w", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return p, nil, fmt.Errorf("commit: %w", err)
+	}
+	return p, changed, nil
+}
+
+// DeleteProxy deletes a proxy, and takes it out of the monitors that used it, whose ids it returns.
+func (s *Store) DeleteProxy(ctx context.Context, id int32) ([]int32, error) {
+	return s.deleteReferenced(ctx, `DELETE FROM proxy WHERE id = $1`, "proxyId", id)
+}
+
+// ImportProxy returns the id of a proxy with the same settings, and adds one if there's none.
+// An imported proxy is never the default, so that the one chosen here stays.
+func (s *Store) ImportProxy(ctx context.Context, p check.Proxy) (int32, error) {
+	var id int32
+	err := s.pool.QueryRow(ctx, `SELECT id FROM proxy WHERE protocol = $1 AND host = $2 AND port = $3 AND auth = $4
+		AND username = $5 AND password = $6 ORDER BY id LIMIT 1`, p.Protocol, p.Host, p.Port, p.Auth, p.Username, p.Password).Scan(&id)
+	if err == nil {
+		return id, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return 0, fmt.Errorf("find proxy: %w", err)
+	}
+	p.ID, p.Default = 0, false
+	saved, _, err := s.SaveProxy(ctx, p, false)
+	return saved.ID, err
+}
+
+// DomainExpiry returns what's known about a domain. A domain never seen has an empty record.
+func (s *Store) DomainExpiry(ctx context.Context, domain string) (domains.Record, error) {
+	r := domains.Record{Domain: domain}
+	var days *int32
+	err := s.pool.QueryRow(ctx, `SELECT expiry, last_check, last_notified_days FROM domain_expiry WHERE domain = $1`, domain).
+		Scan(&r.Expiry, &r.LastCheck, &days)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return r, nil
+	}
+	if err != nil {
+		return r, fmt.Errorf("read domain expiry: %w", err)
+	}
+	if days != nil {
+		value := int(*days)
+		r.LastNotifiedDays = &value
+	}
+	return r, nil
+}
+
+// SaveDomainExpiry stores what's known about a domain.
+func (s *Store) SaveDomainExpiry(ctx context.Context, r domains.Record) error {
+	_, err := s.pool.Exec(ctx, `INSERT INTO domain_expiry (domain, expiry, last_check, last_notified_days) VALUES ($1, $2, $3, $4)
+		ON CONFLICT (domain) DO UPDATE SET expiry = excluded.expiry, last_check = excluded.last_check,
+		last_notified_days = excluded.last_notified_days`, r.Domain, r.Expiry, r.LastCheck, r.LastNotifiedDays)
+	if err != nil {
+		return fmt.Errorf("save domain expiry: %w", err)
+	}
+	return nil
 }

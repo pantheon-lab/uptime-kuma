@@ -108,6 +108,8 @@ type Options struct {
 	SetupWindow time.Duration
 	// StatusPages stores status pages. Without it, they aren't supported.
 	StatusPages StatusPageStore
+	// Domains tracks domain expiry. Without it, the form says nothing about domains.
+	Domains Domains
 	// IndexHTML is the web UI's index.html, which status pages are rendered into. Without it,
 	// /status/ answers 404, and the data is still at /api/status-page/.
 	IndexHTML []byte

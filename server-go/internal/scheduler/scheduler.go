@@ -71,6 +71,8 @@ type Scheduler struct {
 	maintenance Maintenance
 	// certificates is optional, and set before Start.
 	certificates Certificates
+	// domains is optional, and set before Start.
+	domains Domains
 
 	mu      sync.Mutex
 	stopped bool
@@ -121,6 +123,14 @@ type Certificates interface {
 
 // SetCertificates sets what receives TLS connections. Call it before Start.
 func (s *Scheduler) SetCertificates(c Certificates) { s.certificates = c }
+
+// Domains takes monitors whose domain may need its expiry checked. It mustn't block.
+type Domains interface {
+	Observe(m monitor.Monitor)
+}
+
+// SetDomains sets what tracks domain expiry. Call it before Start.
+func (s *Scheduler) SetDomains(d Domains) { s.domains = d }
 
 // Start begins checking monitors, spreading first checks over each interval so a
 // restart doesn't check everything in the same second. previous holds the last
@@ -306,6 +316,10 @@ func (s *Scheduler) run(ctx context.Context, m monitor.Monitor, delay time.Durat
 
 		out := m.Next(state, result)
 		state = &monitor.Previous{Status: out.Status, Retries: out.Retries, DownCount: out.DownCount}
+		// As in Node.js, a monitor under maintenance doesn't alert about its domain.
+		if s.domains != nil && out.Status != monitor.StatusMaintenance {
+			s.domains.Observe(m)
+		}
 		beat := store.Beat{
 			MonitorID: m.ID,
 			Time:      startedAt,
@@ -315,6 +329,7 @@ func (s *Scheduler) run(ctx context.Context, m monitor.Monitor, delay time.Durat
 			Important: out.Important,
 			Retries:   out.Retries,
 			DownCount: out.DownCount,
+			Response:  result.Response,
 		}
 
 		// The status comes from the beat rather than the check, so that upside-down

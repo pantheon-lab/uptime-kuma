@@ -17,8 +17,8 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | 4b    | Other databases and messaging                                       | Done    |
 | 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done    |
 | 4d    | Docker, system and remote browser monitors                          | Done    |
-| 4e    | HTTP options, proxies and domain expiry                             | Next    |
-| 4f    | Globalping, GameDig and Tailscale ping                              | Planned |
+| 4e    | HTTP options, proxies and domain expiry                             | Done    |
+| 4f    | Globalping, GameDig and Tailscale ping                              | Next    |
 | 5     | Accounts and administration                                         | Planned |
 | 6     | Integrations                                                        | Planned |
 
@@ -229,6 +229,38 @@ Known limits and differences from Node.js:
   the Node.js message. The metadata, which Node.js ignored, is sent.
 - A Docker check's ping is the API's response time, where Node.js set none.
 
+### Phase 4e: HTTP options, proxies and domain expiry (done)
+
+- Every HTTP option of the form: descriptions, cache busting, IP family, saved responses for notification templates,
+  and retrying a JSON query monitor only when the status fails.
+- NTLM (Azure/go-ntlmssp), mTLS and OAuth2 client credentials logins. Basic and bearer logins are now kept as the form
+  set them, where before they became an `Authorization` header; monitors saved that way still work.
+- Proxies over HTTP, HTTPS, SOCKS5 and SOCKS4, managed under Settings > Proxies.
+- Domain expiry tracking over RDAP, with alerts on the days set in the settings, the expiry date on the monitor's page,
+  and the form's explanation of a domain that can't be tracked.
+- `kuma-import` copies proxies and every one of these options, so it no longer skips monitors with a proxy or with an
+  NTLM, mTLS or OAuth login, and reports no dropped settings.
+
+Tested with the race detector against local servers: an HTTP proxy and SOCKS5 and SOCKS4 servers with logins, a server
+that requires a client certificate, an OAuth2 token endpoint that checks the client's credentials and revokes a token,
+an NTLM server that answers the first handshake message, and a fake RDAP server and IANA list, including renewals. In
+headless Chromium against the built image, a proxy with a login was added in the settings, and a keyword monitor of
+https://example.com made through the form with the proxy, cache busting, IPv4, a description and domain expiry. Its
+check went through the proxy, editing showed the options, its page showed the description and the expiry date from
+Verisign's RDAP server, and the form explained why 10.0.0.1 can't be tracked: `internal/e2e/browser/monitor-options-4e.mjs`.
+
+Not tested: NTLM against a real Windows server past the first handshake message, OAuth2 against a real identity
+provider, HTTPS proxies, mTLS on WebSocket monitors, and domain expiry alerts reaching a real notification.
+
+Known limits and differences from Node.js:
+
+- The NTLM workstation is stored but not sent, which go-ntlmssp doesn't support.
+- Saved responses aren't stored with the beat, only given to its notifications, which is what the form says they're for.
+- A proxy's cookies aren't kept between checks, as Node.js's proxy agents did.
+- A monitor whose proxy no longer exists fails, where Node.js connected directly. Deleting a proxy takes it out of its
+  monitors, so this only happens if the database is changed by hand.
+- A proxy's "active" switch is honoured. Node.js saved every proxy as active, whatever the form said.
+
 ### Phase 4f: Globalping, GameDig and Tailscale ping (planned)
 
 These need more than a port of the check, so they come last:
@@ -237,12 +269,6 @@ These need more than a port of the check, so they come last:
 - **GameDig** wraps a JavaScript library that speaks the protocols of over 300 games. A Go port could cover the common
   protocols, such as Valve's A2S and Minecraft's, if they're in use.
 - **Tailscale ping** runs the `tailscale` command, which needs `tailscaled` in the container.
-
-### Phase 4e: HTTP options, proxies and domain expiry (planned)
-
-The monitor options that are ignored or refused today: saved responses, cache busting, IP family, retrying only on status
-code failure, and NTLM, mTLS and OAuth logins. Proxies, and domain expiry tracking. Add each type to the importer as it's
-built.
 
 ## Phase 5: Accounts and administration (planned)
 

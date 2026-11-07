@@ -112,7 +112,7 @@ func (s *Server) afterLogin(ctx context.Context, c *conn) {
 	if err := s.sendNotificationList(ctx, c); err != nil {
 		s.log.Error("send notification list", "error", err)
 	}
-	c.emit("proxyList", []any{})
+	s.sendProxyList(ctx, c)
 	s.sendDockerHostList(ctx, c)
 	s.sendRemoteBrowserList(ctx, c)
 	c.emit("monitorTypeList", monitorTypeList())
@@ -285,6 +285,13 @@ func (s *Server) sendDashboardLists(ctx context.Context, c *conn) {
 	for id, info := range certificates {
 		c.emit("certInfo", id, info)
 	}
+	if monitors, err := s.store.ListMonitors(ctx); err == nil {
+		byID := make(map[int32]monitor.Monitor, len(monitors))
+		for _, m := range monitors {
+			byID[m.ID] = m
+		}
+		s.sendDomainInfo(ctx, c, byID)
+	}
 }
 
 // BroadcastCertInfo tells open pages about a monitor's new certificate information. The UI
@@ -431,6 +438,12 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.testRemoteBrowserEvent(ctx, args)
 	case "testChrome":
 		r, err = s.testChromeEvent(ctx, args)
+	case "checkDomain":
+		r, err = s.checkDomain(ctx, args)
+	case "addProxy":
+		r, err = s.addProxy(ctx, args)
+	case "deleteProxy":
+		r, err = s.deleteProxy(ctx, args)
 	case "getPM2ProcessList":
 		r, err = s.getPM2ProcessList(ctx)
 	default:

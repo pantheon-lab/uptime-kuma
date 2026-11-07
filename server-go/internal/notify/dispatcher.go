@@ -210,6 +210,9 @@ func (d *Dispatcher) buildMessage(ctx context.Context, e event) Message {
 	if e.beat.TraceID != "" {
 		beat["traceId"] = e.beat.TraceID
 	}
+	if e.beat.Response != nil {
+		beat["response"] = *e.beat.Response
+	}
 	if e.beat.Status == monitor.StatusUp {
 		if down, err := d.store.LastDownTime(ctx, e.monitor.ID); err == nil && down != nil {
 			beat["lastDownTime"] = down.UTC().Format(beatTime)

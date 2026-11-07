@@ -4,6 +4,8 @@ package monitor
 
 import (
 	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -287,7 +289,63 @@ type Settings struct {
 	RemoteBrowserID int32 `json:"remoteBrowser,omitempty"`
 	// ScreenshotDelay is how long to wait after the page loads before the screenshot, in ms.
 	ScreenshotDelay int32 `json:"screenshotDelay,omitempty"`
+
+	// Description is shown under the monitor's name.
+	Description string `json:"description,omitempty"`
+
+	// CacheBust adds a random uptime_kuma_cachebuster parameter to each request's URL.
+	CacheBust bool `json:"cacheBust,omitempty"`
+	// IPFamily is ipv4 or ipv6 to connect only over that, or empty for either.
+	IPFamily string `json:"ipFamily,omitempty"`
+	// RetryOnlyOnStatusCodeFailure makes a json-query monitor whose query fails DOWN at once.
+	RetryOnlyOnStatusCodeFailure bool `json:"retryOnlyOnStatusCodeFailure,omitempty"`
+	// SaveErrorResponse keeps the body of a response with an unaccepted status for notification
+	// templates, and SaveResponse, with it, the body of accepted ones. ResponseMaxLength is how
+	// many characters are kept; zero means 1024.
+	SaveResponse      bool  `json:"saveResponse,omitempty"`
+	SaveErrorResponse bool  `json:"saveErrorResponse,omitempty"`
+	ResponseMaxLength int32 `json:"responseMaxLength,omitempty"`
+
+	// AuthMethod is how HTTP and WebSocket monitors log in: basic, bearer, ntlm, mtls, oauth2-cc,
+	// or empty for not at all. Before Phase 4e, basic and bearer were saved as an Authorization
+	// header, which still works.
+	AuthMethod      string `json:"authMethod,omitempty"`
+	BasicAuthUser   string `json:"basicAuthUser,omitempty"`
+	BasicAuthPass   string `json:"basicAuthPass,omitempty"`
+	BearerToken     string `json:"bearerToken,omitempty"`
+	AuthDomain      string `json:"authDomain,omitempty"`
+	AuthWorkstation string `json:"authWorkstation,omitempty"`
+	// TLSCert and TLSKey are the client certificate of an mtls login, and TLSCA the CA that the
+	// server's certificate must come from, all PEM.
+	TLSCert string `json:"tlsCert,omitempty"`
+	TLSKey  string `json:"tlsKey,omitempty"`
+	TLSCA   string `json:"tlsCa,omitempty"`
+	// OAuthAuthMethod is client_secret_basic or client_secret_post.
+	OAuthAuthMethod   string `json:"oauthAuthMethod,omitempty"`
+	OAuthTokenURL     string `json:"oauthTokenUrl,omitempty"`
+	OAuthClientID     string `json:"oauthClientId,omitempty"`
+	OAuthClientSecret string `json:"oauthClientSecret,omitempty"`
+	OAuthScopes       string `json:"oauthScopes,omitempty"`
+	OAuthAudience     string `json:"oauthAudience,omitempty"`
+
+	// ProxyID is the proxy that HTTP monitors connect through. Zero means none.
+	ProxyID int32 `json:"proxyId,omitempty"`
+
+	// DomainExpiryNotification alerts before the domain of the monitor's target expires.
+	DomainExpiryNotification bool `json:"domainExpiryNotification,omitempty"`
 }
+
+// The limits of saved responses, the same as the Node.js backend's.
+const (
+	DefaultResponseMaxLength = 1024
+	maxResponseMaxLength     = 1024 * 1024
+)
+
+// AuthMethods are the logins of HTTP monitors. WebSocket monitors take all but ntlm.
+var AuthMethods = []string{"", "basic", "bearer", "ntlm", "mtls", "oauth2-cc"}
+
+// OAuthAuthMethods are how an oauth2-cc login sends its client's credentials.
+var OAuthAuthMethods = []string{"client_secret_basic", "client_secret_post"}
 
 // KafkaSASL is how a Kafka producer monitor logs in.
 type KafkaSASL struct {
@@ -360,7 +418,8 @@ func (m Monitor) Redacted() Monitor {
 		}
 	}
 	for _, secret := range []*string{&m.MQTTPassword, &m.RabbitMQPassword, &m.SNMPCommunity, &m.RadiusPassword, &m.RadiusSecret,
-		&m.SSHPassword, &m.SSHPrivateKey, &m.SSHPassphrase, &m.GRPCBody, &m.GRPCMetadata} {
+		&m.SSHPassword, &m.SSHPrivateKey, &m.SSHPassphrase, &m.GRPCBody, &m.GRPCMetadata,
+		&m.BasicAuthPass, &m.BearerToken, &m.TLSKey, &m.OAuthClientSecret} {
 		if *secret != "" {
 			*secret = redactedValue
 		}
@@ -544,6 +603,12 @@ func (m *Monitor) validateWebSocket() error {
 	u, err := url.Parse(m.URL)
 	if err != nil || (u.Scheme != "ws" && u.Scheme != "wss") || u.Host == "" {
 		return errors.New("url must be a valid ws or wss URL")
+	}
+	if m.AuthMethod == "ntlm" {
+		return errors.New("a WebSocket monitor can't log in with NTLM")
+	}
+	if err := m.validateRequestOptions(); err != nil {
+		return err
 	}
 	if len(m.AcceptedStatusCodes) == 0 {
 		return errors.New("acceptedStatusCodes must not be empty")
@@ -872,6 +937,53 @@ func (m *Monitor) validateHTTP() error {
 		if !statusCodeRange.MatchString(code) {
 			return fmt.Errorf("invalid status code range %q", code)
 		}
+	}
+	if m.ResponseMaxLength < 0 || m.ResponseMaxLength > maxResponseMaxLength {
+		return fmt.Errorf("responseMaxLength must be from 0 to %d", maxResponseMaxLength)
+	}
+	return m.validateRequestOptions()
+}
+
+// validateRequestOptions checks the options that HTTP and WebSocket monitors share.
+func (m *Monitor) validateRequestOptions() error {
+	if m.IPFamily != "" && m.IPFamily != "ipv4" && m.IPFamily != "ipv6" {
+		return errors.New("ipFamily must be ipv4, ipv6 or empty")
+	}
+	if m.ProxyID < 0 {
+		return errors.New("proxyId must be a proxy's id")
+	}
+	switch m.AuthMethod {
+	case "", "basic", "bearer":
+	case "ntlm":
+		if m.BasicAuthUser == "" {
+			return errors.New("an NTLM login needs basicAuthUser")
+		}
+	case "mtls":
+		if strings.TrimSpace(m.TLSCert) == "" || strings.TrimSpace(m.TLSKey) == "" {
+			return errors.New("an mTLS login needs tlsCert and tlsKey")
+		}
+		if _, err := tls.X509KeyPair([]byte(m.TLSCert), []byte(m.TLSKey)); err != nil {
+			return fmt.Errorf("tlsCert and tlsKey aren't a certificate and its key: %w", err)
+		}
+		if strings.TrimSpace(m.TLSCA) != "" && !x509.NewCertPool().AppendCertsFromPEM([]byte(m.TLSCA)) {
+			return errors.New("tlsCa has no PEM certificate")
+		}
+	case "oauth2-cc":
+		u, err := url.Parse(m.OAuthTokenURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return errors.New("oauthTokenUrl must be an http or https URL")
+		}
+		if m.OAuthClientID == "" {
+			return errors.New("an OAuth2 login needs oauthClientId")
+		}
+		if m.OAuthAuthMethod == "" {
+			m.OAuthAuthMethod = "client_secret_basic"
+		}
+		if !slices.Contains(OAuthAuthMethods, m.OAuthAuthMethod) {
+			return errors.New("oauthAuthMethod must be client_secret_basic or client_secret_post")
+		}
+	default:
+		return fmt.Errorf("authMethod must be one of basic, bearer, ntlm, mtls, oauth2-cc, or empty")
 	}
 	return nil
 }
