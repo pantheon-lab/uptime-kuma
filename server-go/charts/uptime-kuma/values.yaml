@@ -205,4 +205,3 @@ cloudflared:
       memory: 32Mi
     limits:
       memory: 256Mi
-
