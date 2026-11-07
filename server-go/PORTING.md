@@ -18,8 +18,8 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done    |
 | 4d    | Docker, system and remote browser monitors                          | Done    |
 | 4e    | HTTP options, proxies and domain expiry                             | Done    |
-| 4f    | Globalping, GameDig and Tailscale ping                              | Next    |
-| 5     | Accounts and administration                                         | Planned |
+| 4f    | Globalping, GameDig and Tailscale ping                              | Done    |
+| 5     | Accounts and administration                                         | Next    |
 | 6     | Integrations                                                        | Planned |
 
 ## Phase 0: Core (done)
@@ -261,14 +261,36 @@ Known limits and differences from Node.js:
   monitors, so this only happens if the database is changed by hand.
 - A proxy's "active" switch is honoured. Node.js saved every proxy as active, whatever the form said.
 
-### Phase 4f: Globalping, GameDig and Tailscale ping (planned)
+### Phase 4f: Globalping, GameDig and Tailscale ping (done)
 
-These need more than a port of the check, so they come last:
+With these, every monitor type of the Node.js server is ported.
 
-- **Globalping** is a client of an external measurement API, with ping, HTTP and DNS sub-types.
-- **GameDig** wraps a JavaScript library that speaks the protocols of over 300 games. A Go port could cover the common
-  protocols, such as Valve's A2S and Minecraft's, if they're in use.
-- **Tailscale ping** runs the `tailscale` command, which needs `tailscaled` in the container.
+- **Globalping**: ping, HTTP and DNS measurements through the Globalping API, with the token from the settings.
+- **GameDig**: the protocols of 273 of gamedig's 358 games, written in Go: Valve's A2S, GameSpy 1, 2 and 3, Quake 2 and
+  3, All-Seeing Eye, and Minecraft over Java, Bedrock and GameSpy 3. The form lists only those games, from a list that
+  `internal/check/gamedig-games.mjs` makes from gamedig's.
+- **Tailscale ping** asks tailscaled's local API over its socket instead of running `tailscale`, so the image needs
+  nothing installed, and the form now offers it in a container.
+- All of them in the REST API, the UI's form, and `kuma-import`.
+
+Tested with the race detector against fake servers of each GameDig protocol, including Valve's challenge, GameSpy 1's
+and 3's answers in parts, and GameSpy 3's challenge, a fake tailscaled and Globalping API, and for real: a Minecraft
+26.3 server, a ping through this machine's tailscaled to a peer, and a ping from the Globalping API. In headless
+Chromium against the built image, with tailscaled's socket mounted, a monitor of each type was made through the form,
+checked against those, and opened again: `internal/e2e/browser/monitor-types-4f.mjs`.
+
+Not tested: the GameDig protocols other than Minecraft against real game servers, Globalping's HTTP and DNS
+measurements against the real API, and Globalping with a token.
+
+Known limits and differences from Node.js:
+
+- The other 85 GameDig games, such as Battlefield's, FiveM's and TeamSpeak's, which have their own protocols, can't be
+  added. A monitor of one fails, and the importer skips it. Valve servers that split an info answer into several packets
+  aren't supported, which is rare.
+- GameDig's ping is the time to the first answer, and a Minecraft monitor's the time to connect, as in gamedig.
+- A Globalping HTTP monitor's certificate isn't kept or alerted on, though an unauthorized one is still DOWN. Its JSON
+  query reads the response's body, where Node.js read the whole output, headers too, which only a body could pass.
+- Tailscale ping messages say what failed in words of their own, as before, without the command's output.
 
 ## Phase 5: Accounts and administration (planned)
 

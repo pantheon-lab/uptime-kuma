@@ -88,9 +88,7 @@
                                         <option value="sip-options">SIP Options Ping</option>
                                         <option value="smtp">SMTP</option>
                                         <option value="snmp">SNMP</option>
-                                        <option v-if="!$root.info.isContainer" value="tailscale-ping">
-                                            Tailscale Ping
-                                        </option>
+                                        <option value="tailscale-ping">Tailscale Ping</option>
                                         <option value="websocket-upgrade">Websocket Upgrade</option>
                                     </optgroup>
 

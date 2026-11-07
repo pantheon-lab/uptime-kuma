@@ -175,7 +175,7 @@ func (f *fixture) seedMonitors(t *testing.T) {
 	// Dns and Ping import now; Steam has no Go implementation.
 	f.monitor(t, 10, "Dns", "dns", map[string]any{"hostname": "example.com"})
 	f.monitor(t, 11, "Ping", "ping", map[string]any{"hostname": "example.com"})
-	f.monitor(t, 21, "Game", "gamedig", nil)
+	f.monitor(t, 21, "Game", "lighthouse", nil)
 	f.monitor(t, 12, "Mtls", "http", map[string]any{"url": "https://example.com", "auth_method": "mtls"})
 	f.monitor(t, 13, "Oauth", "http", map[string]any{"url": "https://example.com", "auth_method": "oauth2-cc"})
 	f.monitor(t, 14, "Ntlm", "http", map[string]any{"url": "https://example.com", "auth_method": "ntlm"})
@@ -214,7 +214,7 @@ func TestImportsMonitorsFaithfully(t *testing.T) {
 		reasons[s.Name] = s.Reason
 	}
 	for name, want := range map[string]string{
-		"Game": "unsupported monitor type: gamedig",
+		"Game": "unsupported monitor type: lighthouse",
 		"Mtls": "invalid setting: an mTLS login needs tlsCert and tlsKey", "Oauth": "invalid setting: oauthTokenUrl must be an http or https URL",
 		"Ntlm": "invalid setting: an NTLM login needs basicAuthUser", "BadHeaders": "invalid setting: headers aren't a valid JSON object",
 		"BadUrl": "invalid setting: url must be a valid http or https URL", "BadBody": "invalid setting: body is not valid JSON",
@@ -654,7 +654,7 @@ func TestImportsTagsAndCertificateAlerts(t *testing.T) {
 	ctx := context.Background()
 	f.monitor(t, 1, "Secure", "http", map[string]any{"url": "https://example.com", "expiry_notification": 1})
 	f.monitor(t, 2, "Ignored", "http", map[string]any{"url": "https://example.com", "expiry_notification": 1, "ignore_tls": 1})
-	f.monitor(t, 3, "Unsupported", "gamedig", map[string]any{"hostname": "example.com"})
+	f.monitor(t, 3, "Unsupported", "lighthouse", map[string]any{"hostname": "example.com"})
 	f.exec(t, "INSERT INTO tag (id, name, color) VALUES (7, 'prod', '#ff0000'), (8, 'eu', '#00ff00')")
 	f.exec(t, "INSERT INTO monitor_tag (monitor_id, tag_id, value) VALUES (1, 7, ''), (1, 8, 'west'), (3, 7, '')")
 
@@ -825,4 +825,46 @@ func testCertificate(t *testing.T) (string, string) {
 	}
 	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})),
 		string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}))
+}
+
+func TestImportsPhase4fMonitors(t *testing.T) {
+	f := newFixture(t)
+	f.monitor(t, 1, "TF2", "gamedig", map[string]any{"hostname": "tf2.example.com", "port": 27015, "game": "teamfortress2", "gamedig_given_port_only": 0})
+	f.monitor(t, 2, "Unknown game", "gamedig", map[string]any{"hostname": "x.example.com", "port": 1, "game": "solitaire"})
+	f.monitor(t, 3, "Peer", "tailscale-ping", map[string]any{"hostname": "cider"})
+	f.monitor(t, 4, "Ping from Germany", "globalping", map[string]any{"subtype": "ping", "hostname": "example.com", "location": "Germany",
+		"protocol": "ICMP", "ping_count": 3})
+	f.monitor(t, 5, "HTTP from Europe", "globalping", map[string]any{"subtype": "http", "url": "https://example.com", "location": "Europe",
+		"keyword": "Example", "accepted_statuscodes_json": `["200-299"]`, "auth_method": "bearer", "bearer_token": "t"})
+	f.monitor(t, 6, "DNS from Asia", "globalping", map[string]any{"subtype": "dns", "hostname": "example.com", "location": "Asia",
+		"protocol": "UDP", "port": 53, "dns_resolve_type": "MX", "keyword": "mail"})
+
+	report := f.run(t, true, false)
+	if report.Imported != 5 || len(report.Skipped) != 1 || report.Skipped[0].Reason != `invalid setting: game "solitaire" isn't supported` {
+		t.Fatalf("report: %+v", report)
+	}
+	ctx := context.Background()
+	get := func(sourceID int) monitor.Monitor {
+		t.Helper()
+		m, err := f.target.GetMonitor(ctx, f.targetID(t, sourceID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	if m := get(1); m.Game != "teamfortress2" || m.GamedigGivenPortOnly || m.Port != 27015 {
+		t.Errorf("gamedig: %+v", m)
+	}
+	if m := get(3); m.Hostname != "cider" {
+		t.Errorf("tailscale: %+v", m)
+	}
+	if m := get(4); m.Subtype != "ping" || m.Location != "Germany" || m.PingCount != 3 {
+		t.Errorf("globalping ping: %+v", m)
+	}
+	if m := get(5); m.URL != "https://example.com" || m.Keyword != "Example" || m.AuthMethod != "bearer" {
+		t.Errorf("globalping http: %+v", m)
+	}
+	if m := get(6); m.DNSResolveType != "MX" || m.Keyword != "mail" || m.Port != 53 {
+		t.Errorf("globalping dns: %+v", m)
+	}
 }

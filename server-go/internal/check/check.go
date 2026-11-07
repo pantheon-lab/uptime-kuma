@@ -55,6 +55,8 @@ type Checker struct {
 	dockerHosts DockerHostReader
 	browsers    BrowserStore
 	proxies     ProxyReader
+	// globalpingToken is optional, and set before checks start.
+	globalpingToken SteamKey
 	// extra holds the transports of monitors with options, and tokens their OAuth2 tokens.
 	extra  transports
 	tokens oauthTokens
@@ -154,6 +156,12 @@ func (c *Checker) Run(ctx context.Context, m monitor.Monitor) monitor.Result {
 		return runGRPC(ctx, m)
 	case monitor.TypeRealBrowser:
 		return c.runRealBrowser(ctx, m)
+	case monitor.TypeGlobalping:
+		return c.runGlobalping(ctx, m)
+	case monitor.TypeGameDig:
+		return runGameDig(ctx, m)
+	case monitor.TypeTailscale:
+		return runTailscalePing(ctx, m)
 	case monitor.TypePort:
 		return c.runPort(ctx, m)
 	case monitor.TypeGroup:

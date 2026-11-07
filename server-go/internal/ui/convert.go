@@ -54,7 +54,8 @@ var supportedTypes = map[string]bool{
 	monitor.TypeMQTT: true, monitor.TypeRabbitMQ: true, monitor.TypeKafka: true, monitor.TypeNTP: true,
 	monitor.TypeSNMP: true, monitor.TypeSMTP: true, monitor.TypeSIP: true, monitor.TypeRADIUS: true, monitor.TypeSteam: true,
 	monitor.TypeDocker: true, monitor.TypeSystemService: true, monitor.TypePM2: true, monitor.TypeSFTP: true,
-	monitor.TypeGRPC: true, monitor.TypeRealBrowser: true,
+	monitor.TypeGRPC: true, monitor.TypeRealBrowser: true, monitor.TypeGlobalping: true, monitor.TypeGameDig: true,
+	monitor.TypeTailscale: true,
 }
 
 // uiDefaults are fields of the UI's monitor form that this service doesn't have. They're sent
@@ -303,6 +304,13 @@ func (t *monitorTree) monitorJSON(m monitor.Monitor) map[string]any {
 		"oauth_audience":               m.OAuthAudience,
 		"proxyId":                      nilIfZero(m.ProxyID),
 		"domainExpiryNotification":     m.DomainExpiryNotification,
+
+		"game":                 nilIfEmpty(m.Game),
+		"gamedigGivenPortOnly": m.GamedigGivenPortOnly || m.Type != monitor.TypeGameDig,
+		"gamedigToken":         m.GamedigToken,
+		"subtype":              nilIfEmpty(m.Subtype),
+		"location":             cmp.Or(m.Location, "world"),
+		"protocol":             nilIfEmpty(m.Protocol),
 	})
 	if m.Type == monitor.TypeRealBrowser {
 		out["screenshot"] = fmt.Sprintf("/screenshots/%d.png", m.ID)
@@ -496,6 +504,13 @@ type monitorInput struct {
 	OAuthScopes                  *string `json:"oauth_scopes"`
 	OAuthAudience                *string `json:"oauth_audience"`
 	DomainExpiryNotification     bool    `json:"domainExpiryNotification"`
+
+	Game                 *string `json:"game"`
+	GamedigGivenPortOnly bool    `json:"gamedigGivenPortOnly"`
+	GamedigToken         *string `json:"gamedigToken"`
+	Subtype              *string `json:"subtype"`
+	Location             *string `json:"location"`
+	Protocol             *string `json:"protocol"`
 }
 
 // parseMonitor converts the UI's form to a monitor, and returns the notifications to link.
@@ -691,6 +706,18 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 			m.Keyword = *in.Keyword
 			m.InvertKeyword = in.InvertKeyword
 		}
+	case monitor.TypeGameDig:
+		m.Hostname = strings.TrimSpace(text(in.Hostname))
+		m.Port = int32(in.Port.value)
+		m.Game = strings.TrimSpace(text(in.Game))
+		m.GamedigGivenPortOnly = in.GamedigGivenPortOnly
+		m.GamedigToken = text(in.GamedigToken)
+	case monitor.TypeTailscale:
+		m.Hostname = strings.TrimSpace(text(in.Hostname))
+	case monitor.TypeGlobalping:
+		if err := parseGlobalping(&m, in); err != nil {
+			return m, nil, "", err
+		}
 	case monitor.TypeRealBrowser:
 		m.URL = strings.TrimSpace(in.URL)
 		m.RemoteBrowserID = int32(in.RemoteBrowser.value)
@@ -880,6 +907,69 @@ func parseHeaders(raw json.RawMessage) (map[string]string, error) {
 		}
 	}
 	return headers, nil
+}
+
+// parseGlobalping reads a Globalping monitor, whose fields depend on its measurement.
+func parseGlobalping(m *monitor.Monitor, in monitorInput) error {
+	m.Subtype = strings.TrimSpace(text(in.Subtype))
+	m.Location = strings.TrimSpace(text(in.Location))
+	m.Protocol = strings.TrimSpace(text(in.Protocol))
+	if m.Protocol == "null" {
+		m.Protocol = ""
+	}
+	if family := text(in.IPFamily); family != "" && family != "null" {
+		m.IPFamily = family
+	}
+	switch m.Subtype {
+	case "ping":
+		m.Hostname = strings.TrimSpace(text(in.Hostname))
+		m.Port = int32(in.Port.value)
+		if in.PingCount.set {
+			m.PingCount = int32(in.PingCount.value)
+		}
+	case "dns":
+		m.Hostname = strings.TrimSpace(text(in.Hostname))
+		m.Port = int32(in.Port.value)
+		if m.Port == 0 {
+			m.Port = 53
+		}
+		m.DNSResolveType = cmp.Or(strings.TrimSpace(in.DNSResolveType), "A")
+		m.DNSResolveServer = strings.TrimSpace(in.DNSResolveServer)
+		m.Keyword = text(in.Keyword)
+	case "http":
+		m.URL = strings.TrimSpace(in.URL)
+		if method := strings.ToUpper(strings.TrimSpace(in.Method)); method != "" {
+			m.Method = method
+		}
+		if in.AcceptedStatusCodes != nil {
+			m.AcceptedStatusCodes = in.AcceptedStatusCodes
+		}
+		m.IgnoreTLS = in.IgnoreTLS
+		m.CacheBust = in.CacheBust
+		m.DNSResolveServer = strings.TrimSpace(in.DNSResolveServer)
+		m.Keyword = text(in.Keyword)
+		m.InvertKeyword = in.InvertKeyword
+		m.JSONPath = text(in.JSONPath)
+		if in.JSONPathOperator != nil && *in.JSONPathOperator != "" {
+			m.JSONPathOperator = *in.JSONPathOperator
+		}
+		m.ExpectedValue = rawText(in.ExpectedValue)
+		headers, err := parseHeaders(in.Headers)
+		if err != nil {
+			return err
+		}
+		m.Headers = headers
+		// The probe gets only the headers of a login, so NTLM and mTLS don't apply.
+		if method := text(in.AuthMethod); method == "basic" || method == "bearer" || method == "oauth2-cc" {
+			applyRequestOptions(m, in)
+			m.ProxyID, m.SaveResponse, m.SaveErrorResponse, m.ResponseMaxLength = 0, false, false, 0
+			m.IPFamily = text(in.IPFamily)
+			if m.IPFamily == "null" {
+				m.IPFamily = ""
+			}
+		}
+	}
+	return nil
 }
 
 // applyRequestOptions reads what HTTP and WebSocket monitors share: the login, IP family and

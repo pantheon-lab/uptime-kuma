@@ -2316,7 +2316,10 @@
               "pm2",
               "sftp",
               "grpc-keyword",
-              "real-browser"
+              "real-browser",
+              "globalping",
+              "gamedig",
+              "tailscale-ping"
             ]
           },
           "active": {
@@ -2892,6 +2895,37 @@
             "type": "boolean",
             "default": false,
             "description": "Alerts before the domain of the monitor's target expires, on the days set under Settings > Notifications"
+          },
+          "game": {
+            "type": "string",
+            "description": "gamedig: the game, by gamedig's key, such as minecraft or teamfortress2. The web UI lists the supported ones"
+          },
+          "gamedigGivenPortOnly": {
+            "type": "boolean",
+            "default": false,
+            "description": "gamedig: query only the monitor's port, not the game's other usual query ports"
+          },
+          "gamedigToken": {
+            "type": "string",
+            "description": "gamedig: kept for the games that need one, none of which are supported yet. Redacted for keys without monitors:write."
+          },
+          "subtype": {
+            "type": "string",
+            "enum": [
+              "ping",
+              "http",
+              "dns"
+            ],
+            "description": "globalping: the measurement"
+          },
+          "location": {
+            "type": "string",
+            "default": "world",
+            "description": "globalping: where the probe is, such as Germany or AWS+eu-west-1. One location only"
+          },
+          "protocol": {
+            "type": "string",
+            "description": "globalping: ICMP or TCP for ping, empty or HTTP2 for http, UDP or TCP for dns"
           }
         }
       },

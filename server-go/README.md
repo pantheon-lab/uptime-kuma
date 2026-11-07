@@ -2,14 +2,13 @@
 
 The Uptime Kuma backend, rewritten in Go and still in progress. It runs HTTP, keyword, JSON query,
 TCP port, ping, DNS, push, group, manual, WebSocket, PostgreSQL, MySQL/MariaDB, SQL Server, Oracle, MongoDB, Redis,
-MQTT, RabbitMQ, Kafka producer, NTP, SNMP, SMTP, SIP, RADIUS, Steam, Docker container, system service, PM2, SFTP, gRPC
-and real browser monitors, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
+MQTT, RabbitMQ, Kafka producer, NTP, SNMP, SMTP, SIP, RADIUS, Steam, Docker container, system service, PM2, SFTP, gRPC,
+real browser, Globalping, GameDig and Tailscale ping monitors, every type the Node.js server had, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
 percentiles and dashboard stats over REST, plus new beats over Server-Sent Events. It serves public
 status pages and badges, exports traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
 **Status:** this is now the only backend, because the Node.js server and MariaDB support have
-been removed. It isn't feature complete. Not built yet: two-factor login, more than one account,
-and the Globalping, GameDig and Tailscale ping monitor types.
+been removed. It isn't feature complete. Not built yet: two-factor login and more than one account.
 
 [PORTING.md](PORTING.md) records what has moved from the Node.js server, phase by phase, and what's left.
 
@@ -158,6 +157,21 @@ week, with a built-in copy for when it can't be reached. Alerts go to the monito
 **Settings > Notifications**, 7, 14 and 21 by default, once per deadline until the domain is renewed. The monitor's page
 shows the expiry date. Domains under a suffix that ICANN doesn't manage, such as `github.io`, and IP addresses can't be
 tracked, which the form says.
+
+## Globalping, GameDig and Tailscale ping
+
+**Globalping** monitors run a ping, HTTP or DNS measurement from a probe of [Globalping](https://globalping.io) at the
+monitor's location, such as `Germany` or `AWS+eu-west-1`, and judge it as the Node.js server did. Without a token
+under **Settings > General**, the API's anonymous limits apply.
+
+**GameDig** monitors query a game server with the game's own protocol, and are UP with its name. The protocols of 273
+of [gamedig](https://github.com/gamedig/node-gamedig)'s 358 games are ported: Valve's A2S, GameSpy 1, 2 and 3, Quake 2
+and 3, All-Seeing Eye, and Minecraft (Java, Bedrock and GameSpy 3). The form lists only those games.
+`internal/check/gamedig-games.mjs` makes the list from gamedig's.
+
+**Tailscale ping** monitors send one disco ping through `tailscaled`, as `tailscale ping --c 1` did, by asking its local
+API instead of running the command. In a container, mount its socket:
+`-v /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock`, or set `TAILSCALE_SOCKET`.
 
 ## Docker, system and browser monitors
 
@@ -564,7 +578,9 @@ Database tests are skipped when `TEST_DATABASE_URL` is not set. The importer and
 `TEST_ORACLE_PASSWORD`, `TEST_MONGODB_URL`, `TEST_MQTT_HOST` and `TEST_KAFKA_BROKER`, and `TEST_SNMP_HOST` and
 `TEST_RADIUS`, which `internal/check/network_test.go` describes. `TEST_DOCKER_CONTAINER` names a running container to ask
 the local Docker daemon about, and `TEST_CHROME` is a Chrome or Chromium executable for the real browser monitor. The
-system service test uses this machine's systemd, if it has one.
+system service test uses this machine's systemd, if it has one. `TEST_MINECRAFT` is a Minecraft server's host:port,
+`TEST_TAILSCALE_PEER` a peer to ping through this machine's tailscaled, and `TEST_GLOBALPING` runs one ping from the
+real Globalping API.
 
 `internal/e2e/browser/` has scripts that drive the web UI in a browser against the built image. Each says what it needs.
 

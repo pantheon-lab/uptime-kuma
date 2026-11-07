@@ -321,3 +321,17 @@ func (s *Server) deleteProxy(ctx context.Context, args []json.RawMessage) (reply
 	s.sendProxyList(ctx, nil)
 	return okI18n("successDeleted"), nil
 }
+
+// gameList is the games GameDig monitors can query, in the form the UI's select reads.
+func gameList() reply {
+	games := check.Games()
+	list := make([]map[string]any, len(games))
+	for i, g := range games {
+		options := map[string]any{"port": g.Port, "protocol": g.Protocol}
+		if g.PortQuery != 0 {
+			options["port_query"] = g.PortQuery
+		}
+		list[i] = map[string]any{"keys": []string{g.Key}, "pretty": g.Name, "options": options, "extra": map[string]any{}}
+	}
+	return ok("gameList", list)
+}

@@ -1857,3 +1857,47 @@ func TestProxyAndDomainEvents(t *testing.T) {
 		t.Fatal("no domainInfo")
 	}
 }
+
+func TestParsePhase4fMonitors(t *testing.T) {
+	m, _, _, err := parseMonitor(json.RawMessage(`{"type": "gamedig", "name": "G", "hostname": "mc.example.com", "port": 25565,
+		"game": "minecraft", "gamedigGivenPortOnly": false, "gamedigToken": "tok"}`))
+	if err != nil || m.Game != "minecraft" || m.GamedigGivenPortOnly || m.GamedigToken != "tok" {
+		t.Fatalf("gamedig: %+v %v", m, err)
+	}
+	if out := newMonitorTree([]monitor.Monitor{m}, nil).monitorJSON(m); out["game"] != "minecraft" || out["gamedigGivenPortOnly"] != false {
+		t.Fatalf("gamedig JSON: %v", out)
+	}
+	if _, _, _, err := parseMonitor(json.RawMessage(`{"type": "gamedig", "name": "G", "hostname": "h", "port": 1, "game": "solitaire"}`)); err == nil {
+		t.Fatal("an unknown game was accepted")
+	}
+	if m, _, _, err := parseMonitor(json.RawMessage(`{"type": "tailscale-ping", "name": "T", "hostname": " cider "}`)); err != nil || m.Hostname != "cider" {
+		t.Fatalf("tailscale: %+v %v", m, err)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "globalping", "name": "P", "subtype": "ping", "hostname": "example.com",
+		"location": "Germany", "protocol": "TCP", "port": "443", "ping_count": 3, "ipFamily": "ipv6"}`))
+	if err != nil || m.Subtype != "ping" || m.Protocol != "TCP" || m.Port != 443 || m.PingCount != 3 || m.IPFamily != "ipv6" {
+		t.Fatalf("globalping ping: %+v %v", m, err)
+	}
+	if out := newMonitorTree([]monitor.Monitor{m}, nil).monitorJSON(m); out["subtype"] != "ping" || out["location"] != "Germany" || out["protocol"] != "TCP" {
+		t.Fatalf("globalping JSON: %v", out)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "globalping", "name": "H", "subtype": "http", "url": "https://example.com",
+		"method": "get", "location": "Europe", "protocol": null, "keyword": "Example", "accepted_statuscodes": ["200-299"],
+		"authMethod": "bearer", "bearer_token": "t", "headers": "{\"X-A\": \"1\"}"}`))
+	if err != nil || m.Method != "GET" || m.BearerToken != "t" || m.Headers["X-A"] != "1" || m.Keyword != "Example" {
+		t.Fatalf("globalping http: %+v %v", m, err)
+	}
+	for name, raw := range map[string]string{
+		"two locations": `{"type": "globalping", "name": "x", "subtype": "ping", "hostname": "a.b", "location": "DE,FR", "ping_count": 1}`,
+		"bad dns type":  `{"type": "globalping", "name": "x", "subtype": "dns", "hostname": "a.b", "dns_resolve_type": "AXFR"}`,
+		"bad subtype":   `{"type": "globalping", "name": "x", "subtype": "mtr", "hostname": "a.b"}`,
+	} {
+		if _, _, _, err := parseMonitor(json.RawMessage(raw)); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	list := gameList()["gameList"].([]map[string]any)
+	if len(list) < 250 || list[0]["keys"].([]string)[0] == "" || list[0]["options"].(map[string]any)["port"] == nil {
+		t.Fatalf("game list: %d %v", len(list), list[0])
+	}
+}
