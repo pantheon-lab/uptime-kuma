@@ -8,8 +8,8 @@ percentiles and dashboard stats over REST, plus new beats over Server-Sent Event
 status pages and badges, exports traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
 **Status:** this is now the only backend, because the Node.js server and MariaDB support have
-been removed. It isn't feature complete. Not built yet: more than one account, and the settings and Monitor History
-page acting on what they say.
+been removed. It isn't feature complete. Not built yet: more than one account, importing the account, status pages and
+maintenance windows from MariaDB, and the integrations listed in [`PORTING.md`](PORTING.md).
 
 [PORTING.md](PORTING.md) records what has moved from the Node.js server, phase by phase, and what's left.
 
@@ -27,15 +27,16 @@ the window has passed. There's one account, and it can do everything.
 
 What works in the UI: logging in and out, two-factor login, changing the password, API keys, the dashboard with live beats, uptime and
 response times, the event list, adding, editing, pausing and deleting the monitor types above, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public
-holidays, tags, certificate details and expiry alerts, status pages with incidents, badges, and saving settings.
+holidays, tags, certificate details and expiry alerts, status pages with incidents, badges, settings, and Monitor History.
 
-Everything else answers "This isn't supported by this server yet", or shows an empty list where a page asks
-on its own (the database size). In particular:
+Everything else answers "This isn't supported by this server yet". In particular:
 
 - Saving a monitor with another type, a proxy, or an authentication method other than basic or bearer is refused, so that a check never runs differently from what the form shows. Basic and bearer
   authentication are saved as an `Authorization` header, and show up under Headers when you edit again.
 - Form settings this service doesn't have, such as certificate expiry notifications, aren't saved.
-- Settings are stored, but apart from the certificate expiry days the service doesn't act on them yet. The timezone comes from `KUMA_TIMEZONE`.
+- Of **Settings > General**, the server timezone comes from `KUMA_TIMEZONE` and can't be changed there. The DNS cache,
+  Prometheus and "API and MCP" switches are gone: the image has no nscd, OpenTelemetry replaces `/metrics`, and the
+  REST API is always on, guarded by its keys. The update check under About isn't built yet.
 - Changes made through the REST API reach open browsers only when they reload.
 
 Sessions are a random token in an `HttpOnly`, `SameSite=Lax` cookie, `Secure` behind HTTPS (the proxy must
@@ -297,6 +298,14 @@ says how to refresh them. Hong Kong uses the government's general holidays. Keep
 - Countries with regions, such as the United States, the United Kingdom and Australia, have only national holidays.
 - Mainland China's make-up working days aren't holidays, so a Saturday window still runs on them.
 
+**Settings > Monitor History** decides how many days of raw beats are kept, as `RETENTION_DAYS` did, which now
+only gives the first value, until the setting is saved. `0` keeps them forever. Beats are dropped a day at a time,
+so up to a day more is kept. The hourly and daily statistics are kept regardless, so uptime and charts over longer
+periods still work. The page also shows the database's size. There's no Shrink Database button, as PostgreSQL
+frees the space itself. **Clear all Statistics** there, and **Clear Data > Heartbeats** on a monitor's page,
+delete the beats, the statistics and the history imported from Node.js, of every monitor or of that one, and
+restart the monitors. Search Engine Visibility answers `/robots.txt`, which discourages indexing until it's allowed.
+
 Under **Settings > Holidays**, admins can add their own dates to a country and remove bundled ones, which can be
 restored. Changes apply straight away to every window using that country.
 
@@ -315,7 +324,7 @@ docker compose up --build
 | `DATABASE_URL`                     | required         | PostgreSQL URL of a server with TimescaleDB Community Edition                                   |
 | `ANALYTICS_API_TOKEN`              | required         | Admin bearer token for managing API keys, at least 32 characters                                |
 | `LISTEN_ADDR`                      | `127.0.0.1:3002` | Address to listen on                                                                            |
-| `RETENTION_DAYS`                   | `365`            | Raw beat retention, `0` keeps them forever. Aggregates are kept regardless                      |
+| `RETENTION_DAYS`                   | `365`            | First value of the raw beat retention, which Settings > Monitor History then decides            |
 | `CHECK_CONCURRENCY`                | `2000`           | Maximum checks running at once                                                                  |
 | `API_KEY_RATE_LIMIT`               | `50`             | Requests per second allowed per API key                                                         |
 | `KUMA_BASE_URL`                    | not set          | Public address of the web UI, for links in notifications. Without it, alerts have no link       |

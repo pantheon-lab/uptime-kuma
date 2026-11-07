@@ -60,6 +60,10 @@ type Store interface {
 	ImportantBeats(ctx context.Context, monitorID *int32, offset, limit int) ([]store.Beat, error)
 	CountImportantBeats(ctx context.Context, monitorID *int32) (int64, error)
 	ClearEvents(ctx context.Context, monitorID int32) error
+	ClearMonitorStats(ctx context.Context, monitorID int32) error
+	ClearAllStats(ctx context.Context) error
+	DatabaseSize(ctx context.Context) (int64, error)
+	SetRetention(ctx context.Context, days int) error
 	Chart(ctx context.Context, monitorID int32, hours int) ([]store.ChartPoint, error)
 	Stats(ctx context.Context) ([]store.MonitorStats, error)
 
@@ -204,6 +208,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/realtime/stream", s.stream)
 	mux.HandleFunc("POST /api/realtime/send", s.sameOrigin(s.send))
 	mux.HandleFunc("GET /screenshots/{file}", s.screenshot)
+	mux.HandleFunc("GET /robots.txt", s.robots)
 	if s.pages != nil {
 		s.registerPublic(mux)
 	} else {

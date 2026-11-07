@@ -16,15 +16,18 @@
 
             <!-- Server Timezone -->
             <div class="mb-4">
-                <label for="timezone" class="form-label">
+                <label for="serverTimezone" class="form-label">
                     {{ $t("Server Timezone") }}
                 </label>
-                <select id="timezone" v-model="settings.serverTimezone" class="form-select">
+                <select id="serverTimezone" v-model="settings.serverTimezone" class="form-select" disabled>
                     <option value="UTC">UTC</option>
                     <option v-for="(timezone, index) in timezoneList" :key="index" :value="timezone.value">
                         {{ timezone.name }}
                     </option>
                 </select>
+                <i18n-t tag="div" keypath="serverTimezoneFromEnv" class="form-text">
+                    <code>KUMA_TIMEZONE</code>
+                </i18n-t>
             </div>
 
             <!-- Search Engine -->
@@ -148,90 +151,6 @@
                 <i18n-t keypath="globalpingApiTokenDescription" tag="div" class="form-text">
                     <a href="https://dash.globalping.io" target="_blank">https://dash.globalping.io</a>
                 </i18n-t>
-            </div>
-
-            <!-- DNS Cache (nscd) -->
-            <div v-if="$root.info.isContainer" class="mb-4">
-                <label class="form-label">
-                    {{ $t("enableNSCD") }}
-                </label>
-
-                <div class="form-check">
-                    <input
-                        id="nscdEnable"
-                        v-model="settings.nscd"
-                        class="form-check-input"
-                        type="radio"
-                        name="nscd"
-                        :value="true"
-                        required
-                    />
-                    <label class="form-check-label" for="nscdEnable">
-                        {{ $t("Enable") }}
-                    </label>
-                </div>
-
-                <div class="form-check">
-                    <input
-                        id="nscdDisable"
-                        v-model="settings.nscd"
-                        class="form-check-input"
-                        type="radio"
-                        name="nscd"
-                        :value="false"
-                        required
-                    />
-                    <label class="form-check-label" for="nscdDisable">
-                        {{ $t("Disable") }}
-                    </label>
-                </div>
-            </div>
-
-            <!-- Prometheus API -->
-            <div class="mb-4">
-                <label class="form-label">
-                    {{ $t("Prometheus API") }}
-                </label>
-
-                <div class="form-check form-switch">
-                    <input
-                        id="prometheusApiEnabled"
-                        v-model="settings.prometheusApiEnabled"
-                        class="form-check-input"
-                        type="checkbox"
-                    />
-                    <label class="form-check-label" for="prometheusApiEnabled">
-                        {{ $t("Enable") }}
-                    </label>
-                </div>
-
-                <div class="form-text">
-                    {{ $t("prometheusApiDescription") }}
-                </div>
-            </div>
-
-            <!-- API & MCP -->
-            <div class="mb-4">
-                <label class="form-label">
-                    API and MCP
-                    <span class="badge bg-warning ms-1">Alpha</span>
-                </label>
-
-                <div class="form-check form-switch">
-                    <input id="apiEnabled" v-model="settings.apiEnabled" class="form-check-input" type="checkbox" />
-                    <label class="form-check-label" for="apiEnabled">
-                        {{ $t("Enable") }}
-                    </label>
-                </div>
-
-                <div class="form-text">
-                    {{ $t("apiDescription") }}
-                </div>
-
-                <div v-if="settings.apiEnabled" class="form-text">
-                    {{ $t("apiDocumentation") }}:
-                    <a href="/api/docs" target="_blank" rel="noopener">/api/docs</a>
-                </div>
             </div>
 
             <!-- Chrome Executable -->

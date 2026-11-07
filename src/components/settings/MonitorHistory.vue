@@ -37,6 +37,10 @@
                     </template>
                 </i18n-t>
             </div>
+            <div v-else class="my-3">
+                <div id="database-size">{{ $t("databaseSize", [databaseSizeDisplay]) }}</div>
+                <div class="form-text mt-2 mb-4">{{ $t("databaseSizeDescriptionPostgres") }}</div>
+            </div>
             <button id="clearAllStats-btn" class="btn btn-outline-danger me-2 mb-2" @click="confirmClearStatistics">
                 {{ $t("Clear all statistics") }}
             </button>

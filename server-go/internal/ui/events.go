@@ -51,8 +51,7 @@ var errNotLoggedIn = errors.New("You are not logged in.")
 // emptyReplies answer events that the UI sends on its own when a page opens, for features
 // this service doesn't have yet. An error would show a toast on every page load.
 var emptyReplies = map[string]func() any{
-	"getDatabaseSize": func() any { return ok("size", 0) },
-	"checkApprise":    func() any { return false },
+	"checkApprise": func() any { return false },
 }
 
 // arg decodes argument i into v. A missing argument leaves v as it is.
@@ -353,6 +352,14 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.importantPage(ctx, args)
 	case "clearEvents":
 		r, err = s.clearEvents(ctx, args)
+	case "clearHeartbeats":
+		r, err = s.clearHeartbeats(ctx, c, args)
+	case "clearStatistics":
+		r, err = s.clearStatistics(ctx, c)
+	case "getDatabaseSize":
+		r, err = s.databaseSize(ctx)
+	case "shrinkDatabase":
+		err = userErr(errShrinkNotNeeded)
 	case "getSettings":
 		r, err = s.getSettings(ctx)
 	case "setSettings":
@@ -785,8 +792,19 @@ func (s *Server) setSettings(ctx context.Context, c *conn, args []json.RawMessag
 	for key := range readOnlySettings {
 		delete(toSave, key)
 	}
+	retention, changeRetention, err := s.retentionChange(ctx, toSave)
+	if err != nil {
+		return nil, userErr(err)
+	}
 	if err := s.store.SaveSettings(ctx, toSave); err != nil {
 		return nil, err
+	}
+	if changeRetention {
+		// If this fails, the saved setting is applied at the next start.
+		if err := s.store.SetRetention(ctx, retention); err != nil {
+			return nil, err
+		}
+		s.log.Info("retention changed", "days", retention, "by", c.username)
 	}
 	s.cache.clear() // The entry page or trusting a proxy may have changed.
 	c.emit("info", s.info(ctx, true))

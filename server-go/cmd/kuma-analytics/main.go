@@ -74,7 +74,7 @@ func run(log *slog.Logger) error {
 	retentionDays := 365
 	if raw := os.Getenv("RETENTION_DAYS"); raw != "" {
 		v, err := strconv.Atoi(raw)
-		if err != nil || v < 0 {
+		if err != nil || v < 0 || v > store.MaxRetentionDays {
 			return errors.New("RETENTION_DAYS must be a non-negative integer, 0 keeps raw beats forever")
 		}
 		retentionDays = v
@@ -112,7 +112,16 @@ func run(log *slog.Logger) error {
 	if err := db.Migrate(ctx); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
-	if err := db.SetRetention(ctx, retentionDays); err != nil {
+	// Settings > Monitor History decides the retention. RETENTION_DAYS is only its first value.
+	days, saved, err := db.RetentionDays(ctx, retentionDays)
+	if err != nil {
+		return err
+	}
+	if saved && os.Getenv("RETENTION_DAYS") != "" && days != retentionDays {
+		log.Warn("RETENTION_DAYS is ignored, as the retention was saved under Settings > Monitor History",
+			"RETENTION_DAYS", retentionDays, "setting", days)
+	}
+	if err := db.SetRetention(ctx, days); err != nil {
 		return err
 	}
 	if password := os.Getenv("GRAFANA_DB_PASSWORD"); password != "" {
@@ -243,7 +252,7 @@ func run(log *slog.Logger) error {
 
 	serveErr := make(chan error, 1)
 	go func() {
-		log.Info("listening", "addr", addr, "retentionDays", retentionDays, "webUI", webui.Built())
+		log.Info("listening", "addr", addr, "retentionDays", days, "webUI", webui.Built())
 		serveErr <- server.ListenAndServe()
 	}()
 

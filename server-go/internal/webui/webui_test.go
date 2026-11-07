@@ -67,6 +67,7 @@ func TestMountRoutes(t *testing.T) {
 		{name: "old status page path", method: "GET", target: "/status-page", wantStatus: http.StatusTeapot, wantAPI: true},
 		{name: "uploaded logo", method: "GET", target: "/upload/logo1.png", wantStatus: http.StatusTeapot, wantAPI: true},
 		{name: "screenshot", method: "GET", target: "/screenshots/3.png", wantStatus: http.StatusTeapot, wantAPI: true},
+		{name: "robots.txt", method: "GET", target: "/robots.txt", wantStatus: http.StatusTeapot, wantAPI: true},
 		{name: "index.html itself", method: "GET", target: "/index.html", wantStatus: 200, wantBody: "<html>app</html>"},
 		{name: "spa route", method: "GET", target: "/dashboard/12", wantStatus: 200, wantBody: "<html>app</html>", wantCache: "no-cache"},
 		{name: "static file", method: "GET", target: "/favicon.ico", wantStatus: 200, wantBody: "icon", wantCache: "no-cache"},
