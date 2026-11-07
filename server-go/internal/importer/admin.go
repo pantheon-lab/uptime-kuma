@@ -31,10 +31,13 @@ import (
 // AccountReport says what happened to the account. It holds no password or key.
 type AccountReport struct {
 	// Source is how many accounts the source has. Node.js used the first one.
-	Source    int    `json:"source"`
-	Username  string `json:"username,omitempty"`
-	TwoFactor bool   `json:"twoFactor"`
-	Imported  bool   `json:"imported"`
+	Source   int    `json:"source"`
+	Username string `json:"username,omitempty"`
+	// RenamedFrom is the source's username, when it started with @, which is kept for
+	// accounts that log in with GitHub.
+	RenamedFrom string `json:"renamedFrom,omitempty"`
+	TwoFactor   bool   `json:"twoFactor"`
+	Imported    bool   `json:"imported"`
 	// Skipped says why the account wasn't imported.
 	Skipped string `json:"skipped,omitempty"`
 }
@@ -80,6 +83,13 @@ func copyAccount(ctx context.Context, conn *sql.Conn, opts Options, report *Repo
 	account, err := readAccount(ctx, conn, opts.AuthSecret, &report.Account)
 	if err != nil || account == nil {
 		return err
+	}
+	if strings.HasPrefix(account.Username, store.GitHubAccountPrefix) {
+		report.Account.RenamedFrom = account.Username
+		account.Username = strings.TrimLeft(account.Username, store.GitHubAccountPrefix)
+		if strings.TrimSpace(account.Username) == "" {
+			account.Username = "admin"
+		}
 	}
 	report.Account.Username = account.Username
 	report.Account.TwoFactor = account.TOTPSecret != nil

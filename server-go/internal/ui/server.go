@@ -178,6 +178,11 @@ type Server struct {
 	conns map[string]*conn
 	// beatsSeen is set by new beats and cleared when stats are sent.
 	beatsSeen bool
+
+	// githubMu guards the GitHub team checks running, and when each account's last one failed.
+	githubMu       sync.Mutex
+	githubChecking map[int32]bool
+	githubFailed   map[int32]time.Time
 }
 
 // New creates the server.
@@ -204,6 +209,9 @@ func New(s Store, scheduler Scheduler, notifyEnv *notify.Env, log *slog.Logger, 
 		conns:       map[string]*conn{},
 		pages:       opts.StatusPages,
 		cache:       newPublicCache(),
+
+		githubChecking: map[int32]bool{},
+		githubFailed:   map[int32]time.Time{},
 	}
 	// A window started or ended, so open pages show its new status.
 	opts.Maintenance.OnChange(func() {

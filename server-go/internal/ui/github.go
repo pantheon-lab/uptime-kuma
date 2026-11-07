@@ -44,7 +44,9 @@ const (
 	githubCookiePath   = "/api/auth/github"
 	githubLoginFor     = 10 * time.Minute
 	githubRecheckEvery = 24 * time.Hour
-	githubScope        = "read:org"
+	// githubRetryAfter is how long a GitHub account's check waits after one that failed.
+	githubRetryAfter = 10 * time.Minute
+	githubScope      = "read:org"
 )
 
 // errGitHubUnavailable is a failure to ask GitHub, which isn't a reason to log someone out.
@@ -306,12 +308,20 @@ func (s *Server) recheckGitHub(ctx context.Context, user store.User) string {
 	if user.GitHubCheckedAt != nil && s.now().Sub(*user.GitHubCheckedAt) < githubRecheckEvery {
 		return user.Role
 	}
+	// One check at a time per account, and after one that failed, none for a while: during a
+	// GitHub outage or rate limit, every request would otherwise wait on GitHub again.
+	if !s.startGitHubCheck(user.ID) {
+		return user.Role
+	}
+	failed := false
+	defer func() { s.endGitHubCheck(user.ID, failed) }()
 	token, err := s.store.GitHubToken(ctx, user.ID)
 	if errors.Is(err, store.ErrNotFound) {
 		return ""
 	}
 	if err != nil {
 		s.log.Warn("check GitHub teams", "error", err)
+		failed = true
 		return user.Role
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
@@ -319,6 +329,7 @@ func (s *Server) recheckGitHub(ctx context.Context, user store.User) string {
 	_, _, role, teams, err := s.githubRole(ctx, token)
 	if err != nil {
 		s.log.Warn("check GitHub teams", "username", user.Username, "error", err)
+		failed = true
 		return user.Role
 	}
 	if role == "" {
@@ -326,10 +337,41 @@ func (s *Server) recheckGitHub(ctx context.Context, user store.User) string {
 		return ""
 	}
 	if err := s.store.SetGitHubChecked(ctx, user.ID, role, teams); err != nil {
+		// The stored role stays as it was, so keep it until the next try: returning the new
+		// one would look like a change on every request, and close the user's streams each time.
 		s.log.Warn("check GitHub teams", "error", err)
+		failed = true
+		return user.Role
 	}
 	if role != user.Role {
 		s.log.Info("GitHub account's role changed", "username", user.Username, "role", role)
 	}
 	return role
+}
+
+// startGitHubCheck reports whether a check of the account's teams may start now: none is
+// running, and none failed in the last githubRetryAfter. It then marks one as running.
+func (s *Server) startGitHubCheck(userID int32) bool {
+	s.githubMu.Lock()
+	defer s.githubMu.Unlock()
+	if s.githubChecking[userID] {
+		return false
+	}
+	if failed, ok := s.githubFailed[userID]; ok && s.now().Sub(failed) < githubRetryAfter {
+		return false
+	}
+	s.githubChecking[userID] = true
+	return true
+}
+
+// endGitHubCheck marks the account's check as done, and when it failed, when.
+func (s *Server) endGitHubCheck(userID int32, failed bool) {
+	s.githubMu.Lock()
+	defer s.githubMu.Unlock()
+	delete(s.githubChecking, userID)
+	if failed {
+		s.githubFailed[userID] = s.now()
+	} else {
+		delete(s.githubFailed, userID)
+	}
 }

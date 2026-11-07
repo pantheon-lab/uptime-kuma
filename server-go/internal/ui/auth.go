@@ -274,21 +274,13 @@ func (s *Server) currentSession(ctx context.Context, w http.ResponseWriter, r *h
 	if err != nil {
 		return store.Session{}, store.User{}, false, err
 	}
-	if user.GitHubID != nil {
-		role := s.recheckGitHub(ctx, user)
-		if role == "" {
-			if err := s.store.EndUserSessions(ctx, user.ID); err != nil {
-				return store.Session{}, store.User{}, false, err
-			}
-			s.closeOtherSessions(user.ID, nil)
-			clearSessionCookie(w, r)
-			return store.Session{}, store.User{}, false, nil
-		}
-		if role != user.Role {
-			// Open pages reconnect, and get what the new role allows.
-			user.Role = role
-			s.closeOtherSessions(user.ID, nil)
-		}
+	user, allowed, err := s.checkGitHubAccount(ctx, user)
+	if err != nil {
+		return store.Session{}, store.User{}, false, err
+	}
+	if !allowed {
+		clearSessionCookie(w, r)
+		return store.Session{}, store.User{}, false, nil
 	}
 	if session.Remember && session.ExpiresAt.Sub(s.now()) < rememberFor-renewAfter {
 		expires := s.now().Add(rememberFor)
@@ -300,6 +292,30 @@ func (s *Server) currentSession(ctx context.Context, w http.ResponseWriter, r *h
 		}
 	}
 	return session, user, true, nil
+}
+
+// checkGitHubAccount rechecks a GitHub account's teams when they are due, and returns the
+// user with its role now. allowed is false when the account may no longer log in: its
+// sessions are then ended. When the role changed, the user's streams are closed, so that
+// open pages reconnect and get what the new role allows. Other accounts are returned as
+// they are.
+func (s *Server) checkGitHubAccount(ctx context.Context, user store.User) (store.User, bool, error) {
+	if user.GitHubID == nil {
+		return user, true, nil
+	}
+	role := s.recheckGitHub(ctx, user)
+	if role == "" {
+		if err := s.store.EndUserSessions(ctx, user.ID); err != nil {
+			return store.User{}, false, err
+		}
+		s.closeOtherSessions(user.ID, nil)
+		return store.User{}, false, nil
+	}
+	if role != user.Role {
+		user.Role = role
+		s.closeOtherSessions(user.ID, nil)
+	}
+	return user, true, nil
 }
 
 func userJSON(u store.User) map[string]any {

@@ -22,7 +22,8 @@ const uptimeTolerance = 0.0001
 type VerifyTarget interface {
 	ImportedMonitors(ctx context.Context) (map[int32]store.ImportedMonitor, error)
 	RefreshAggregates(ctx context.Context) error
-	BeatCount(ctx context.Context, monitorID int32, from, to time.Time) (int64, error)
+	// MissingBeats counts the times that have no beat of the monitor.
+	MissingBeats(ctx context.Context, monitorID int32, times []time.Time) (int64, error)
 	UptimeCounts(ctx context.Context, daily bool, monitorID int32, from, to time.Time) (up, down int64, err error)
 	BeatStatusAt(ctx context.Context, monitorID int32, at time.Time) (int16, bool, error)
 }
@@ -131,20 +132,25 @@ func Verify(ctx context.Context, source *sql.DB, target VerifyTarget) (*VerifyRe
 
 func verifyMonitor(ctx context.Context, conn *sql.Conn, target VerifyTarget, sourceID, monitorID int32, windows []window) (MonitorCheck, error) {
 	check := MonitorCheck{SourceID: sourceID, MonitorID: monitorID, Uptime: map[string]Uptime{}}
-	// Beats with a status the import refuses aren't counted.
-	rows, _, err := readRows(ctx, conn, "SELECT count(*) AS n, min(`time`) AS first, max(`time`) AS last FROM heartbeat "+
-		"WHERE monitor_id = ? AND status BETWEEN 0 AND 3", sourceID)
+	// Beats with a status the import refuses aren't counted. The source can hold beats of the
+	// same monitor at the same time, which are one beat here, so times are counted.
+	rows, _, err := readRows(ctx, conn, "SELECT count(DISTINCT `time`) AS n, max(`time`) AS last "+
+		"FROM heartbeat WHERE monitor_id = ? AND status BETWEEN 0 AND 3", sourceID)
 	if err != nil {
 		return check, err
 	}
 	check.SourceBeats = intOf(rows[0]["n"])
 	if check.SourceBeats > 0 {
-		first, last := sourceTime(rows[0]["first"], time.Time{}), sourceTime(rows[0]["last"], time.Time{})
-		if check.Beats, err = target.BeatCount(ctx, monitorID, first, last); err != nil {
+		last := sourceTime(rows[0]["last"], time.Time{})
+		// Each of the source's beats is looked for here, rather than beats counted over its
+		// range: this service may have checked the monitor in that range too, while both ran.
+		missing, err := missingBeats(ctx, conn, target, sourceID, monitorID)
+		if err != nil {
 			return check, err
 		}
-		if check.Beats != check.SourceBeats {
-			check.Differences = append(check.Differences, fmt.Sprintf("beats: %d in the source, %d here", check.SourceBeats, check.Beats))
+		check.Beats = check.SourceBeats - missing
+		if missing > 0 {
+			check.Differences = append(check.Differences, fmt.Sprintf("beats: %d of the source's %d aren't here", missing, check.SourceBeats))
 		}
 		newest, _, err := readRows(ctx, conn, "SELECT status FROM heartbeat WHERE monitor_id = ? AND `time` = ? LIMIT 1",
 			sourceID, rows[0]["last"].String)
@@ -190,6 +196,44 @@ func verifyMonitor(ctx context.Context, conn *sql.Conn, target VerifyTarget, sou
 		}
 	}
 	return check, nil
+}
+
+// verifyBatch is how many beat times are looked for here at once.
+const verifyBatch = 10000
+
+// missingBeats counts the times of the source's beats of a monitor that have no beat here.
+func missingBeats(ctx context.Context, conn *sql.Conn, target VerifyTarget, sourceID, monitorID int32) (int64, error) {
+	var missing int64
+	query := "SELECT DISTINCT `time` FROM heartbeat WHERE monitor_id = ? AND status BETWEEN 0 AND 3 "
+	args := []any{sourceID}
+	for {
+		page := query + "ORDER BY `time` LIMIT ?"
+		if len(args) > 1 {
+			page = query + "AND `time` > ? ORDER BY `time` LIMIT ?"
+		}
+		rows, _, err := readRows(ctx, conn, page, append(args, verifyBatch)...)
+		if err != nil {
+			return 0, err
+		}
+		if len(rows) == 0 {
+			return missing, nil
+		}
+		times := make([]time.Time, 0, len(rows))
+		for _, row := range rows {
+			if at, err := time.ParseInLocation(datetimeLayout, row["time"].String, time.UTC); err == nil {
+				times = append(times, at)
+			}
+		}
+		n, err := target.MissingBeats(ctx, monitorID, times)
+		if err != nil {
+			return 0, err
+		}
+		missing += n
+		if len(rows) < verifyBatch {
+			return missing, nil
+		}
+		args = []any{sourceID, rows[len(rows)-1]["time"].String}
+	}
 }
 
 func ratio(up, down int64) *float64 {

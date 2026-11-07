@@ -106,7 +106,7 @@
                 </div>
             </div>
 
-            <div v-if="!isGitHub" class="my-4">
+            <div v-if="!isGitHub && $root.canEdit" class="my-4">
                 <!-- Advanced -->
                 <h5 class="my-4 settings-subheading">{{ $t("Advanced") }}</h5>
 

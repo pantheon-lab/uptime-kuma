@@ -249,13 +249,18 @@ func (s *Store) AdoptSkipped(ctx context.Context, sourceID, monitorID int32) (in
 	return beats, err
 }
 
-// BeatCount counts a monitor's beats from one time to another, both included.
-func (s *Store) BeatCount(ctx context.Context, monitorID int32, from, to time.Time) (int64, error) {
+// MissingBeats counts the times that have no beat of the monitor.
+func (s *Store) MissingBeats(ctx context.Context, monitorID int32, times []time.Time) (int64, error) {
+	if len(times) == 0 {
+		return 0, nil
+	}
 	var n int64
-	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM heartbeat WHERE monitor_id = $1 AND time BETWEEN $2 AND $3`,
-		monitorID, from, to).Scan(&n)
+	err := s.pool.QueryRow(ctx, `
+		SELECT count(*) FROM unnest($2::timestamptz[]) AS t(at)
+		WHERE NOT EXISTS (SELECT 1 FROM heartbeat h WHERE h.monitor_id = $1 AND h.time = t.at)`,
+		monitorID, times).Scan(&n)
 	if err != nil {
-		return 0, fmt.Errorf("count beats: %w", err)
+		return 0, fmt.Errorf("look for beats: %w", err)
 	}
 	return n, nil
 }

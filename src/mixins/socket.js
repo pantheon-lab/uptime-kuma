@@ -94,7 +94,13 @@ export default {
             const path = this.$route?.path ?? "";
             const editing =
                 /^\/(add|edit|clone|settings|add-status-page|add-maintenance|maintenance\/(edit|clone))(\/|$)/;
-            if (!this.canEdit && (editing.test(path) || this.$route?.query?.edit !== undefined)) {
+            // A viewer keeps the Security page, for their own password, 2FA and GitHub teams.
+            const viewerSettings = /^\/settings(\/security)?\/?$/;
+            if (
+                !this.canEdit &&
+                !viewerSettings.test(path) &&
+                (editing.test(path) || this.$route?.query?.edit !== undefined)
+            ) {
                 this.$router.replace("/dashboard");
             }
         },

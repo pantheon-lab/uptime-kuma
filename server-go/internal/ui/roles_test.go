@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 )
@@ -119,6 +120,32 @@ func TestViewerRole(t *testing.T) {
 		if strings.Contains(string(parts[1]), secret) {
 			t.Errorf("the update sent the viewer %s", secret)
 		}
+	}
+
+	// Saving a proxy, Docker host or remote browser sends the lists to admins only. The update
+	// after them shows that the viewer got nothing before it.
+	if _, _, err := fs.SaveProxy(ctx, check.Proxy{Protocol: "http", Host: "proxy", Port: 8080, Auth: true,
+		Username: "proxy-user", Password: "proxy-pass-7"}, false); err != nil {
+		t.Fatal(err)
+	}
+	s.sendProxyList(ctx, nil)
+	s.sendDockerHostList(ctx, nil)
+	s.sendRemoteBrowserList(ctx, nil)
+	s.broadcastMonitorUpdate(tree.listJSON())
+	_, parts = stream.message(t)
+	_ = json.Unmarshal(parts[0], &name)
+	if name != "updateMonitorIntoList" || strings.Contains(string(parts[1]), "proxy-pass-7") {
+		t.Fatalf("the viewer got %s: %s", name, parts[1])
+	}
+
+	// The Security page reads the viewer's own account.
+	sendEvent(t, viewer, ts.URL, id, "getOwnAccount", 30)
+	kind, parts := stream.message(t)
+	for kind != "ack" {
+		kind, parts = stream.message(t)
+	}
+	if !strings.Contains(string(parts[1]), `"method":"password"`) {
+		t.Fatalf("getOwnAccount for a viewer: %s", parts[1])
 	}
 }
 

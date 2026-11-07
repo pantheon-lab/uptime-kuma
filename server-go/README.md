@@ -28,7 +28,8 @@ Accounts can also be **viewers**, which can look at monitors, beats, maintenance
 can't change anything, and aren't sent credentials. The server enforces this: a viewer's page gets monitors without
 URLs' credentials and query strings, headers, bodies, connection strings, push tokens or passwords, and empty lists
 of notifications, proxies, Docker hosts and remote browsers, and every event that would change something, or read
-settings or API keys, is refused. The UI hides those buttons, and sends a viewer back from settings and forms.
+settings or API keys, is refused. The UI hides those buttons, and sends a viewer back from settings and forms,
+except Settings > Security, for their own password, two-factor login and GitHub teams.
 Accounts other than the setup one come from logging in with GitHub.
 
 **Settings > Accounts** lists every account, for admins: its role, whether it logs in with GitHub or a password, its
@@ -41,7 +42,9 @@ change is logged with who made it.
 
 With a GitHub OAuth App, the login page offers "Log in with GitHub". Membership of the organization's teams decides
 who may log in, and as what, at each login and again once a day while a session is used, so that someone who leaves
-a team loses access within a day, and a role that changed takes effect. Two-factor login is left to GitHub, where
+a team loses access within a day, and a role that changed takes effect. An open page checks its session every five
+minutes, so it needs no new request to find out. When GitHub can't be reached, the account keeps its role, and is
+checked again ten minutes later. Two-factor login is left to GitHub, where
 the organization can require it.
 
 1. In the organization's settings, under Developer settings > OAuth Apps, register an app with the callback URL
@@ -53,7 +56,8 @@ the organization can require it.
    GitHub is down, after it's turned back on.
 
 The app asks for the `read:org` scope, to read team membership. Each GitHub user gets an account named `@login` at
-their first login, so password accounts can't start with `@`. The token is stored, as the password hashes are, to
+their first login, so password accounts can't start with `@`; `kuma-import` drops a leading `@` from the imported
+account's name, and says so in its report. The token is stored, as the password hashes are, to
 check the teams again; it's never sent to browsers. Setup isn't offered once someone has logged in with GitHub.
 `KUMA_GITHUB_URL` and `KUMA_GITHUB_API_URL` point at a GitHub Enterprise server instead.
 
@@ -722,8 +726,8 @@ and `uptime_daily` views, which join the two.
 
 ### Checking the move
 
-`-verify` compares each imported monitor with the source, and imports nothing: the number of beats over the
-source's range, the newest beat, and the uptime over the last 24 whole hours, 30 whole days and 365 whole days
+`-verify` compares each imported monitor with the source, and imports nothing: that each of the source's beats
+is here (beats this service recorded itself don't count against it), the newest beat, and the uptime over the last 24 whole hours, 30 whole days and 365 whole days
 before the source's newest beat, from the source's statistics and this service's views. Uptime may differ by
 0.01 percentage points. It prints a JSON report that lists every monitor that differs and how, and exits with 3 if
 any does, 1 if it couldn't check, and 0 otherwise.

@@ -83,9 +83,9 @@
                                 </router-link>
                             </li>
 
-                            <li v-if="$root.canEdit">
+                            <li>
                                 <router-link
-                                    to="/settings/general"
+                                    :to="$root.canEdit ? '/settings/general' : '/settings/security'"
                                     class="dropdown-item"
                                     :class="{ active: $route.path.includes('settings') }"
                                 >
@@ -148,7 +148,7 @@
                 {{ $t("Add") }}
             </router-link>
 
-            <router-link v-if="$root.canEdit" to="/settings" class="nav-link">
+            <router-link to="/settings" class="nav-link">
                 <div><font-awesome-icon icon="cog" /></div>
                 {{ $t("Settings") }}
             </router-link>

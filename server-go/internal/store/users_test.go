@@ -439,6 +439,17 @@ func TestGitHubAccounts(t *testing.T) {
 	if err != nil || old.ID != alice.ID {
 		t.Fatalf("the renamed account: %+v %v", old, err)
 	}
+	// GitHub logins ignore case, so a third account taking "Alice2" renames the second.
+	second, err := s.UserByUsername(ctx, "@alice2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SaveGitHubUser(ctx, 103, "Alice2", RoleViewer, "token-5", nil); err != nil {
+		t.Fatal(err)
+	}
+	if renamed, err := s.UserByID(ctx, second.ID); err != nil || renamed.Username != fmt.Sprintf("@alice2#%d", second.ID) {
+		t.Fatalf("the account that differed in case: %+v %v", renamed, err)
+	}
 	if err := s.CreateSession(ctx, []byte("t"), Session{UserID: alice.ID, ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
 		t.Fatal(err)
 	}

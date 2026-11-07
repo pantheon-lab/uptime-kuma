@@ -80,6 +80,14 @@ export default {
         },
 
         subMenus() {
+            // A viewer only has their own account's page: the others change things.
+            if (!this.$root.canEdit) {
+                return {
+                    security: {
+                        title: this.$t("Security"),
+                    },
+                };
+            }
             return {
                 general: {
                     title: this.$t("General"),
@@ -131,10 +139,23 @@ export default {
         "$root.isMobile"() {
             this.loadGeneralPage();
         },
+        "$root.canEdit"(canEdit) {
+            if (canEdit) {
+                this.loadSettings();
+            } else {
+                this.settings = {};
+                this.settingsLoaded = true;
+            }
+            this.loadGeneralPage();
+        },
     },
 
     mounted() {
-        this.loadSettings();
+        if (this.$root.canEdit) {
+            this.loadSettings();
+        } else {
+            this.settingsLoaded = true;
+        }
         this.loadGeneralPage();
     },
 
@@ -146,7 +167,7 @@ export default {
          */
         loadGeneralPage() {
             if (!this.currentPage && !this.$root.isMobile) {
-                this.$router.push("/settings/general");
+                this.$router.push(this.$root.canEdit ? "/settings/general" : "/settings/security");
             }
         },
 
@@ -156,6 +177,14 @@ export default {
          */
         loadSettings() {
             this.$root.getSocket().emit("getSettings", (res) => {
+                if (!res.ok) {
+                    // A viewer's page, before the session said so: the Security page needs none.
+                    if (!this.$root.canEdit) {
+                        this.settings = {};
+                        this.settingsLoaded = true;
+                    }
+                    return;
+                }
                 this.settings = res.data;
 
                 if (this.settings.checkUpdate === undefined) {

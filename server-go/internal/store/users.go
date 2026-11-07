@@ -360,7 +360,7 @@ func (s *Store) SaveGitHubUser(ctx context.Context, githubID int64, login, role,
 		// before keeps its id, under a name that says so.
 		if _, err := tx.Exec(ctx, `
 			UPDATE app_user SET username = username || '#' || id
-			WHERE username = $1 AND github_id IS NOT NULL AND github_id <> $2`, GitHubAccountPrefix+login, githubID); err != nil {
+			WHERE lower(username) = lower($1) AND github_id IS NOT NULL AND github_id <> $2`, GitHubAccountPrefix+login, githubID); err != nil {
 			return err
 		}
 		err := tx.QueryRow(ctx, `

@@ -213,7 +213,14 @@ func TestVerify(t *testing.T) {
 			f.exec(t, "INSERT INTO "+table+" (monitor_id, timestamp, ping, ping_min, ping_max, up, down) VALUES (1, ?, 1, 1, 1, ?, ?)", ts, c[0], c[1])
 		}
 	}
+	// A second beat in the same second, a retry say, which is one beat here.
+	f.exec(t, "INSERT INTO heartbeat (monitor_id, status, time, msg) VALUES (1, 1, ?, '')", now.Add(-5*time.Hour).Format("2006-01-02 15:04:05"))
 	f.run(t, true, false)
+	// A beat this service recorded itself while both ran, inside the source's range.
+	if _, err := f.targetSQL.Exec(ctx, `INSERT INTO heartbeat (monitor_id, time, status, msg) VALUES ($1, $2, 1, '')`,
+		f.targetID(t, 1), now.Add(-time.Hour).Add(5*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
 
 	report, err := Verify(ctx, f.source, f.target)
 	if err != nil {
@@ -241,7 +248,7 @@ func TestVerify(t *testing.T) {
 	}
 	text := strings.Join(report.Differing[0].Differences, "; ")
 	// The lost beat is in an hour before the cutover, whose uptime comes from the source's statistics.
-	for _, want := range []string{"beats: 289 in the source, 288 here", "uptime over 30d"} {
+	for _, want := range []string{"beats: 1 of the source's 289 aren't here", "uptime over 30d"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("no %q in: %s", want, text)
 		}

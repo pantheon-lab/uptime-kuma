@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -31,11 +32,16 @@ type fakeGitHub struct {
 	codes      map[string]string          // code to token
 	challenges map[string]string          // state to PKCE challenge
 	down       bool
+	// apiCalls counts calls to the API, which the back-off after a failure keeps down.
+	apiCalls int
 }
 
 func (f *fakeGitHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if r.URL.Path != "/login/oauth/access_token" {
+		f.apiCalls++
+	}
 	if f.down {
 		w.WriteHeader(http.StatusBadGateway)
 		return
@@ -162,6 +168,16 @@ func TestGitHubLogin(t *testing.T) {
 	if user := session(alice); to != "/dashboard" || user["username"] != "@alice" || user["role"] != "admin" {
 		t.Fatalf("alice: %s %v", to, user)
 	}
+	aliceURL, _ := url.Parse(ts.URL)
+	var aliceLogin *userInfo
+	for _, cookie := range alice.Jar.Cookies(aliceURL) {
+		if cookie.Name == sessionCookie {
+			aliceLogin = &userInfo{id: 1, tokenHash: hashToken(cookie.Value), admin: true}
+		}
+	}
+	if aliceLogin == nil || !s.loginStillValid(context.Background(), aliceLogin) {
+		t.Fatal("alice's stream isn't valid after logging in")
+	}
 	// E2: the teams are kept for the Security page, and there's no password or two-factor login.
 	fs.mu.Lock()
 	aliceTeams := strings.Join(fs.users[0].GitHubTeams, ",")
@@ -226,6 +242,10 @@ func TestGitHubLogin(t *testing.T) {
 	clock.Lock()
 	now = now.Add(25 * time.Hour)
 	clock.Unlock()
+	// An open stream finds out by itself, without a request: it was opened as an admin's.
+	if s.loginStillValid(context.Background(), aliceLogin) {
+		t.Fatal("alice's admin stream stayed valid after she moved to a viewer team")
+	}
 	if user := session(alice); user["role"] != "viewer" {
 		t.Fatalf("alice after moving: %v", user)
 	}
@@ -247,6 +267,39 @@ func TestGitHubLogin(t *testing.T) {
 	clock.Unlock()
 	if user := session(alice); user == nil || user["role"] != "viewer" {
 		t.Fatalf("alice with GitHub down: %v", user)
+	}
+	// Until the retry, requests don't ask GitHub again.
+	github.mu.Lock()
+	calls := github.apiCalls
+	github.mu.Unlock()
+	for range 3 {
+		if user := session(alice); user == nil {
+			t.Fatal("alice logged out while GitHub is down")
+		}
+	}
+	github.mu.Lock()
+	if github.apiCalls != calls {
+		t.Errorf("GitHub was asked %d more times while down", github.apiCalls-calls)
+	}
+	github.down = false
+	github.mu.Unlock()
+	clock.Lock()
+	now = now.Add(githubRetryAfter + time.Minute)
+	clock.Unlock()
+	if user := session(alice); user == nil || user["role"] != "viewer" {
+		t.Fatalf("alice after GitHub came back: %v", user)
+	}
+	github.mu.Lock()
+	if github.apiCalls == calls {
+		t.Error("GitHub wasn't asked again after the retry interval")
+	}
+	github.mu.Unlock()
+	// A session that ended closes its stream at the next check.
+	fs.mu.Lock()
+	delete(fs.sessions, string(aliceLogin.tokenHash))
+	fs.mu.Unlock()
+	if s.loginStillValid(context.Background(), &userInfo{id: 1, tokenHash: aliceLogin.tokenHash}) {
+		t.Error("a stream stayed valid after its session ended")
 	}
 
 	// A password can't make an account that looks like a GitHub one.

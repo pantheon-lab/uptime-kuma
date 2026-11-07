@@ -744,7 +744,7 @@ has to be set up again by hand, and the move can be checked.
 - **Skipped monitors:** their beats and statistics are kept in `skipped_heartbeat` and `skipped_stat`, by source id,
   and a monitor imported later gets them (beats and statistics that aren't here already), even after Uptime Kuma
   pruned them.
-- **`kuma-import -verify`** compares each imported monitor with the source: beats over the source's range, the
+- **`kuma-import -verify`** compares each imported monitor with the source: that each of the source's beats is here, the
   newest beat, and uptime over the 24 whole hours, 30 and 365 whole days before the source's newest beat, from the
   source's statistics and the `uptime_hourly` and `uptime_daily` views, within 0.01 percentage points. It exits 3
   when one differs, 1 when it couldn't check.
