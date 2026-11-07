@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -49,7 +50,8 @@ var supportedTypes = map[string]bool{
 	monitor.TypeHTTP: true, monitor.TypeKeyword: true, monitor.TypePort: true, monitor.TypeGroup: true,
 	monitor.TypePush: true, monitor.TypePing: true, monitor.TypeDNS: true, monitor.TypeJSONQuery: true,
 	monitor.TypeManual: true, monitor.TypeWebSocket: true, monitor.TypePostgres: true, monitor.TypeMySQL: true,
-	monitor.TypeRedis: true,
+	monitor.TypeRedis: true, monitor.TypeSQLServer: true, monitor.TypeOracle: true, monitor.TypeMongoDB: true,
+	monitor.TypeMQTT: true, monitor.TypeRabbitMQ: true, monitor.TypeKafka: true,
 }
 
 // uiDefaults are fields of the UI's monitor form that this service doesn't have. They're sent
@@ -218,16 +220,33 @@ func (t *monitorTree) monitorJSON(m monitor.Monitor) map[string]any {
 		"dns_resolve_server":       m.DNSResolveServer,
 		"dns_last_result":          m.DNSLastResult,
 
-		"jsonPath":                         m.JSONPath,
-		"jsonPathOperator":                 m.JSONPathOperator,
-		"expectedValue":                    m.ExpectedValue,
-		"conditions":                       conditionsJSON(m.Conditions),
-		"manual_status":                    m.ManualStatus,
-		"wsSubprotocol":                    m.WSSubprotocol,
-		"wsIgnoreSecWebsocketAcceptHeader": m.WSIgnoreAcceptHeader,
-		"databaseConnectionString":         m.DatabaseConnectionString,
-		"databaseQuery":                    m.DatabaseQuery,
-		"radiusPassword":                   m.DatabasePassword,
+		"jsonPath":                            m.JSONPath,
+		"jsonPathOperator":                    m.JSONPathOperator,
+		"expectedValue":                       m.ExpectedValue,
+		"conditions":                          conditionsJSON(m.Conditions),
+		"manual_status":                       m.ManualStatus,
+		"wsSubprotocol":                       m.WSSubprotocol,
+		"wsIgnoreSecWebsocketAcceptHeader":    m.WSIgnoreAcceptHeader,
+		"databaseConnectionString":            m.DatabaseConnectionString,
+		"databaseQuery":                       m.DatabaseQuery,
+		"radiusPassword":                      m.DatabasePassword,
+		"basic_auth_user":                     m.DatabaseUsername,
+		"basic_auth_pass":                     oraclePassword(m),
+		"mqttTopic":                           m.MQTTTopic,
+		"mqttUsername":                        m.MQTTUsername,
+		"mqttPassword":                        m.MQTTPassword,
+		"mqttWebsocketPath":                   m.MQTTWebsocketPath,
+		"mqttCheckType":                       cmp.Or(m.MQTTCheckType, "keyword"),
+		"mqttSuccessMessage":                  m.MQTTSuccessMessage,
+		"rabbitmqNodes":                       orEmpty(m.RabbitMQNodes),
+		"rabbitmqUsername":                    m.RabbitMQUsername,
+		"rabbitmqPassword":                    m.RabbitMQPassword,
+		"kafkaProducerBrokers":                orEmpty(m.KafkaBrokers),
+		"kafkaProducerTopic":                  m.KafkaTopic,
+		"kafkaProducerMessage":                m.KafkaMessage,
+		"kafkaProducerSsl":                    m.KafkaSSL,
+		"kafkaProducerAllowAutoTopicCreation": m.KafkaAllowAutoTopicCreation,
+		"kafkaProducerSaslOptions":            kafkaSASLJSON(m.KafkaSASL),
 	})
 	return out
 }
@@ -342,6 +361,22 @@ type monitorInput struct {
 	DatabaseConnectionString *string         `json:"databaseConnectionString"`
 	DatabaseQuery            *string         `json:"databaseQuery"`
 	RadiusPassword           *string         `json:"radiusPassword"`
+
+	MQTTTopic                   *string            `json:"mqttTopic"`
+	MQTTUsername                *string            `json:"mqttUsername"`
+	MQTTPassword                *string            `json:"mqttPassword"`
+	MQTTWebsocketPath           *string            `json:"mqttWebsocketPath"`
+	MQTTCheckType               *string            `json:"mqttCheckType"`
+	MQTTSuccessMessage          *string            `json:"mqttSuccessMessage"`
+	RabbitMQNodes               []string           `json:"rabbitmqNodes"`
+	RabbitMQUsername            *string            `json:"rabbitmqUsername"`
+	RabbitMQPassword            *string            `json:"rabbitmqPassword"`
+	KafkaBrokers                []string           `json:"kafkaProducerBrokers"`
+	KafkaTopic                  *string            `json:"kafkaProducerTopic"`
+	KafkaMessage                *string            `json:"kafkaProducerMessage"`
+	KafkaSSL                    bool               `json:"kafkaProducerSsl"`
+	KafkaAllowAutoTopicCreation bool               `json:"kafkaProducerAllowAutoTopicCreation"`
+	KafkaSASL                   *monitor.KafkaSASL `json:"kafkaProducerSaslOptions"`
 }
 
 // parseMonitor converts the UI's form to a monitor, and returns the notifications to link.
@@ -425,6 +460,52 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 		if in.ManualStatus.set {
 			status := int16(in.ManualStatus.value)
 			m.ManualStatus = &status
+		}
+	case monitor.TypeSQLServer, monitor.TypeOracle, monitor.TypeMongoDB:
+		m.DatabaseConnectionString = strings.TrimSpace(text(in.DatabaseConnectionString))
+		m.DatabaseQuery = text(in.DatabaseQuery)
+		if m.Type == monitor.TypeOracle {
+			m.DatabaseUsername = strings.TrimSpace(in.BasicAuthUser)
+			m.DatabasePassword = in.BasicAuthPass
+		}
+		if m.Type == monitor.TypeMongoDB {
+			m.JSONPath = text(in.JSONPath)
+			m.ExpectedValue = rawText(in.ExpectedValue)
+		}
+	case monitor.TypeMQTT:
+		if in.Hostname != nil {
+			m.Hostname = strings.TrimSpace(*in.Hostname)
+		}
+		m.Port = int32(in.Port.value)
+		m.MQTTTopic = strings.TrimSpace(text(in.MQTTTopic))
+		m.MQTTUsername = text(in.MQTTUsername)
+		m.MQTTPassword = text(in.MQTTPassword)
+		m.MQTTWebsocketPath = strings.TrimSpace(text(in.MQTTWebsocketPath))
+		m.MQTTCheckType = cmp.Or(text(in.MQTTCheckType), "keyword")
+		m.MQTTSuccessMessage = text(in.MQTTSuccessMessage)
+		m.JSONPath = text(in.JSONPath)
+		m.ExpectedValue = rawText(in.ExpectedValue)
+	case monitor.TypeRabbitMQ:
+		for _, node := range in.RabbitMQNodes {
+			if node = strings.TrimSpace(node); node != "" {
+				m.RabbitMQNodes = append(m.RabbitMQNodes, node)
+			}
+		}
+		m.RabbitMQUsername = text(in.RabbitMQUsername)
+		m.RabbitMQPassword = text(in.RabbitMQPassword)
+		m.IgnoreTLS = in.IgnoreTLS
+	case monitor.TypeKafka:
+		for _, broker := range in.KafkaBrokers {
+			if broker = strings.TrimSpace(broker); broker != "" {
+				m.KafkaBrokers = append(m.KafkaBrokers, broker)
+			}
+		}
+		m.KafkaTopic = strings.TrimSpace(text(in.KafkaTopic))
+		m.KafkaMessage = text(in.KafkaMessage)
+		m.KafkaSSL = in.KafkaSSL
+		m.KafkaAllowAutoTopicCreation = in.KafkaAllowAutoTopicCreation
+		if in.KafkaSASL != nil && in.KafkaSASL.Mechanism != "" && in.KafkaSASL.Mechanism != "None" {
+			m.KafkaSASL = in.KafkaSASL
 		}
 	case monitor.TypePostgres, monitor.TypeMySQL, monitor.TypeRedis:
 		m.DatabaseConnectionString = strings.TrimSpace(text(in.DatabaseConnectionString))
@@ -513,6 +594,28 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 	}
 	sort.Slice(notificationIDs, func(i, j int) bool { return notificationIDs[i] < notificationIDs[j] })
 	return m, notificationIDs, note, nil
+}
+
+func orEmpty(list []string) []string {
+	if list == nil {
+		return []string{}
+	}
+	return list
+}
+
+// oraclePassword is shown in the Oracle form's password field, which is basic_auth_pass.
+func oraclePassword(m monitor.Monitor) string {
+	if m.Type == monitor.TypeOracle {
+		return m.DatabasePassword
+	}
+	return ""
+}
+
+func kafkaSASLJSON(s *monitor.KafkaSASL) any {
+	if s == nil {
+		return map[string]any{"mechanism": "None"}
+	}
+	return s
 }
 
 // rawText reads a field the form sends as text, or as a number from a number input.

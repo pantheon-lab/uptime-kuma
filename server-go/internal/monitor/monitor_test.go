@@ -492,3 +492,46 @@ func TestRedactedHidesDatabaseCredentials(t *testing.T) {
 		t.Fatalf("%+v", r)
 	}
 }
+
+func TestValidatePhase4bTypes(t *testing.T) {
+	valid := func(kind string, set func(*Monitor)) Monitor {
+		m := New()
+		m.Name, m.Type = "x", kind
+		set(&m)
+		m.Normalize()
+		return m
+	}
+	for name, c := range map[string]struct {
+		m  Monitor
+		ok bool
+	}{
+		"sqlserver":           {valid(TypeSQLServer, func(m *Monitor) { m.DatabaseConnectionString = "Server=db;User Id=sa;Password=x" }), true},
+		"sqlserver empty":     {valid(TypeSQLServer, func(m *Monitor) {}), false},
+		"oracle":              {valid(TypeOracle, func(m *Monitor) { m.DatabaseConnectionString = "db:1521/FREEPDB1" }), true},
+		"mongodb":             {valid(TypeMongoDB, func(m *Monitor) { m.DatabaseConnectionString, m.DatabaseQuery = "mongodb://db", `{"ping": 1}` }), true},
+		"mongodb bad command": {valid(TypeMongoDB, func(m *Monitor) { m.DatabaseConnectionString, m.DatabaseQuery = "mongodb://db", `ping` }), false},
+		"mqtt":                {valid(TypeMQTT, func(m *Monitor) { m.Hostname, m.Port, m.MQTTTopic = "mqtts://broker", 8883, "a/#" }), true},
+		"mqtt no topic":       {valid(TypeMQTT, func(m *Monitor) { m.Hostname, m.Port = "broker", 1883 }), false},
+		"mqtt json no path":   {valid(TypeMQTT, func(m *Monitor) { m.Hostname, m.Port, m.MQTTTopic, m.MQTTCheckType = "broker", 1883, "t", "json-query" }), false},
+		"rabbitmq":            {valid(TypeRabbitMQ, func(m *Monitor) { m.RabbitMQNodes = []string{"https://mq:15672"} }), true},
+		"rabbitmq no nodes":   {valid(TypeRabbitMQ, func(m *Monitor) {}), false},
+		"rabbitmq amqp":       {valid(TypeRabbitMQ, func(m *Monitor) { m.RabbitMQNodes = []string{"amqp://mq"} }), false},
+		"kafka":               {valid(TypeKafka, func(m *Monitor) { m.KafkaBrokers, m.KafkaTopic = []string{"k:9092"}, "t" }), true},
+		"kafka no port":       {valid(TypeKafka, func(m *Monitor) { m.KafkaBrokers, m.KafkaTopic = []string{"k"}, "t" }), false},
+		"kafka aws": {valid(TypeKafka, func(m *Monitor) {
+			m.KafkaBrokers, m.KafkaTopic, m.KafkaSASL = []string{"k:9092"}, "t", &KafkaSASL{Mechanism: "aws"}
+		}), false},
+		"mqtt conditions": {valid(TypeMQTT, func(m *Monitor) {
+			m.Hostname, m.Port, m.MQTTTopic, m.Conditions = "b", 1883, "t", json.RawMessage(`[{"type":"expression","variable":"json_value","operator":"gt","value":"1"}]`)
+		}), true},
+	} {
+		if err := c.m.Validate(); (err == nil) != c.ok {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	m := Monitor{DatabaseConnectionString: "Server=db;Password=hunter2", Settings: Settings{MQTTPassword: "a", RabbitMQPassword: "b", KafkaSASL: &KafkaSASL{Mechanism: "plain", Password: "c"}}}
+	r := m.Redacted()
+	if r.DatabaseConnectionString != "***" || r.MQTTPassword != "***" || r.RabbitMQPassword != "***" || r.KafkaSASL.Password != "***" || m.KafkaSASL.Password != "c" {
+		t.Fatalf("redacted: %+v", r)
+	}
+}

@@ -104,6 +104,18 @@ func (c *Checker) Run(ctx context.Context, m monitor.Monitor) monitor.Result {
 		return runRedis(ctx, m)
 	case monitor.TypeManual:
 		return runManual(m)
+	case monitor.TypeSQLServer:
+		return runSQLServer(ctx, m)
+	case monitor.TypeOracle:
+		return runOracle(ctx, m)
+	case monitor.TypeMongoDB:
+		return runMongoDB(ctx, m)
+	case monitor.TypeMQTT:
+		return runMQTT(ctx, m)
+	case monitor.TypeRabbitMQ:
+		return c.runRabbitMQ(ctx, m)
+	case monitor.TypeKafka:
+		return runKafka(ctx, m)
 	case monitor.TypePort:
 		return c.runPort(ctx, m)
 	case monitor.TypeGroup:

@@ -38,11 +38,22 @@ const (
 	TypePostgres  = "postgres"
 	TypeMySQL     = "mysql"
 	TypeRedis     = "redis"
+
+	TypeSQLServer = "sqlserver"
+	TypeOracle    = "oracledb"
+	TypeMongoDB   = "mongodb"
+	TypeMQTT      = "mqtt"
+	TypeRabbitMQ  = "rabbitmq"
+	TypeKafka     = "kafka-producer"
 )
 
 // Types are every supported type, in the order error messages list them.
 var Types = []string{TypeHTTP, TypeKeyword, TypeJSONQuery, TypePort, TypePing, TypeDNS, TypePush, TypeGroup,
-	TypeManual, TypeWebSocket, TypePostgres, TypeMySQL, TypeRedis}
+	TypeManual, TypeWebSocket, TypePostgres, TypeMySQL, TypeRedis, TypeSQLServer, TypeOracle, TypeMongoDB, TypeMQTT,
+	TypeRabbitMQ, TypeKafka}
+
+// KafkaSASLMechanisms are the SASL mechanisms Kafka producer monitors can log in with.
+var KafkaSASLMechanisms = []string{"None", "plain", "scram-sha-256", "scram-sha-512"}
 
 // JSONQueryOperators compare the result of a JSON query with the expected value.
 var JSONQueryOperators = []string{"==", "!=", "contains", ">", ">=", "<", "<="}
@@ -50,8 +61,15 @@ var JSONQueryOperators = []string{"==", "!=", "contains", ">", ">=", "<", "<="}
 // ConditionVariables are what each type's conditions can test. Types without any don't take
 // conditions.
 var ConditionVariables = map[string][]conditions.Variable{
-	TypeDNS:   {{ID: "record", Operators: conditions.StringOperators}},
-	TypeMySQL: {{ID: "result", Operators: conditions.StringOperators}},
+	TypeDNS:       {{ID: "record", Operators: conditions.StringOperators}},
+	TypeMySQL:     {{ID: "result", Operators: conditions.StringOperators}},
+	TypeSQLServer: {{ID: "result", Operators: conditions.StringOperators}},
+	TypeOracle:    {{ID: "result", Operators: conditions.StringOperators}},
+	TypeMQTT: {
+		{ID: "topic", Operators: conditions.StringOperators},
+		{ID: "message", Operators: conditions.StringOperators},
+		{ID: "json_value", Operators: append(slices.Clone(conditions.StringOperators), conditions.NumberOperators...)},
+	},
 }
 
 // Beat statuses, using the Node.js backend's values.
@@ -158,12 +176,49 @@ type Monitor struct {
 	// DatabaseConnectionString is a URL, such as postgres://user:password@host/db.
 	DatabaseConnectionString string `json:"databaseConnectionString"`
 	DatabaseQuery            string `json:"databaseQuery"`
-	// DatabasePassword replaces the password in a MySQL connection string, if it's set.
+	// DatabasePassword replaces the password in a MySQL connection string, if it's set, and is
+	// the password of an Oracle monitor.
 	DatabasePassword string `json:"databasePassword"`
+
+	Settings
 
 	// PropagateTrace sends a W3C traceparent header to the target, so that the target's
 	// traces join this one. It's off by default, to not share trace ids with third parties.
 	PropagateTrace bool `json:"propagateTrace"`
+}
+
+// Settings are the settings of the types added since Phase 4b, which are stored together.
+type Settings struct {
+	// DatabaseUsername is an Oracle monitor's user.
+	DatabaseUsername string `json:"databaseUsername,omitempty"`
+
+	MQTTTopic          string `json:"mqttTopic,omitempty"`
+	MQTTUsername       string `json:"mqttUsername,omitempty"`
+	MQTTPassword       string `json:"mqttPassword,omitempty"`
+	MQTTWebsocketPath  string `json:"mqttWebsocketPath,omitempty"`
+	MQTTCheckType      string `json:"mqttCheckType,omitempty"`
+	MQTTSuccessMessage string `json:"mqttSuccessMessage,omitempty"`
+
+	// RabbitMQNodes are the base URLs of the management API of each node.
+	RabbitMQNodes    []string `json:"rabbitmqNodes,omitempty"`
+	RabbitMQUsername string   `json:"rabbitmqUsername,omitempty"`
+	RabbitMQPassword string   `json:"rabbitmqPassword,omitempty"`
+
+	// KafkaBrokers are host:port addresses.
+	KafkaBrokers                []string   `json:"kafkaProducerBrokers,omitempty"`
+	KafkaTopic                  string     `json:"kafkaProducerTopic,omitempty"`
+	KafkaMessage                string     `json:"kafkaProducerMessage,omitempty"`
+	KafkaSSL                    bool       `json:"kafkaProducerSsl,omitempty"`
+	KafkaAllowAutoTopicCreation bool       `json:"kafkaProducerAllowAutoTopicCreation,omitempty"`
+	KafkaSASL                   *KafkaSASL `json:"kafkaProducerSaslOptions,omitempty"`
+}
+
+// KafkaSASL is how a Kafka producer monitor logs in.
+type KafkaSASL struct {
+	Mechanism             string `json:"mechanism"`
+	Username              string `json:"username,omitempty"`
+	Password              string `json:"password,omitempty"`
+	AuthorizationIdentity string `json:"authorizationIdentity,omitempty"`
 }
 
 // New returns a monitor with the Node.js backend's defaults, for decoding input into.
@@ -215,7 +270,22 @@ func (m Monitor) Redacted() Monitor {
 		m.DatabasePassword = redactedValue
 	}
 	if m.DatabaseConnectionString != "" {
-		m.DatabaseConnectionString = redactURL(m.DatabaseConnectionString)
+		if strings.Contains(m.DatabaseConnectionString, "://") {
+			m.DatabaseConnectionString = redactURL(m.DatabaseConnectionString)
+		} else {
+			// SQL Server's and Oracle's strings aren't URLs, and can hold a password anywhere.
+			m.DatabaseConnectionString = redactedValue
+		}
+	}
+	for _, secret := range []*string{&m.MQTTPassword, &m.RabbitMQPassword} {
+		if *secret != "" {
+			*secret = redactedValue
+		}
+	}
+	if m.KafkaSASL != nil && m.KafkaSASL.Password != "" {
+		sasl := *m.KafkaSASL
+		sasl.Password = redactedValue
+		m.KafkaSASL = &sasl
 	}
 	headers := make(map[string]string, len(m.Headers))
 	for name := range m.Headers {
@@ -299,8 +369,22 @@ func (m *Monitor) Validate() error {
 		return nil
 	case TypeWebSocket:
 		return m.validateWebSocket()
-	case TypePostgres, TypeMySQL, TypeRedis:
+	case TypePostgres, TypeMySQL, TypeRedis, TypeMongoDB:
 		return m.validateDatabase()
+	case TypeSQLServer, TypeOracle:
+		if strings.TrimSpace(m.DatabaseConnectionString) == "" || len(m.DatabaseConnectionString) > 4096 {
+			return errors.New("databaseConnectionString is required, and at most 4096 characters")
+		}
+		if len(m.DatabaseQuery) > maxBodyLen {
+			return fmt.Errorf("databaseQuery must be at most %d bytes", maxBodyLen)
+		}
+		return nil
+	case TypeMQTT:
+		return m.validateMQTT()
+	case TypeRabbitMQ:
+		return m.validateRabbitMQ()
+	case TypeKafka:
+		return m.validateKafka()
 	case TypeKeyword:
 		if m.Keyword == "" {
 			return errors.New("keyword is required")
@@ -334,7 +418,9 @@ var (
 		TypePostgres: {"postgres", "postgresql"},
 		TypeMySQL:    {"mysql", "mariadb"},
 		TypeRedis:    {"redis", "rediss"},
+		TypeMongoDB:  {"mongodb", "mongodb+srv"},
 	}
+	mqttHost = regexp.MustCompile(`^((mqtt|mqtts|ws|wss|tcp|ssl|tls)://)?[A-Za-z0-9.\-_\[\]:]+$`)
 )
 
 func (m *Monitor) validateConditions() error {
@@ -376,6 +462,83 @@ func (m *Monitor) validateDatabase() error {
 	}
 	if len(m.DatabaseQuery) > maxBodyLen {
 		return fmt.Errorf("databaseQuery must be at most %d bytes", maxBodyLen)
+	}
+	if m.Type == TypeMongoDB {
+		if q := strings.TrimSpace(m.DatabaseQuery); q != "" {
+			var command map[string]any
+			if json.Unmarshal([]byte(q), &command) != nil || len(command) == 0 {
+				return errors.New("databaseQuery of a MongoDB monitor must be a JSON object, such as {\"ping\": 1}")
+			}
+		}
+		if err := validJSONPath(m.JSONPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validJSONPath(path string) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	if len(path) > maxBodyLen {
+		return errors.New("jsonPath must be at most 1 MB")
+	}
+	if _, err := jsonata.Compile(path); err != nil {
+		return fmt.Errorf("jsonPath isn't a valid JSONata expression: %w", err)
+	}
+	return nil
+}
+
+func (m *Monitor) validateMQTT() error {
+	if !mqttHost.MatchString(strings.TrimSpace(m.Hostname)) {
+		return errors.New("hostname must be a host name, optionally with mqtt://, mqtts://, ws:// or wss://")
+	}
+	if m.Port < 1 || m.Port > 65535 {
+		return errors.New("port must be from 1 to 65535")
+	}
+	if strings.TrimSpace(m.MQTTTopic) == "" {
+		return errors.New("mqttTopic is required")
+	}
+	switch m.MQTTCheckType {
+	case "", "keyword":
+	case "json-query":
+		if strings.TrimSpace(m.JSONPath) == "" {
+			return errors.New("jsonPath is required for a json-query check")
+		}
+	default:
+		return errors.New("mqttCheckType must be keyword or json-query")
+	}
+	return validJSONPath(m.JSONPath)
+}
+
+func (m *Monitor) validateRabbitMQ() error {
+	if len(m.RabbitMQNodes) == 0 {
+		return errors.New("rabbitmqNodes must list at least one node")
+	}
+	for _, node := range m.RabbitMQNodes {
+		u, err := url.Parse(node)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return fmt.Errorf("%q isn't an http(s) URL of a node's management API", node)
+		}
+	}
+	return nil
+}
+
+func (m *Monitor) validateKafka() error {
+	if len(m.KafkaBrokers) == 0 {
+		return errors.New("kafkaProducerBrokers must list at least one broker")
+	}
+	for _, broker := range m.KafkaBrokers {
+		if _, port, err := net.SplitHostPort(broker); err != nil || port == "" {
+			return fmt.Errorf("broker %q must be host:port", broker)
+		}
+	}
+	if strings.TrimSpace(m.KafkaTopic) == "" {
+		return errors.New("kafkaProducerTopic is required")
+	}
+	if m.KafkaSASL != nil && !slices.Contains(KafkaSASLMechanisms, m.KafkaSASL.Mechanism) {
+		return fmt.Errorf("the SASL mechanism must be one of %s; AWS IAM isn't supported yet", strings.Join(KafkaSASLMechanisms, ", "))
 	}
 	return nil
 }

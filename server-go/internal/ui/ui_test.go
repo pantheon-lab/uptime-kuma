@@ -1386,3 +1386,47 @@ func TestParsePhase4aMonitors(t *testing.T) {
 		t.Fatalf("monitorTypeList: %v", types)
 	}
 }
+
+func TestParsePhase4bMonitors(t *testing.T) {
+	m, _, _, err := parseMonitor(json.RawMessage(`{"type": "oracledb", "name": "O", "databaseConnectionString": "db:1521/X",
+		"basic_auth_user": " kuma ", "basic_auth_pass": "pw", "databaseQuery": "SELECT 1 FROM DUAL"}`))
+	if err != nil || m.DatabaseUsername != "kuma" || m.DatabasePassword != "pw" {
+		t.Fatalf("oracle: %+v %v", m, err)
+	}
+	out := newMonitorTree([]monitor.Monitor{m}, nil).monitorJSON(m)
+	if out["basic_auth_user"] != "kuma" || out["basic_auth_pass"] != "pw" {
+		t.Fatalf("oracle JSON: %v", out)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "mqtt", "name": "Q", "hostname": "broker", "port": "1883",
+		"mqttTopic": "a/#", "mqttCheckType": "json-query", "jsonPath": "temp", "expectedValue": "1", "mqttPassword": "s"}`))
+	if err != nil || m.MQTTTopic != "a/#" || m.MQTTCheckType != "json-query" || m.JSONPath != "temp" || m.MQTTPassword != "s" {
+		t.Fatalf("mqtt: %+v %v", m, err)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "rabbitmq", "name": "R", "rabbitmqNodes": ["https://mq:15672", " "],
+		"rabbitmqUsername": "guest", "rabbitmqPassword": "guest"}`))
+	if err != nil || len(m.RabbitMQNodes) != 1 || m.RabbitMQUsername != "guest" {
+		t.Fatalf("rabbitmq: %+v %v", m, err)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "kafka-producer", "name": "K", "kafkaProducerBrokers": ["k:9092"],
+		"kafkaProducerTopic": "t", "kafkaProducerMessage": "hi", "kafkaProducerSsl": true,
+		"kafkaProducerSaslOptions": {"mechanism": "None"}}`))
+	if err != nil || m.KafkaSASL != nil || !m.KafkaSSL || m.KafkaMessage != "hi" {
+		t.Fatalf("kafka: %+v %v", m, err)
+	}
+	out = newMonitorTree([]monitor.Monitor{m}, nil).monitorJSON(m)
+	if sasl := out["kafkaProducerSaslOptions"].(map[string]any); sasl["mechanism"] != "None" {
+		t.Fatalf("kafka JSON: %v", out)
+	}
+	if _, _, _, err := parseMonitor(json.RawMessage(`{"type": "kafka-producer", "name": "K", "kafkaProducerBrokers": ["k:9092"],
+		"kafkaProducerTopic": "t", "kafkaProducerSaslOptions": {"mechanism": "aws"}}`)); err == nil {
+		t.Fatal("AWS IAM was accepted")
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "mongodb", "name": "M", "databaseConnectionString": "mongodb://db",
+		"databaseQuery": "{\"ping\": 1}", "jsonPath": "ok", "expectedValue": "1"}`))
+	if err != nil || m.JSONPath != "ok" || m.ExpectedValue != "1" {
+		t.Fatalf("mongodb: %+v %v", m, err)
+	}
+	if !monitorTypeList()[monitor.TypeMQTT].(map[string]any)["supportsConditions"].(bool) {
+		t.Fatal("MQTT conditions")
+	}
+}

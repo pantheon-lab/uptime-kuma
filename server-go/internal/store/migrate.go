@@ -377,6 +377,10 @@ var migrations = [][]string{
 		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS database_query text NOT NULL DEFAULT ''`,
 		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS database_password text NOT NULL DEFAULT ''`,
 	},
+	{
+		// Settings of the types added since Phase 4b, together, so that adding a type adds no column.
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS settings jsonb NOT NULL DEFAULT '{}'`,
+	},
 }
 
 // Migrate brings the schema up to date.

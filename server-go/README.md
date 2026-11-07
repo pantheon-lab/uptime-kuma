@@ -1,7 +1,8 @@
 # kuma-analytics
 
 The Uptime Kuma backend, rewritten in Go and still in progress. It runs HTTP, keyword, JSON query,
-TCP port, ping, DNS, push, group, manual, WebSocket, PostgreSQL, MySQL/MariaDB and Redis monitors, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
+TCP port, ping, DNS, push, group, manual, WebSocket, PostgreSQL, MySQL/MariaDB, SQL Server, Oracle, MongoDB, Redis,
+MQTT, RabbitMQ and Kafka producer monitors, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
 percentiles and dashboard stats over REST, plus new beats over Server-Sent Events. It serves public
 status pages and badges, exports traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
@@ -100,6 +101,26 @@ TLS/SSL errors** apply, and **Ignore Sec-WebSocket-Accept header** accepts serve
 default. A MySQL monitor's **Password** field replaces the password in the URL. MySQL can have conditions on the query's
 result, which must then be a single value; its message counts the rows otherwise. Redis sends `PING`. Connection
 strings and passwords are hidden from API keys without `monitors:write`, and left out of error messages.
+
+**SQL Server** monitors take an ADO connection string, such as
+`Server=host,1433;Database=db;User Id=user;Password=...;TrustServerCertificate=true`, or a `sqlserver://` URL. As with
+Node.js, the connection is encrypted unless the string sets `Encrypt`. **Oracle** monitors take Easy Connect,
+`host:1521/service`, or a `(DESCRIPTION=...)` descriptor, with the user and password in their own fields, and run
+`SELECT 1 FROM DUAL` by default. Both can have conditions, as MySQL can. Oracle uses the pure Go go-ora driver, so no
+Oracle client is needed.
+
+**MongoDB** monitors run a command given as JSON, `{"ping": 1}` by default, on the database in the URL, and pass if it
+answers `ok`. A JSONata expression can then pick a value from the answer, which must exist, and equal the expected value
+if there's one.
+
+**MQTT** monitors subscribe to a topic and wait for the first message, which then must contain the keyword, give the
+expected value from a JSONata expression, or meet conditions on the topic, the message, or the expression's value. The
+host can start with `mqtt://`, `mqtts://`, `ws://` or `wss://`. A topic that gets no message before the timeout is DOWN, so
+pick one with a retained message, or one that's published to more often than the interval.
+
+**RabbitMQ** monitors ask each node's management API, such as `https://node1:15672`, for alarms, and pass when one node
+answers without any. **Kafka producer** monitors send the message to the topic, and pass when the brokers accept it.
+SASL logins are plain, SCRAM-SHA-256 and SCRAM-SHA-512; AWS IAM isn't supported yet.
 
 ## Status pages
 
@@ -464,7 +485,9 @@ TEST_DATABASE_URL='postgres://postgres:test@127.0.0.1:55433/postgres' go test -r
 
 Database tests are skipped when `TEST_DATABASE_URL` is not set. The importer and the MySQL monitor test with
 `TEST_MARIADB_DSN`, such as `root:test@tcp(127.0.0.1:53306)/`, and the Redis monitor with `TEST_REDIS_URL`, such as
-`redis://:testpass@127.0.0.1:56379/0`.
+`redis://:testpass@127.0.0.1:56379/0`. The other monitor types test with these, which the comment in
+`internal/check/types4b_test.go` describes: `TEST_MSSQL_DSN`, `TEST_ORACLE` with `TEST_ORACLE_USER` and
+`TEST_ORACLE_PASSWORD`, `TEST_MONGODB_URL`, `TEST_MQTT_HOST` and `TEST_KAFKA_BROKER`.
 
 `internal/e2e/browser/` has scripts that drive the web UI in a browser against the built image. Each says what it needs.
 
