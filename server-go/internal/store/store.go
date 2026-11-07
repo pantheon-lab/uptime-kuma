@@ -9,6 +9,8 @@ import (
 	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/secrets"
 )
 
 // Beat is one monitor check result. Status uses the Uptime Kuma values:
@@ -53,6 +55,8 @@ type MonitorStats struct {
 // Store is a TimescaleDB-backed heartbeat store.
 type Store struct {
 	pool *pgxpool.Pool
+	// keys encrypts stored secrets. Set it with SetKeyring before use.
+	keys *secrets.Keyring
 }
 
 // Open connects to the database. Call Migrate before serving traffic.

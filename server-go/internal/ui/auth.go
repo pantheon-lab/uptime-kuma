@@ -154,6 +154,10 @@ func (s *Server) signIn(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &body) {
 		return
 	}
+	if s.opts.DisablePasswordLogin {
+		authError(w, http.StatusForbidden, "PASSWORD_LOGIN_DISABLED", "Logging in with a password is turned off. Log in with GitHub.")
+		return
+	}
 	if !s.limiter.allow(body.Username) {
 		authError(w, http.StatusTooManyRequests, "TOO_MANY_REQUESTS", "Too many requests. Please try again later.")
 		return
@@ -270,6 +274,14 @@ func (s *Server) currentSession(ctx context.Context, w http.ResponseWriter, r *h
 	if err != nil {
 		return store.Session{}, store.User{}, false, err
 	}
+	user, allowed, err := s.checkGitHubAccount(ctx, user)
+	if err != nil {
+		return store.Session{}, store.User{}, false, err
+	}
+	if !allowed {
+		clearSessionCookie(w, r)
+		return store.Session{}, store.User{}, false, nil
+	}
 	if session.Remember && session.ExpiresAt.Sub(s.now()) < rememberFor-renewAfter {
 		expires := s.now().Add(rememberFor)
 		if err := s.store.ExtendSession(ctx, tokenHash, expires); err != nil {
@@ -280,6 +292,30 @@ func (s *Server) currentSession(ctx context.Context, w http.ResponseWriter, r *h
 		}
 	}
 	return session, user, true, nil
+}
+
+// checkGitHubAccount rechecks a GitHub account's teams when they are due, and returns the
+// user with its role now. allowed is false when the account may no longer log in: its
+// sessions are then ended. When the role changed, the user's streams are closed, so that
+// open pages reconnect and get what the new role allows. Other accounts are returned as
+// they are.
+func (s *Server) checkGitHubAccount(ctx context.Context, user store.User) (store.User, bool, error) {
+	if user.GitHubID == nil {
+		return user, true, nil
+	}
+	role := s.recheckGitHub(ctx, user)
+	if role == "" {
+		if err := s.store.EndUserSessions(ctx, user.ID); err != nil {
+			return store.User{}, false, err
+		}
+		s.closeOtherSessions(user.ID, nil)
+		return store.User{}, false, nil
+	}
+	if role != user.Role {
+		user.Role = role
+		s.closeOtherSessions(user.ID, nil)
+	}
+	return user, true, nil
 }
 
 func userJSON(u store.User) map[string]any {
@@ -352,6 +388,9 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &body) {
 		return
 	}
+	if refuseGitHubAccount(w, user) {
+		return
+	}
 	if !s.limiter.allow(user.Username) {
 		authError(w, http.StatusTooManyRequests, "TOO_MANY_REQUESTS", "Too many requests. Please try again later.")
 		return
@@ -388,6 +427,17 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 	s.closeOtherSessions(user.ID, keep)
 	s.log.Info("password changed", "username", user.Username)
 	writeJSON(w, http.StatusOK, map[string]any{"token": nil, "user": userJSON(user)})
+}
+
+// refuseGitHubAccount answers a password or two-factor change for an account that logs in with
+// GitHub, which has neither, and returns whether it did.
+func refuseGitHubAccount(w http.ResponseWriter, user store.User) bool {
+	if user.GitHubID == nil {
+		return false
+	}
+	authError(w, http.StatusBadRequest, "GITHUB_ACCOUNT",
+		"This account logs in with GitHub, so it has no password or two-factor login here. Manage them on GitHub.")
+	return true
 }
 
 func (s *Server) authNotSupported(w http.ResponseWriter, r *http.Request) {

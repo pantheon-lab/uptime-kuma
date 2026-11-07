@@ -67,6 +67,15 @@ type Target interface {
 	ImportStatusPage(ctx context.Context, sourceID int32, p store.ImportedPage) (int32, int, error)
 	ImportedMaintenances(ctx context.Context) (map[int32]int32, error)
 	ImportMaintenance(ctx context.Context, sourceID int32, w maintenance.Window, monitorIDs, pageIDs []int32) (int32, error)
+	ImportSetting(ctx context.Context, key string, value json.RawMessage) (string, string, error)
+	ImportAPIKey(ctx context.Context, k store.ImportedAPIKey) (bool, error)
+	ImportCertAlerts(ctx context.Context, monitorID int32, days []int) (int64, error)
+	ImportTLSInfo(ctx context.Context, monitorID int32, info, fingerprint string) (bool, error)
+	ImportDomainExpiry(ctx context.Context, r domains.Record) (bool, error)
+	KeepSkippedMonitor(ctx context.Context, sourceID int32, name, reason string) error
+	KeepSkippedBeats(ctx context.Context, beats []store.Beat) (int64, error)
+	ReplaceSkippedStats(ctx context.Context, daily bool, sourceID int32, stats []store.ImportedStat) error
+	AdoptSkipped(ctx context.Context, sourceID, monitorID int32) (int64, error)
 }
 
 // Options controls an import. A nil Target means a dry run, which writes nothing.
@@ -115,7 +124,12 @@ type Report struct {
 	Account         AccountReport      `json:"account"`
 	StatusPages     StatusPageReport   `json:"statusPages"`
 	Maintenance     MaintenanceReport  `json:"maintenance"`
-	Cutover         time.Time          `json:"cutover"`
+	Settings        []SettingReport    `json:"settings"`
+	APIKeys         APIKeyReport       `json:"apiKeys"`
+	AlertState      AlertStateReport   `json:"alertState"`
+	// SkippedHistory is what's kept of skipped monitors, for a version that can import them.
+	SkippedHistory SkippedHistoryReport `json:"skippedHistory"`
+	Cutover        time.Time            `json:"cutover"`
 }
 
 // NotificationReport says what happened to notification settings. Never their config.
@@ -276,6 +290,22 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 	log.Info("account, status pages and maintenance done", "account", report.Account.Imported,
 		"statusPages", report.StatusPages.Imported, "maintenance", report.Maintenance.Imported)
 
+	if err := copySettings(ctx, conn, opts.Target, report); err != nil {
+		return nil, err
+	}
+	if err := copyAPIKeys(ctx, conn, opts.Target, report); err != nil {
+		return nil, err
+	}
+	if err := copyAlertState(ctx, conn, opts.Target, allMonitors, report); err != nil {
+		return nil, err
+	}
+	skipped, err := keepSkipped(ctx, conn, opts.Target, report)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("settings, API keys and alert state done", "apiKeys", report.APIKeys.New+report.APIKeys.Updated,
+		"certificateAlerts", report.AlertState.CertAlerts, "skippedMonitorsKept", report.SkippedHistory.Monitors)
+
 	if err := copyStats(ctx, conn, opts.Target, false, targets, cutover, &report.HourlyStats); err != nil {
 		return nil, err
 	}
@@ -284,8 +314,18 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 	}
 	log.Info("aggregates done", "hourly", report.HourlyStats, "daily", report.DailyStats)
 
-	if err := copyBeats(ctx, conn, opts.Target, targets, report, log); err != nil {
+	if err := copyBeats(ctx, conn, opts.Target, targets, skipped, report, log); err != nil {
 		return nil, err
+	}
+	// Monitors imported now that were skipped before get the history kept then.
+	if opts.Target != nil {
+		for _, m := range active {
+			n, err := opts.Target.AdoptSkipped(ctx, m.id, m.targetID)
+			if err != nil {
+				return nil, fmt.Errorf("monitor %d: %w", m.id, err)
+			}
+			report.SkippedHistory.AdoptedBeats += n
+		}
 	}
 
 	if opts.Target != nil {
@@ -1093,7 +1133,7 @@ func convertStat(row map[string]sql.NullString, targetID int32) store.ImportedSt
 	return stat
 }
 
-func copyBeats(ctx context.Context, conn *sql.Conn, target Target, targets map[int32]int32, report *Report, log *slog.Logger) error {
+func copyBeats(ctx context.Context, conn *sql.Conn, target Target, targets map[int32]int32, skipped map[int32]bool, report *Report, log *slog.Logger) error {
 	var lastID int64
 	for {
 		rows, _, err := readRows(ctx, conn, "SELECT * FROM heartbeat WHERE id > ? ORDER BY id LIMIT ?", lastID, beatBatch)
@@ -1104,9 +1144,18 @@ func copyBeats(ctx context.Context, conn *sql.Conn, target Target, targets map[i
 			return nil
 		}
 		beats := make([]store.Beat, 0, len(rows))
+		var kept []store.Beat
 		for _, row := range rows {
 			lastID = intOf(row["id"])
-			targetID, ok := targets[int32(intOf(row["monitor_id"]))]
+			sourceID := int32(intOf(row["monitor_id"]))
+			if skipped[sourceID] {
+				// Kept apart, by the source's id.
+				if beat, err := convertBeat(row, sourceID); err == nil {
+					kept = append(kept, beat)
+				}
+				continue
+			}
+			targetID, ok := targets[sourceID]
 			if !ok {
 				continue
 			}
@@ -1116,6 +1165,14 @@ func copyBeats(ctx context.Context, conn *sql.Conn, target Target, targets map[i
 				continue
 			}
 			beats = append(beats, beat)
+		}
+		report.SkippedHistory.Beats += int64(len(kept))
+		if target != nil && len(kept) > 0 {
+			n, err := target.KeepSkippedBeats(ctx, kept)
+			if err != nil {
+				return err
+			}
+			report.SkippedHistory.NewBeats += n
 		}
 		report.Beats += int64(len(beats))
 		if target != nil && len(beats) > 0 {

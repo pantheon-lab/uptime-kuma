@@ -412,3 +412,68 @@ func TestRoles(t *testing.T) {
 		t.Fatalf("session: %+v %v", user, err)
 	}
 }
+
+func TestGitHubAccounts(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	alice, err := s.SaveGitHubUser(ctx, 101, "alice", RoleViewer, "token-1", nil)
+	if err != nil || alice.Username != "@alice" || alice.Role != RoleViewer || alice.GitHubID == nil || *alice.GitHubID != 101 {
+		t.Fatalf("first login: %+v %v", alice, err)
+	}
+	// Logging in again updates the same account.
+	again, err := s.SaveGitHubUser(ctx, 101, "alice", RoleAdmin, "token-2", nil)
+	if err != nil || again.ID != alice.ID || again.Role != RoleAdmin {
+		t.Fatalf("second login: %+v %v", again, err)
+	}
+	if token, err := s.GitHubToken(ctx, alice.ID); err != nil || token != "token-2" {
+		t.Fatalf("token %q %v", token, err)
+	}
+	// Alice renames herself, and someone else takes "alice".
+	if _, err := s.SaveGitHubUser(ctx, 101, "alice2", RoleAdmin, "token-3", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SaveGitHubUser(ctx, 102, "alice2", RoleViewer, "token-4", nil); err != nil {
+		t.Fatalf("a login another account had: %v", err)
+	}
+	old, err := s.UserByUsername(ctx, fmt.Sprintf("@alice2#%d", alice.ID))
+	if err != nil || old.ID != alice.ID {
+		t.Fatalf("the renamed account: %+v %v", old, err)
+	}
+	// GitHub logins ignore case, so a third account taking "Alice2" renames the second.
+	second, err := s.UserByUsername(ctx, "@alice2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SaveGitHubUser(ctx, 103, "Alice2", RoleViewer, "token-5", nil); err != nil {
+		t.Fatal(err)
+	}
+	if renamed, err := s.UserByID(ctx, second.ID); err != nil || renamed.Username != fmt.Sprintf("@alice2#%d", second.ID) {
+		t.Fatalf("the account that differed in case: %+v %v", renamed, err)
+	}
+	if err := s.CreateSession(ctx, []byte("t"), Session{UserID: alice.ID, ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetGitHubChecked(ctx, alice.ID, RoleViewer, []string{"support"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, user, err := s.FindSession(ctx, []byte("t")); err != nil || user.Role != RoleViewer || user.GitHubCheckedAt == nil {
+		t.Fatalf("after a check: %+v %v", user, err)
+	}
+	if err := s.EndUserSessions(ctx, alice.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.FindSession(ctx, []byte("t")); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("the session is still there: %v", err)
+	}
+	// Setup is closed once anyone has logged in, and a password account has no GitHub token.
+	if _, err := s.CreateFirstUser(ctx, "admin", "x:y"); !errors.Is(err, ErrSetupDone) {
+		t.Fatalf("setup after a GitHub login: %v", err)
+	}
+	var adminID int32
+	if err := s.pool.QueryRow(ctx, `INSERT INTO app_user (username, password_hash) VALUES ('admin', 'x:y') RETURNING id`).Scan(&adminID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.GitHubToken(ctx, adminID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("password account's token: %v", err)
+	}
+}

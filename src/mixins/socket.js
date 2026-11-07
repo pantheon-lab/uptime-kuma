@@ -10,6 +10,7 @@ import { getToastSuccessTimeout, getToastErrorTimeout } from "../util-frontend";
 import { BeatVersionThrottle } from "../beat-version-throttle";
 import { applyBeat, applyLatestBeats, beatStatusEntry } from "../beat-state";
 import { logout as betterAuthLogout } from "../auth-client";
+import { applyFavicon } from "../app-icon.js";
 const toast = useToast();
 
 let socket;
@@ -21,7 +22,8 @@ const noSocketIOPages = [
     /^\/$/, //  /
 ];
 
-const favicon = new Favico({
+// Remade when the app icon changes, since it reads the tab's icon once.
+let favicon = new Favico({
     animation: "none",
 });
 
@@ -92,7 +94,13 @@ export default {
             const path = this.$route?.path ?? "";
             const editing =
                 /^\/(add|edit|clone|settings|add-status-page|add-maintenance|maintenance\/(edit|clone))(\/|$)/;
-            if (!this.canEdit && (editing.test(path) || this.$route?.query?.edit !== undefined)) {
+            // A viewer keeps the Security page, for their own password, 2FA and GitHub teams.
+            const viewerSettings = /^\/settings(\/security)?\/?$/;
+            if (
+                !this.canEdit &&
+                !viewerSettings.test(path) &&
+                (editing.test(path) || this.$route?.query?.edit !== undefined)
+            ) {
                 this.$router.replace("/dashboard");
             }
         },
@@ -782,6 +790,18 @@ export default {
                 this.faviconUpdateDebounce = setTimeout(() => {
                     favicon.badge(to);
                 }, 1000);
+            }
+        },
+
+        // A new app icon: the badge is drawn on it from now on.
+        appIcon(to) {
+            // This watcher can run before the theme mixin's, so the tab's icon is set here first.
+            applyFavicon(to);
+            favicon = new Favico({
+                animation: "none",
+            });
+            if (this.stats.down) {
+                favicon.badge(this.stats.down);
             }
         },
 

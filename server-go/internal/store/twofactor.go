@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -24,6 +25,10 @@ type TwoFactorChallenge struct {
 // StartTOTPSetup stores a new authenticator key that isn't in use yet, replacing any earlier
 // one that wasn't confirmed. It returns ErrTOTPEnabled if two-factor login is already on.
 func (s *Store) StartTOTPSetup(ctx context.Context, userID int32, secret []byte) error {
+	secret, err := s.sealTOTP(userID, secret)
+	if err != nil {
+		return err
+	}
 	tag, err := s.pool.Exec(ctx, `
 		UPDATE app_user SET totp_secret = $2, totp_last_step = NULL, totp_failures = 0, totp_locked_until = NULL
 		WHERE id = $1 AND NOT totp_enabled`, userID, secret)
@@ -44,14 +49,26 @@ func (s *Store) StartTOTPSetup(ctx context.Context, userID int32, secret []byte)
 // code: keep is the hash of the session to keep. It returns ErrNotFound if the key changed.
 func (s *Store) EnableTOTP(ctx context.Context, userID int32, secret []byte, step int64, keep []byte) error {
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, `
-			UPDATE app_user SET totp_enabled = true, totp_last_step = $3, totp_failures = 0, totp_locked_until = NULL
-			WHERE id = $1 AND totp_secret = $2 AND NOT totp_enabled`, userID, secret, step)
+		// The stored key is sealed with a random nonce, so it's compared once opened.
+		u := User{ID: userID}
+		err := tx.QueryRow(ctx, `SELECT totp_secret FROM app_user WHERE id = $1 AND NOT totp_enabled FOR UPDATE`, userID).
+			Scan(&u.TOTPSecret)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
 		if err != nil {
 			return fmt.Errorf("enable two-factor login: %w", err)
 		}
-		if tag.RowsAffected() == 0 {
+		if err := s.openUser(&u); err != nil {
+			return fmt.Errorf("enable two-factor login: %w", err)
+		}
+		if u.TOTPSecret == nil || !bytes.Equal(u.TOTPSecret, secret) {
 			return ErrNotFound
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE app_user SET totp_enabled = true, totp_last_step = $2, totp_failures = 0, totp_locked_until = NULL
+			WHERE id = $1`, userID, step); err != nil {
+			return fmt.Errorf("enable two-factor login: %w", err)
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM app_session WHERE user_id = $1 AND token_hash IS DISTINCT FROM $2`,
 			userID, keep); err != nil {
@@ -125,7 +142,7 @@ func (s *Store) FindTwoFactorChallenge(ctx context.Context, tokenHash []byte) (T
 	var u User
 	err := s.pool.QueryRow(ctx, `
 		SELECT c.user_id, c.remember, c.attempts, c.expires_at,
-		       u.id, u.username, u.password_hash, u.created_at, u.totp_secret, u.totp_enabled, u.totp_locked_until, u.role
+		       `+userColumnsOf("u")+`
 		FROM app_two_factor_challenge c JOIN app_user u ON u.id = c.user_id
 		WHERE c.token_hash = $1 AND c.expires_at > now()`, tokenHash).
 		Scan(append([]any{&c.UserID, &c.Remember, &c.Attempts, &c.ExpiresAt}, u.fields()...)...)
@@ -133,6 +150,9 @@ func (s *Store) FindTwoFactorChallenge(ctx context.Context, tokenHash []byte) (T
 		return TwoFactorChallenge{}, User{}, ErrNotFound
 	}
 	if err != nil {
+		return TwoFactorChallenge{}, User{}, fmt.Errorf("find two-factor challenge: %w", err)
+	}
+	if err := s.openUser(&u); err != nil {
 		return TwoFactorChallenge{}, User{}, fmt.Errorf("find two-factor challenge: %w", err)
 	}
 	return c, u, nil

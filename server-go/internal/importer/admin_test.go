@@ -116,6 +116,22 @@ func TestImportsTheAccountBeforeBetterAuth(t *testing.T) {
 	}
 }
 
+func TestImportedAccountLosesTheGitHubPrefix(t *testing.T) {
+	f := newFixture(t)
+	hash, err := bcrypt.GenerateFromPassword([]byte("old password"), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.exec(t, "INSERT INTO `user` (username, password, active) VALUES ('@octocat', ?, 1)", string(hash))
+	report := f.runWith(t, true, nil)
+	if !report.Account.Imported || report.Account.Username != "octocat" || report.Account.RenamedFrom != "@octocat" {
+		t.Fatalf("import: %+v", report.Account)
+	}
+	if n := f.count(t, `SELECT count(*) FROM app_user WHERE username = 'octocat'`); n != 1 {
+		t.Fatalf("%d accounts named octocat", n)
+	}
+}
+
 var testPNG = []byte("\x89PNG\r\n\x1a\nnot really an image")
 
 func TestImportsStatusPagesAndMaintenance(t *testing.T) {

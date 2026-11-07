@@ -27,8 +27,17 @@ type Store interface {
 	HasUser(ctx context.Context) (bool, error)
 	CreateFirstUser(ctx context.Context, username, passwordHash string) (store.User, error)
 	UserByUsername(ctx context.Context, username string) (store.User, error)
+	UserByID(ctx context.Context, id int32) (store.User, error)
 	SetPassword(ctx context.Context, userID int32, passwordHash string, keep []byte) error
 	UpgradePasswordHash(ctx context.Context, userID int32, old, hash string) error
+	SaveGitHubUser(ctx context.Context, githubID int64, login, role, token string, teams []string) (store.User, error)
+	GitHubToken(ctx context.Context, userID int32) (string, error)
+	SetGitHubChecked(ctx context.Context, userID int32, role string, teams []string) error
+	EndUserSessions(ctx context.Context, userID int32) error
+	EndOtherUserSessions(ctx context.Context, userID int32, keep []byte) error
+	ListAccounts(ctx context.Context) ([]store.Account, error)
+	DeleteUser(ctx context.Context, userID int32, methods store.LoginMethods) (store.User, error)
+	SetUserRole(ctx context.Context, userID int32, role string, methods store.LoginMethods) (store.User, error)
 	StartTOTPSetup(ctx context.Context, userID int32, secret []byte) error
 	EnableTOTP(ctx context.Context, userID int32, secret []byte, step int64, keep []byte) error
 	DisableTOTP(ctx context.Context, userID int32) error
@@ -138,6 +147,10 @@ type Options struct {
 	PasswordLeaked func(ctx context.Context, password string) (bool, error)
 	// Updates knows the newest release, for the UI's update notice. Without it there's none.
 	Updates Updates
+	// GitHub turns on logging in with GitHub.
+	GitHub *GitHubOptions
+	// DisablePasswordLogin refuses logging in with a password, once GitHub login works.
+	DisablePasswordLogin bool
 	// IndexHTML is the web UI's index.html, which status pages are rendered into. Without it,
 	// /status/ answers 404, and the data is still at /api/status-page/.
 	IndexHTML []byte
@@ -165,6 +178,11 @@ type Server struct {
 	conns map[string]*conn
 	// beatsSeen is set by new beats and cleared when stats are sent.
 	beatsSeen bool
+
+	// githubMu guards the GitHub team checks running, and when each account's last one failed.
+	githubMu       sync.Mutex
+	githubChecking map[int32]bool
+	githubFailed   map[int32]time.Time
 }
 
 // New creates the server.
@@ -191,6 +209,9 @@ func New(s Store, scheduler Scheduler, notifyEnv *notify.Env, log *slog.Logger, 
 		conns:       map[string]*conn{},
 		pages:       opts.StatusPages,
 		cache:       newPublicCache(),
+
+		githubChecking: map[int32]bool{},
+		githubFailed:   map[int32]time.Time{},
 	}
 	// A window started or ended, so open pages show its new status.
 	opts.Maintenance.OnChange(func() {
@@ -213,6 +234,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/two-factor/enable", s.sameOrigin(s.enableTwoFactor))
 	mux.HandleFunc("POST /api/auth/two-factor/disable", s.sameOrigin(s.disableTwoFactor))
 	mux.HandleFunc("POST /api/auth/two-factor/verify-totp", s.sameOrigin(s.verifyTOTP))
+	mux.HandleFunc("GET /api/auth/github/start", s.githubStart)
+	mux.HandleFunc("GET /api/auth/github/callback", s.githubCallback)
 	mux.HandleFunc("/api/auth/", s.authNotSupported)
 	mux.HandleFunc("GET /api/realtime/stream", s.stream)
 	mux.HandleFunc("POST /api/realtime/send", s.sameOrigin(s.send))

@@ -49,6 +49,7 @@ type Store interface {
 	ListAPIKeys(ctx context.Context) ([]store.APIKey, error)
 	RevokeAPIKey(ctx context.Context, id int64) error
 	FindAPIKey(ctx context.Context, hash []byte) (store.APIKey, error)
+	FindLegacyAPIKey(ctx context.Context, legacyID int32) (store.APIKey, string, error)
 	TouchAPIKey(ctx context.Context, id int64) error
 	ListNotifications(ctx context.Context) ([]store.Notification, error)
 	GetNotification(ctx context.Context, id int32) (store.Notification, error)
@@ -82,7 +83,10 @@ type Server struct {
 	limiter   *keyLimiter
 	notifyEnv *notify.Env
 	lastTouch sync.Map // Key id to the time last_used_at was last written.
-	routes    []string
+	// legacyChecked holds keys of Uptime Kuma's older table that bcrypt accepted, by the
+	// SHA-256 of the key, with the bcrypt hash they matched, so that bcrypt runs once per key.
+	legacyChecked sync.Map
+	routes        []string
 }
 
 // New creates the API. Every route except /healthz requires token as a bearer token.

@@ -441,3 +441,67 @@ CREATE TABLE `maintenance_status_page` (
   CONSTRAINT `maintenance_status_page_maintenance_id_foreign` FOREIGN KEY (`maintenance_id`) REFERENCES `maintenance` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `maintenance_status_page_status_page_id_foreign` FOREIGN KEY (`status_page_id`) REFERENCES `status_page` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+-- Written from the knex migrations at 921745bf^ for kuma-import's E4, not from a boot.
+CREATE TABLE `better_auth_apikey` (
+  `id` varchar(255) NOT NULL,
+  `configId` varchar(255) NOT NULL DEFAULT 'default',
+  `name` varchar(255) DEFAULT NULL,
+  `start` varchar(255) DEFAULT NULL,
+  `prefix` varchar(255) DEFAULT NULL,
+  `key` varchar(255) NOT NULL,
+  `referenceId` varchar(255) NOT NULL,
+  `refillInterval` int(11) DEFAULT NULL,
+  `refillAmount` int(11) DEFAULT NULL,
+  `lastRefillAt` timestamp NULL DEFAULT NULL,
+  `enabled` tinyint(1) DEFAULT 1,
+  `rateLimitEnabled` tinyint(1) DEFAULT 1,
+  `rateLimitTimeWindow` bigint(20) DEFAULT NULL,
+  `rateLimitMax` int(11) DEFAULT NULL,
+  `requestCount` int(11) DEFAULT 0,
+  `remaining` int(11) DEFAULT NULL,
+  `lastRequest` timestamp NULL DEFAULT NULL,
+  `expiresAt` timestamp NULL DEFAULT NULL,
+  `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updatedAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  `permissions` text DEFAULT NULL,
+  `metadata` text DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `api_key` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `key` varchar(255) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `user_id` int(10) unsigned NOT NULL,
+  `created_date` datetime NOT NULL DEFAULT current_timestamp(),
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `expires` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `notification_sent_history` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `type` varchar(50) NOT NULL,
+  `monitor_id` int(10) unsigned NOT NULL,
+  `days` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `notification_sent_history_type_monitor_id_days_unique` (`type`,`monitor_id`,`days`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `monitor_tls_info` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `monitor_id` int(10) unsigned NOT NULL,
+  `info_json` text DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `domain_expiry` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `last_check` datetime DEFAULT NULL,
+  `domain` varchar(255) NOT NULL,
+  `expiry` datetime DEFAULT NULL,
+  `last_expiry_notification_sent` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `domain_expiry_domain_unique` (`domain`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

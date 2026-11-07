@@ -146,8 +146,11 @@ func (s *Store) RetentionDays(ctx context.Context, fallback int) (days int, save
 		}
 	}
 	value, _ := json.Marshal(fallback)
-	if err := s.SaveSettings(ctx, map[string]json.RawMessage{RetentionSetting: value}); err != nil {
-		return 0, false, err
+	// A default, which an import may replace.
+	if _, err := s.pool.Exec(ctx, `
+		INSERT INTO app_setting (key, value, source) VALUES ($1, $2, 'default')
+		ON CONFLICT (key) DO UPDATE SET value = excluded.value, source = 'default'`, RetentionSetting, value); err != nil {
+		return 0, false, fmt.Errorf("save %s: %w", RetentionSetting, err)
 	}
 	return fallback, false, nil
 }

@@ -1,3 +1,4 @@
+import "./app-icon.js";
 import "bootstrap";
 import { createApp, h } from "vue";
 import contenteditable from "vue-contenteditable";

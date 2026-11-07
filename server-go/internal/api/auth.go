@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/time/rate"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
@@ -106,6 +108,47 @@ func hashKey(plain string) []byte {
 	return sum[:]
 }
 
+// minImportedKeyLength is the shortest key without this service's prefix that's looked up:
+// better-auth's are 64 characters.
+const minImportedKeyLength = 32
+
+// legacyKey matches the keys of Uptime Kuma's older API key table, "uk<id>_<secret>".
+var legacyKey = regexp.MustCompile(`^uk([0-9]{1,9})_(.+)$`)
+
+// findKey returns the usable key presented, or store.ErrNotFound. Besides this service's keys,
+// it takes those imported from Uptime Kuma: better-auth's, whose SHA-256 is stored as this
+// service's is, and the older table's, checked with their bcrypt hash.
+func (s *Server) findKey(ctx context.Context, presented string) (store.APIKey, error) {
+	if strings.HasPrefix(presented, keyPrefix) {
+		return s.store.FindAPIKey(ctx, hashKey(presented))
+	}
+	if m := legacyKey.FindStringSubmatch(presented); m != nil {
+		id, err := strconv.ParseInt(m[1], 10, 32)
+		if err != nil {
+			return store.APIKey{}, store.ErrNotFound
+		}
+		key, hash, err := s.store.FindLegacyAPIKey(ctx, int32(id))
+		if err != nil {
+			return store.APIKey{}, err
+		}
+		// The key is looked up every time, so that revoking it takes effect at once; only the
+		// slow bcrypt check is remembered.
+		seen := string(hashKey(presented))
+		if matched, ok := s.legacyChecked.Load(seen); ok && matched.(string) == hash {
+			return key, nil
+		}
+		if bcrypt.CompareHashAndPassword([]byte(hash), []byte(m[2])) != nil {
+			return store.APIKey{}, store.ErrNotFound
+		}
+		s.legacyChecked.Store(seen, hash)
+		return key, nil
+	}
+	if len(presented) < minImportedKeyLength {
+		return store.APIKey{}, store.ErrNotFound
+	}
+	return s.store.FindAPIKey(ctx, hashKey(presented))
+}
+
 // require authenticates a request and checks that it has the scope.
 func (s *Server) require(scope string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -119,11 +162,7 @@ func (s *Server) require(scope string, next http.HandlerFunc) http.HandlerFunc {
 		if subtle.ConstantTimeCompare([]byte(presented), s.token) == 1 {
 			who = principal{admin: true}
 		} else {
-			if !strings.HasPrefix(presented, keyPrefix) {
-				unauthorized(w)
-				return
-			}
-			key, err := s.store.FindAPIKey(r.Context(), hashKey(presented))
+			key, err := s.findKey(r.Context(), presented)
 			if errors.Is(err, store.ErrNotFound) {
 				unauthorized(w)
 				return

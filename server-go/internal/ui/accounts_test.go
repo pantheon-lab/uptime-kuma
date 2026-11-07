@@ -557,3 +557,54 @@ func TestTOTPMatchesBetterAuthForImportedKeys(t *testing.T) {
 		t.Errorf("counter 55555555: %s", got)
 	}
 }
+
+func (f *fakeStore) SaveGitHubUser(_ context.Context, githubID int64, login, role, token string, teams []string) (store.User, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	for i, u := range f.users {
+		if u.GitHubID != nil && *u.GitHubID == githubID {
+			f.users[i].Username, f.users[i].Role, f.users[i].GitHubCheckedAt, f.users[i].GitHubTeams = "@"+login, role, &now, teams
+			f.githubTokens[u.ID] = token
+			return f.users[i], nil
+		}
+	}
+	id := int32(len(f.users) + 1)
+	u := store.User{ID: id, Username: "@" + login, Role: role, GitHubID: &githubID, GitHubCheckedAt: &now, GitHubTeams: teams, CreatedAt: now}
+	f.users = append(f.users, u)
+	f.githubTokens[id] = token
+	return u, nil
+}
+
+func (f *fakeStore) GitHubToken(_ context.Context, id int32) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	token, found := f.githubTokens[id]
+	if !found {
+		return "", store.ErrNotFound
+	}
+	return token, nil
+}
+
+func (f *fakeStore) SetGitHubChecked(_ context.Context, id int32, role string, teams []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	for i := range f.users {
+		if f.users[i].ID == id {
+			f.users[i].Role, f.users[i].GitHubCheckedAt, f.users[i].GitHubTeams = role, &now, teams
+		}
+	}
+	return nil
+}
+
+func (f *fakeStore) EndUserSessions(_ context.Context, id int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for k, s := range f.sessions {
+		if s.UserID == id {
+			delete(f.sessions, k)
+		}
+	}
+	return nil
+}

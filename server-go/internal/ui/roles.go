@@ -35,6 +35,8 @@ var viewerEvents = map[string]bool{
 	"getStatusPage":                      true,
 	"getIncidentHistory":                 true,
 	"checkApprise":                       true,
+	// The viewer's own account, for the Security page: how it logs in, and its teams.
+	"getOwnAccount": true,
 }
 
 // viewerMonitorFields are what a viewer is sent of a monitor: what the list and its page show,

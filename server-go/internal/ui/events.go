@@ -161,6 +161,8 @@ func (s *Server) info(ctx context.Context, full bool) map[string]any {
 		sign, offset = "-", -offset
 	}
 	info := map[string]any{
+		"githubLogin":          s.opts.GitHub != nil,
+		"passwordLogin":        !s.opts.DisablePasswordLogin,
 		"primaryBaseURL":       baseURL,
 		"serverTimezone":       s.opts.Location.String(),
 		"serverTimezoneOffset": fmt.Sprintf("%s%02d:%02d", sign, offset/3600, offset%3600/60),
@@ -489,6 +491,16 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.addAPIKey(ctx, c, args)
 	case "deleteAPIKey":
 		r, err = s.deleteAPIKey(ctx, c, args)
+	case "getOwnAccount":
+		r, err = s.getOwnAccount(ctx, c)
+	case "getAccountList":
+		r, err = s.getAccountList(ctx, c)
+	case "deleteAccount":
+		r, err = s.deleteAccount(ctx, c, args)
+	case "setAccountRole":
+		r, err = s.setAccountRole(ctx, c, args)
+	case "endAccountSessions":
+		r, err = s.endAccountSessions(ctx, c, args)
 	default:
 		if s.pages == nil {
 			return nil, false

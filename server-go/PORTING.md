@@ -26,7 +26,11 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | 6b    | The `nostr` and `Webpush` notification providers                    | Done   |
 | 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Done   |
 | 7a    | More than one account, with full and read-only roles                | Done   |
-| 7b    | Logging in with GitHub                                              | Next   |
+| 7b    | Logging in with GitHub                                              | Done   |
+| E1    | Managing accounts in the UI                                         | Done   |
+| E2    | The Security page for GitHub accounts                               | Done   |
+| E3    | Encrypting stored secrets                                           | Done   |
+| E4    | Completing the migration from MariaDB                               | Done   |
 
 ## Phase 0: Core (done)
 
@@ -587,11 +591,183 @@ Known limits:
   database.
 - A viewer still sees heartbeat messages, which can quote a response, and status pages' settings, which are public.
 
-### Phase 7b: Logging in with GitHub (next)
+### Phase 7b: Logging in with GitHub (done)
 
-- An OAuth App, configured with `KUMA_GITHUB_CLIENT_ID` and `KUMA_GITHUB_CLIENT_SECRET`, and "Log in with GitHub" on
-  the login page. The authorization code flow with `state`, and a session cookie as with a password.
-- `KUMA_GITHUB_ORG`, with `KUMA_GITHUB_ADMIN_TEAMS` and `KUMA_GITHUB_VIEWER_TEAMS`: membership decides the role at
-  every login, and is checked again when a session is renewed, so someone removed is logged out within a day.
-- An account for each GitHub user, made at their first login, named `@login`.
-- The password account stays, as a way in when GitHub is down, and `KUMA_PASSWORD_LOGIN=false` turns it off.
+- "Log in with GitHub" on the login page, with an OAuth App: the authorization code flow with `state` and PKCE
+  (S256), both kept in a cookie only the flow's paths receive, for 10 minutes. The `read:org` scope reads
+  membership: of the organization, then of its teams.
+- `KUMA_GITHUB_ADMIN_TEAMS` and `KUMA_GITHUB_VIEWER_TEAMS` decide the role, at each login and once a day while a
+  session is used. Someone no longer in the teams is logged out everywhere, and a changed role takes effect, with
+  open pages reconnecting. When GitHub can't be reached, the account keeps its role until the next try. Turning
+  GitHub login off ends its accounts' sessions.
+- An account per GitHub user, by GitHub id, named `@login`. A renamed login whose old name someone else takes
+  leaves the old account as `@name#id`. Password accounts can't start with `@`.
+- `KUMA_PASSWORD_LOGIN=false` refuses the password, and the login page then shows only GitHub. The server won't
+  start with it unless GitHub login is set up.
+- A refused login comes back to the login page with a reason.
+
+Tested with the race detector, against a fake GitHub that checks the client secret and the PKCE verifier:
+
+- admin and viewer teams, and a team of the same name in another organization, which counts for nothing
+- refusals: no team, not a member of the organization, a forged state, no flow cookie, a cancelled login, and a
+  bad code
+- the next day: a move to a viewer team making the session a viewer, leaving the organization ending the session,
+  and GitHub being down keeping it
+- password login off
+- accounts in the store, with renames, rechecks and ending sessions
+
+In headless Chromium against the built image (`internal/e2e/browser/github-7b.mjs`), with a fake GitHub that the
+script serves and that redirects back as GitHub does, 7 of 7 steps passed with no page errors:
+
+- the login page offering both, and the password account still logging in
+- an admin team's member logging in as `@alice`, an admin
+- a viewer team's member as a viewer, without the monitor's token
+- someone in no team refused with the reason shown
+- with `KUMA_PASSWORD_LOGIN=false`, only GitHub offered and the password refused
+
+Not tested: the real GitHub, which needs an OAuth App registered for the organization.
+
+Known limits:
+
+- The GitHub token is stored as it is, as the authenticator key is, to check the teams again. It can read the
+  user's organizations and teams, nothing else.
+- Someone who leaves the teams is logged out at their next use, within a day, and can't log in again. E1 added
+  listing and removing accounts.
+- The Security page's password and two-factor settings didn't apply to GitHub accounts, which have neither. E2
+  replaced them for those accounts.
+
+## Enhancements (done)
+
+The port is complete. These go beyond what the Node.js server did, and came out of Phases 5 to 7.
+
+### E1: Managing accounts in the UI (done)
+
+GitHub teams were the only control over accounts, and an account that had left them stayed in the database.
+
+- Settings > Accounts, for admins: every account, with its role, whether it logs in with GitHub or a password, when
+  it last logged in (a new column, set with each session), and its open sessions, marking the page's own.
+- Ending an account's sessions (an admin's own page stays logged in), and removing an account. Removing a GitHub
+  account only lasts until its next login while it's still in the teams, and the confirmation says so.
+- Changing a password account's role, which makes its open pages reconnect with the new one. A GitHub account's role
+  follows its teams, and the server refuses changing it.
+- The last admin who can log in can't be removed or made a viewer. "Can log in" follows the configuration: a
+  password admin needs password login on, a GitHub admin needs GitHub login on. The check holds a lock, so that two
+  admins removing each other at once can't both succeed. Admins can't remove or demote themselves either.
+- Logins were logged already; removals, role changes and ended sessions are logged with who made them.
+- The events are admin-only, by not being in the viewer list.
+
+Tested with the race detector: the store against TimescaleDB (the listing, the last-admin rule with and without
+GitHub login, two concurrent removals of the only two admins, ending all sessions but one), and the events against
+the fake store (every refusal, role changes, ending sessions, removing, and a viewer refused all four). In headless
+Chromium against the built image (`internal/e2e/browser/accounts-e1.mjs`), 6 of 6 steps passed with no page errors:
+the list with roles, methods, last logins and sessions; making a viewer an admin, which their open page picked up;
+ending their sessions, which logged them out; removing a GitHub account with the warning shown; and the server
+refusing self-removal, self-demotion and a viewer's request.
+
+Known limits:
+
+- Password accounts can't be created here: the setup account is the only one, and others come from GitHub.
+- A GitHub admin that has left the teams still counts as an admin who can log in until its next check.
+
+### E2: The Security page for GitHub accounts (done)
+
+GitHub accounts have no password and leave two-factor login to GitHub, but the Security page offered both.
+
+- The organization's teams an account is in are kept at each login and check (a new column), and a GitHub
+  account's Security page shows its organization, teams, role and last check, and how often it's checked, instead
+  of the password, two-factor and "disable auth" settings. The page asks with `getOwnAccount`.
+- The server refuses changing the password, starting two-factor login and confirming its code for GitHub accounts
+  (`GITHUB_ACCOUNT`).
+
+Tested with the race detector: the teams stored at login (only the organization's), the three refusals, and
+`getOwnAccount`, against the fake GitHub; the store's teams against TimescaleDB. In headless Chromium against the
+built image (`internal/e2e/browser/security-e2.mjs`), with a fake GitHub, 4 of 4 steps passed with no page errors:
+the GitHub account's page with its organization, teams, role and last check and without the password and
+two-factor settings, the server refusing both changes, and a password account's page unchanged. Hiding "disable
+auth" for GitHub accounts came after that run, and was only linted.
+
+### E3: Encrypting stored secrets (done)
+
+Authenticator keys, GitHub tokens, notification settings, monitor credentials and the VAPID private key were stored
+as they are, protected only by the database's access control.
+
+- `KUMA_SECRET_KEY` (or `KUMA_SECRET_KEY_FILE`), 32 bytes in base64 or hex, never in the database. Values are
+  sealed with AES-256-GCM with the table, column and row as associated data, so that a value moved to another row
+  doesn't open (`internal/secrets`). A new row's id is taken from its sequence first, so that it's sealed for it.
+- Encrypted: authenticator keys, GitHub tokens, notification settings (the whole `config`), proxy passwords and the
+  VAPID private key. **Decided against:** monitors' credentials, which are spread over many columns that checks, the
+  API and the UI read, and which the Grafana role can't read already; and Docker hosts and remote browsers, whose
+  addresses rarely hold credentials. Comparisons that the database made on encrypted columns (confirming the
+  authenticator key, matching an imported proxy) are made after opening them.
+- Each value carries its key's id, the start of the key's SHA-256. `KUMA_SECRET_KEY_OLD` holds keys being
+  replaced, and `kuma-analytics rekey` encrypts everything again with the current key.
+- At each start, plain values are encrypted when there's a key, and the log counts them. The server, and
+  `kuma-import -apply`, refuse to start with encrypted values and no key, or a key that doesn't open them.
+
+Tested with the race detector: the keyring (sealing, a moved value, no key, unknown keys, parsing keys), and against
+TimescaleDB, each of the five kinds stored before there was a key, encrypted at start, read back, written anew
+encrypted (with two-factor confirmation and proxy matching on encrypted values), a value copied to another row
+refusing to open, refusing to start without the key, and rotation. The whole store suite also passes with
+`TEST_SECRET_KEY` set, so that every stored secret in it is encrypted. Against the built image
+(`internal/e2e/browser/secrets-e3.mjs`): a notification and a proxy saved without a key, then a start with one that
+logged both encrypted, the database holding only `kenc:v1:` values, the notification dialog showing the webhook,
+and a new notification stored encrypted; then a start without the key refused, `rekey` with a new key, a start
+with the new key alone, and one with the old key alone refused.
+
+Not tested against the image: authenticator keys, GitHub tokens and the VAPID key, which the store tests cover.
+
+Known limits:
+
+- Turning encryption off isn't supported: nothing decrypts the values back.
+- Losing the key loses those values. The README says to back it up apart from the database.
+
+### E4: Completing the migration from MariaDB (done)
+
+`kuma-import` copied monitors, every raw beat, the hourly and daily statistics, notifications, tags, proxies, Docker
+hosts, remote browsers, the account, status pages and maintenance windows. This finishes the move, so that nothing
+has to be set up again by hand, and the move can be checked.
+
+- **Settings:** `primaryBaseURL`, the entry page, search engine visibility, trusting a proxy, the certificate and
+  domain expiry days, the retention, the Steam key, the Globalping token, the Chrome executable, and the update
+  check's. `app_setting` now records where each value came from (`default`, `ui` or `import`): the import replaces
+  only defaults and its own values, and the report lists each setting as copied, same, kept with why, or not in the
+  source, never with its value. Values from before this version have no source, and are kept.
+- **API keys:** better-auth's (`better_auth_apikey`), whose stored hash is the base64url of the key's SHA-256, the
+  same digest this service stores, so they're looked up as its own keys are; and the older table's `uk<id>_<secret>`
+  keys, with their bcrypt hash, which the REST API now checks (remembering a match, but looking the key up each
+  time, so that revoking works at once). Names, creation and expiry dates and whether they're on come along; a key
+  revoked here stays revoked. Uptime Kuma gave keys no permissions, so they get every scope. Keys without this
+  service's prefix are only looked up when they're at least 32 characters.
+- **Alert state:** certificate alerts sent (`notification_sent_history`) into `cert_alert_sent`, the certificates
+  last seen (`monitor_tls_info`), unless one was seen here, and `domain_expiry`, with the last alert sent, unless
+  checked here since.
+- **Skipped monitors:** their beats and statistics are kept in `skipped_heartbeat` and `skipped_stat`, by source id,
+  and a monitor imported later gets them (beats and statistics that aren't here already), even after Uptime Kuma
+  pruned them.
+- **`kuma-import -verify`** compares each imported monitor with the source: that each of the source's beats is here, the
+  newest beat, and uptime over the 24 whole hours, 30 and 365 whole days before the source's newest beat, from the
+  source's statistics and the `uptime_hourly` and `uptime_daily` views, within 0.01 percentage points. It exits 3
+  when one differs, 1 when it couldn't check.
+- **A cutover runbook** in the README, with going back.
+
+Tested with the race detector against MariaDB and TimescaleDB (`internal/importer/rest_test.go`): settings copied,
+kept when changed here, replaced when the import wrote them, and absent from the report; both kinds of key, a
+damaged one skipped, one off, and one revoked here staying revoked; alert state, and a domain checked here since
+left alone; a skipped monitor's history kept, then adopted after Uptime Kuma pruned it; and `-verify` matching, then
+reporting a lost beat and a changed daily figure. The REST API takes both kinds of key, refuses wrong ones, and
+stops taking a revoked one at once. The importer's existing tests pass with the five new source tables, which were
+written from the knex migrations rather than taken from a boot.
+
+Against the built image (`internal/e2e/cutover-e4.sh`, with `kuma-import` from the image and a MariaDB source),
+14 of 14 steps of the runbook passed: the dry run's report without values and writing nothing; the import with
+settings, the retention default replaced, the skipped monitor's 288 beats kept, and the alert state; both kinds of
+key working on the REST API and wrong ones refused; `-verify` exiting 0; `-apply -activate` and a restart with the
+imported retention; `-verify` exiting 0 again; and exiting 3 once a beat was deleted here.
+
+Not tested: a real Uptime Kuma database, and imported keys in the API Keys page, which lists them as it lists any.
+
+Known limits:
+
+- `-verify` compares the source's statistics with this service's views. Hours and days before the cutover come
+  from the imported statistics on both sides, so it checks the copy there; after it, it checks the beats.
+- Monitors' own settings aren't compared, only their history.

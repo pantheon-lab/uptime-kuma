@@ -61,7 +61,7 @@ func (s *Server) sendDockerHostList(ctx context.Context, c *conn) {
 		c.push(frame)
 		return
 	}
-	s.broadcast(frame)
+	s.broadcastAdmins(frame)
 }
 
 func (s *Server) sendRemoteBrowserList(ctx context.Context, c *conn) {
@@ -75,7 +75,7 @@ func (s *Server) sendRemoteBrowserList(ctx context.Context, c *conn) {
 		c.push(frame)
 		return
 	}
-	s.broadcast(frame)
+	s.broadcastAdmins(frame)
 }
 
 func dockerHostArg(args []json.RawMessage) (check.DockerHost, error) {
@@ -274,7 +274,7 @@ func (s *Server) sendProxyList(ctx context.Context, c *conn) {
 		c.push(frame)
 		return
 	}
-	s.broadcast(frame)
+	s.broadcastAdmins(frame)
 }
 
 func (s *Server) addProxy(ctx context.Context, args []json.RawMessage) (reply, error) {

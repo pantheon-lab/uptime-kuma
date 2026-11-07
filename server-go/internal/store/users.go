@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -34,6 +35,13 @@ type User struct {
 
 	// Role is RoleAdmin or RoleViewer.
 	Role string
+
+	// GitHubID is set for an account that logs in with GitHub, which has no password.
+	GitHubID *int64
+	// GitHubCheckedAt is when the account's GitHub teams were last checked.
+	GitHubCheckedAt *time.Time
+	// GitHubTeams are the organization's teams the account was in then.
+	GitHubTeams []string
 }
 
 // Roles. An admin can do everything. A viewer can look at monitors, beats, maintenance and status
@@ -46,7 +54,17 @@ const (
 // IsAdmin reports whether the account may change things and see credentials.
 func (u User) IsAdmin() bool { return u.Role == RoleAdmin }
 
-const userColumns = `id, username, password_hash, created_at, totp_secret, totp_enabled, totp_locked_until, role`
+const userColumns = `id, username, password_hash, created_at, totp_secret, totp_enabled, totp_locked_until, role,
+	github_id, github_checked_at, github_teams`
+
+// userColumnsOf is userColumns, each qualified with a table's alias.
+func userColumnsOf(alias string) string {
+	columns := strings.Split(userColumns, ",")
+	for i, c := range columns {
+		columns[i] = alias + "." + strings.TrimSpace(c)
+	}
+	return strings.Join(columns, ", ")
+}
 
 // Session is a web UI login. Only the token's hash is stored.
 type Session struct {
@@ -97,10 +115,10 @@ func (s *Store) CreateFirstUser(ctx context.Context, username, passwordHash stri
 }
 
 func (u *User) fields() []any {
-	return []any{&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPLockedUntil, &u.Role}
+	return []any{&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPLockedUntil, &u.Role, &u.GitHubID, &u.GitHubCheckedAt, &u.GitHubTeams}
 }
 
-func scanUser(row pgx.Row) (User, error) {
+func (s *Store) scanUser(row pgx.Row) (User, error) {
 	var u User
 	err := row.Scan(u.fields()...)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -109,19 +127,22 @@ func scanUser(row pgx.Row) (User, error) {
 	if err != nil {
 		return User{}, fmt.Errorf("read user: %w", err)
 	}
+	if err := s.openUser(&u); err != nil {
+		return User{}, fmt.Errorf("read user: %w", err)
+	}
 	return u, nil
 }
 
 // UserByUsername returns an account or ErrNotFound. Usernames match case-insensitively.
 func (s *Store) UserByUsername(ctx context.Context, username string) (User, error) {
-	return scanUser(s.pool.QueryRow(ctx, `
+	return s.scanUser(s.pool.QueryRow(ctx, `
 		SELECT `+userColumns+` FROM app_user
 		WHERE lower(username) = lower($1) ORDER BY id LIMIT 1`, username))
 }
 
 // UserByID returns an account or ErrNotFound.
 func (s *Store) UserByID(ctx context.Context, id int32) (User, error) {
-	return scanUser(s.pool.QueryRow(ctx, `
+	return s.scanUser(s.pool.QueryRow(ctx, `
 		SELECT `+userColumns+` FROM app_user WHERE id = $1`, id))
 }
 
@@ -153,7 +174,9 @@ func (s *Store) CreateSession(ctx context.Context, tokenHash []byte, session Ses
 	if _, err := s.pool.Exec(ctx, `DELETE FROM app_session WHERE expires_at < now()`); err != nil {
 		return fmt.Errorf("clear expired sessions: %w", err)
 	}
+	// Each session is a login, which Settings > Accounts shows.
 	_, err := s.pool.Exec(ctx, `
+		WITH login AS (UPDATE app_user SET last_login_at = now() WHERE id = $2)
 		INSERT INTO app_session (token_hash, user_id, remember, expires_at) VALUES ($1, $2, $3, $4)`,
 		tokenHash, session.UserID, session.Remember, session.ExpiresAt)
 	if err != nil {
@@ -172,7 +195,7 @@ func (s *Store) FindSession(ctx context.Context, tokenHash []byte) (Session, Use
 	var user User
 	err := s.pool.QueryRow(ctx, `
 		SELECT s.user_id, s.remember, s.created_at, s.expires_at,
-		       u.id, u.username, u.password_hash, u.created_at, u.totp_secret, u.totp_enabled, u.totp_locked_until, u.role
+		       `+userColumnsOf("u")+`
 		FROM app_session s JOIN app_user u ON u.id = s.user_id
 		WHERE s.token_hash = $1 AND s.expires_at > now()`, tokenHash).
 		Scan(append([]any{&session.UserID, &session.Remember, &session.CreatedAt, &session.ExpiresAt}, user.fields()...)...)
@@ -180,6 +203,9 @@ func (s *Store) FindSession(ctx context.Context, tokenHash []byte) (Session, Use
 		return Session{}, User{}, ErrNotFound
 	}
 	if err != nil {
+		return Session{}, User{}, fmt.Errorf("find session: %w", err)
+	}
+	if err := s.openUser(&user); err != nil {
 		return Session{}, User{}, fmt.Errorf("find session: %w", err)
 	}
 	return session, user, nil
@@ -228,9 +254,12 @@ func (s *Store) Settings(ctx context.Context) (map[string]json.RawMessage, error
 func (s *Store) SaveSettings(ctx context.Context, settings map[string]json.RawMessage) error {
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		for key, value := range settings {
+			// A value that changes is the UI's from then on, so that an import leaves it.
 			if _, err := tx.Exec(ctx, `
-				INSERT INTO app_setting (key, value) VALUES ($1, $2)
-				ON CONFLICT (key) DO UPDATE SET value = excluded.value`, key, []byte(value)); err != nil {
+				INSERT INTO app_setting (key, value, source) VALUES ($1, $2, 'ui')
+				ON CONFLICT (key) DO UPDATE SET value = excluded.value,
+					source = CASE WHEN app_setting.value IS DISTINCT FROM excluded.value THEN 'ui' ELSE app_setting.source END`,
+				key, []byte(value)); err != nil {
 				return fmt.Errorf("save setting %s: %w", key, err)
 			}
 		}
@@ -244,6 +273,9 @@ const (
 	WebpushPrivateKeySetting = "webpushPrivateVapidKey"
 )
 
+// vapidAAD is where the VAPID private key is sealed for.
+var vapidAAD = secretAAD("app_setting", "value", WebpushPrivateKeySetting)
+
 // WebpushKeys returns the VAPID key pair, made with generate the first time. Browsers subscribe
 // with the public key, so it never changes once made: when two requests make one at once, the
 // first to be saved wins.
@@ -256,7 +288,8 @@ func (s *Store) WebpushKeys(ctx context.Context, generate func() (public, privat
 		if err != nil || public == nil || private == nil {
 			return "", "", err
 		}
-		return *public, *private, nil
+		plain, err := s.openText(*private, vapidAAD)
+		return *public, plain, err
 	}
 	public, private, err := read()
 	if err != nil {
@@ -269,8 +302,12 @@ func (s *Store) WebpushKeys(ctx context.Context, generate func() (public, privat
 	if err != nil {
 		return "", "", fmt.Errorf("make web push keys: %w", err)
 	}
+	sealedPrivate, err := s.sealText(newPrivate, vapidAAD)
+	if err != nil {
+		return "", "", err
+	}
 	pub, _ := json.Marshal(newPublic)
-	priv, _ := json.Marshal(newPrivate)
+	priv, _ := json.Marshal(sealedPrivate)
 	// Both rows, or neither: a concurrent insert of the same keys makes this one do nothing.
 	if _, err := s.pool.Exec(ctx, `
 		INSERT INTO app_setting (key, value) VALUES ($1, $2), ($3, $4) ON CONFLICT (key) DO NOTHING`,
@@ -289,8 +326,12 @@ func (s *Store) WebpushKeys(ctx context.Context, generate func() (public, privat
 // ImportWebpushKeys saves a VAPID key pair from Node.js, so that browsers subscribed there keep
 // receiving messages. It does nothing, and says so, when this server has a pair already.
 func (s *Store) ImportWebpushKeys(ctx context.Context, public, private string) (bool, error) {
+	sealed, err := s.sealText(private, vapidAAD)
+	if err != nil {
+		return false, err
+	}
 	pub, _ := json.Marshal(public)
-	priv, _ := json.Marshal(private)
+	priv, _ := json.Marshal(sealed)
 	tag, err := s.pool.Exec(ctx, `
 		INSERT INTO app_setting (key, value)
 		SELECT k, v FROM (VALUES ($1, $2::jsonb), ($3, $4::jsonb)) AS pair (k, v)
@@ -301,4 +342,86 @@ func (s *Store) ImportWebpushKeys(ctx context.Context, public, private string) (
 		return false, fmt.Errorf("import web push keys: %w", err)
 	}
 	return tag.RowsAffected() == 2, nil
+}
+
+// GitHubAccountPrefix starts the username of an account that logs in with GitHub, such as
+// "@octocat", so that it can't be taken by a password account.
+const GitHubAccountPrefix = "@"
+
+// SaveGitHubUser makes or updates the account of a GitHub user at login, with the role their
+// teams give. The token is kept to check the teams again later.
+func (s *Store) SaveGitHubUser(ctx context.Context, githubID int64, login, role, token string, teams []string) (User, error) {
+	if teams == nil {
+		teams = []string{}
+	}
+	var user User
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		// GitHub logins can be renamed and taken by someone else: the account that had the name
+		// before keeps its id, under a name that says so.
+		if _, err := tx.Exec(ctx, `
+			UPDATE app_user SET username = username || '#' || id
+			WHERE lower(username) = lower($1) AND github_id IS NOT NULL AND github_id <> $2`, GitHubAccountPrefix+login, githubID); err != nil {
+			return err
+		}
+		err := tx.QueryRow(ctx, `
+		INSERT INTO app_user (username, password_hash, role, github_id, github_token, github_checked_at, github_teams)
+		VALUES ($1, '', $2, $3, NULL, now(), $4)
+		ON CONFLICT (github_id) WHERE github_id IS NOT NULL DO UPDATE
+		SET username = excluded.username, role = excluded.role, github_checked_at = now(), github_teams = excluded.github_teams
+		RETURNING `+userColumns, GitHubAccountPrefix+login, role, githubID, teams).Scan(user.fields()...)
+		if err != nil {
+			return err
+		}
+		if err := s.openUser(&user); err != nil {
+			return err
+		}
+		// The token is sealed for the account's row, whose id is known now.
+		sealed, err := s.sealText(token, secretAAD("app_user", "github_token", user.ID))
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `UPDATE app_user SET github_token = $2 WHERE id = $1`, user.ID, sealed)
+		return err
+	})
+	if err != nil {
+		return User{}, fmt.Errorf("save GitHub account: %w", err)
+	}
+	return user, nil
+}
+
+// GitHubToken returns the token an account last logged in with.
+func (s *Store) GitHubToken(ctx context.Context, userID int32) (string, error) {
+	var token *string
+	err := s.pool.QueryRow(ctx, `SELECT github_token FROM app_user WHERE id = $1`, userID).Scan(&token)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && token == nil) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("read GitHub token: %w", err)
+	}
+	plain, err := s.openText(*token, secretAAD("app_user", "github_token", userID))
+	if err != nil {
+		return "", fmt.Errorf("read GitHub token: %w", err)
+	}
+	return plain, nil
+}
+
+// SetGitHubChecked records a check of a GitHub account's teams, and the role they give now.
+func (s *Store) SetGitHubChecked(ctx context.Context, userID int32, role string, teams []string) error {
+	if teams == nil {
+		teams = []string{}
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE app_user SET role = $2, github_checked_at = now(), github_teams = $3 WHERE id = $1`,
+		userID, role, teams); err != nil {
+		return fmt.Errorf("record GitHub check: %w", err)
+	}
+	return nil
+}
+
+// EndUserSessions logs an account out everywhere, such as when it has left the GitHub teams.
+func (s *Store) EndUserSessions(ctx context.Context, userID int32) error {
+	if _, err := s.pool.Exec(ctx, `DELETE FROM app_session WHERE user_id = $1`, userID); err != nil {
+		return fmt.Errorf("end sessions: %w", err)
+	}
+	return nil
 }

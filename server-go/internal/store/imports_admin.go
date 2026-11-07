@@ -27,14 +27,26 @@ func (s *Store) ImportAccount(ctx context.Context, a ImportedAccount) (bool, err
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, setupLockID); err != nil {
 			return fmt.Errorf("lock setup: %w", err)
 		}
-		tag, err := tx.Exec(ctx, `
-			INSERT INTO app_user (username, password_hash, totp_secret, totp_enabled)
-			SELECT $1, $2, $3, $4 WHERE NOT EXISTS (SELECT 1 FROM app_user)`,
-			a.Username, a.PasswordHash, a.TOTPSecret, a.TOTPSecret != nil)
+		var id int32
+		err := tx.QueryRow(ctx, `
+			INSERT INTO app_user (username, password_hash, totp_enabled)
+			SELECT $1, $2, $3 WHERE NOT EXISTS (SELECT 1 FROM app_user) RETURNING id`,
+			a.Username, a.PasswordHash, a.TOTPSecret != nil).Scan(&id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("import account: %w", err)
 		}
-		created = tag.RowsAffected() == 1
+		created = true
+		// The authenticator key is sealed for the new row.
+		secret, err := s.sealTOTP(id, a.TOTPSecret)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE app_user SET totp_secret = $2 WHERE id = $1`, id, secret); err != nil {
+			return fmt.Errorf("import account: %w", err)
+		}
 		return nil
 	})
 	return created, err

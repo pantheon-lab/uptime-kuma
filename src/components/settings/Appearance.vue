@@ -56,6 +56,27 @@
             </div>
         </div>
         <div class="my-4">
+            <span id="app-icon-label" class="form-label d-block">{{ $t("App icon") }}</span>
+            <div class="app-icons" role="radiogroup" aria-labelledby="app-icon-label">
+                <div v-for="icon in appIcons" :key="icon.id" class="app-icon-choice">
+                    <input
+                        :id="`app-icon-${icon.id}`"
+                        v-model="$root.appIcon"
+                        type="radio"
+                        class="btn-check"
+                        name="appIcon"
+                        autocomplete="off"
+                        :value="icon.id"
+                    />
+                    <label class="btn btn-outline-primary" :for="`app-icon-${icon.id}`">
+                        <img :src="icon.src" width="48" height="48" alt="" />
+                        <span>{{ icon.name }}</span>
+                    </label>
+                </div>
+            </div>
+            <div class="form-text">{{ $t("appIconHint") }}</div>
+        </div>
+        <div class="my-4">
             <label class="form-label">{{ $t("Theme - Heartbeat Bar") }}</label>
             <div>
                 <div class="btn-group" role="group" :aria-label="$t('Basic checkbox toggle button group')">
@@ -151,7 +172,15 @@
 </template>
 
 <script>
-export default {};
+import { appIcons } from "../../app-icon.js";
+
+export default {
+    data() {
+        return {
+            appIcons,
+        };
+    },
+};
 </script>
 
 <style lang="scss" scoped>
@@ -164,6 +193,22 @@ export default {};
 
     .dark & {
         color: #000;
+    }
+}
+
+.app-icons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+
+    label {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        min-width: 104px;
+        padding: 12px 10px;
+        border-radius: 12px;
     }
 }
 

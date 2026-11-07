@@ -8,8 +8,7 @@ percentiles and dashboard stats over REST, plus new beats over Server-Sent Event
 status pages and badges, exports traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
 **Status:** this is now the only backend, because the Node.js server and MariaDB support have
-been removed. It isn't feature complete. Not built yet: more than one account, and logging in with GitHub, which
-[`PORTING.md`](PORTING.md) plans.
+been removed. Enhancements beyond what the Node.js server did are planned in [`PORTING.md`](PORTING.md).
 
 [PORTING.md](PORTING.md) records what has moved from the Node.js server, phase by phase, and what's left.
 
@@ -29,9 +28,38 @@ Accounts can also be **viewers**, which can look at monitors, beats, maintenance
 can't change anything, and aren't sent credentials. The server enforces this: a viewer's page gets monitors without
 URLs' credentials and query strings, headers, bodies, connection strings, push tokens or passwords, and empty lists
 of notifications, proxies, Docker hosts and remote browsers, and every event that would change something, or read
-settings or API keys, is refused. The UI hides those buttons, and sends a viewer back from settings and forms.
-Logging in with GitHub, planned in [`PORTING.md`](PORTING.md), will make viewers. Until then, one can be made in the
-database: `INSERT INTO app_user (username, password_hash, role) VALUES (..., ..., 'viewer')`.
+settings or API keys, is refused. The UI hides those buttons, and sends a viewer back from settings and forms,
+except Settings > Security, for their own password, two-factor login and GitHub teams.
+Accounts other than the setup one come from logging in with GitHub.
+
+**Settings > Accounts** lists every account, for admins: its role, whether it logs in with GitHub or a password, its
+last login and its open sessions. An admin can end an account's sessions, remove it, and change a password account's
+role; a GitHub account's role follows its teams. Removing a GitHub account lasts only until its next login while it's
+still in the teams. No change may leave no admin who can log in, and admins can't remove or demote themselves. Each
+change is logged with who made it.
+
+### Logging in with GitHub
+
+With a GitHub OAuth App, the login page offers "Log in with GitHub". Membership of the organization's teams decides
+who may log in, and as what, at each login and again once a day while a session is used, so that someone who leaves
+a team loses access within a day, and a role that changed takes effect. An open page checks its session every five
+minutes, so it needs no new request to find out. When GitHub can't be reached, the account keeps its role, and is
+checked again ten minutes later. Two-factor login is left to GitHub, where
+the organization can require it.
+
+1. In the organization's settings, under Developer settings > OAuth Apps, register an app with the callback URL
+   `https://<this server>/api/auth/github/callback`.
+2. Set `KUMA_GITHUB_CLIENT_ID`, `KUMA_GITHUB_CLIENT_SECRET` and `KUMA_GITHUB_ORG`, and the team slugs:
+   `KUMA_GITHUB_ADMIN_TEAMS` for admins and `KUMA_GITHUB_VIEWER_TEAMS` for viewers, comma-separated. A viewer
+   team of `*` lets every member of the organization look.
+3. Once it works, `KUMA_PASSWORD_LOGIN=false` turns the password off, which then only stays as a way in when
+   GitHub is down, after it's turned back on.
+
+The app asks for the `read:org` scope, to read team membership. Each GitHub user gets an account named `@login` at
+their first login, so password accounts can't start with `@`; `kuma-import` drops a leading `@` from the imported
+account's name, and says so in its report. The token is stored, as the password hashes are, to
+check the teams again; it's never sent to browsers. Setup isn't offered once someone has logged in with GitHub.
+`KUMA_GITHUB_URL` and `KUMA_GITHUB_API_URL` point at a GitHub Enterprise server instead.
 
 What works in the UI: logging in and out, two-factor login, changing the password, API keys, the dashboard with live beats, uptime and
 response times, the event list, adding, editing, pausing and deleting the monitor types above, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public
@@ -347,11 +375,40 @@ docker compose up --build
 | `KUMA_INITIAL_ADMIN_PASSWORD`      | not set          | The password of that account, which must pass the same checks as at setup                       |
 | `KUMA_DISABLE_LEAK_PASSWORD_CHECK` | `false`          | Stops checking new passwords against Pwned Passwords, for servers without internet access       |
 | `KUMA_UPDATE_CHECK_URL`            | GitHub's tags    | Where the update check lists releases, or `off`                                                 |
+| `KUMA_GITHUB_CLIENT_ID`            | not set          | Turns on logging in with GitHub, with this OAuth App                                            |
+| `KUMA_GITHUB_CLIENT_SECRET`        | not set          | The OAuth App's secret                                                                          |
+| `KUMA_GITHUB_ORG`                  | not set          | The organization whose teams decide access                                                      |
+| `KUMA_GITHUB_ADMIN_TEAMS`          | not set          | Team slugs whose members are admins, comma-separated                                            |
+| `KUMA_GITHUB_VIEWER_TEAMS`         | not set          | Team slugs whose members are viewers, or `*` for every member of the organization               |
+| `KUMA_PASSWORD_LOGIN`              | `true`           | `false` refuses logging in with a password, once GitHub login works                             |
+| `KUMA_SECRET_KEY`                  | not set          | 32 bytes in base64 or hex that encrypt stored secrets. See "Encrypting stored secrets"          |
+| `KUMA_SECRET_KEY_OLD`              | not set          | Earlier keys, comma-separated, while rotating. Both also come from a file with `_FILE`          |
 | `CLOUDFLARE_TUNNEL_TOKEN`          | not set          | In `compose.yaml`, the token of the Cloudflare Tunnel that the `tunnel` profile runs            |
 | `DOCKER_TLS_DIR_PATH`              | not set          | Client certificates for `https://` Docker hosts, in a directory per host                        |
 
 To deploy on Kubernetes, use the Helm chart in [`charts/uptime-kuma`](charts/uptime-kuma/README.md), which
 runs the same stack.
+
+### Encrypting stored secrets
+
+With `KUMA_SECRET_KEY`, these are stored encrypted, so that a copy of the database, such as a backup, doesn't give
+them away: authenticator keys, GitHub tokens, notification settings, proxy passwords and the web push (VAPID)
+private key. Each is encrypted with AES-256-GCM for its column and row, so that a value copied to another row
+doesn't open. Monitors' credentials aren't: they're spread over many columns that checks, the API and the UI read,
+and the Grafana role can't read them already.
+
+```bash
+openssl rand -base64 32   # keep it in a secret manager or a file, never in the database
+```
+
+- **Turning it on:** set `KUMA_SECRET_KEY` (or `KUMA_SECRET_KEY_FILE`, a path to the key), and restart. Plain values
+  are encrypted at start, and the log says how many. Give `kuma-import` the same key.
+- **Losing it** loses those values: the server won't start with encrypted values and no key, or the wrong key,
+  rather than run without them. Back the key up apart from the database.
+- **Rotating it:** set the new key as `KUMA_SECRET_KEY` and the old one as `KUMA_SECRET_KEY_OLD`, restart, then run
+  `kuma-analytics rekey` with the same variables, which encrypts everything again with the new key. Then remove
+  `KUMA_SECRET_KEY_OLD`.
+- **Turning it off** isn't supported: the values would have to be decrypted first, and nothing does that.
 
 Run a single instance: there's no coordination between schedulers, so two instances
 would both run every check.
@@ -577,8 +634,8 @@ Differences from Uptime Kuma:
 
 ## Importing from MariaDB
 
-`kuma-import` copies monitors, groups, notifications, history, the account, status pages and maintenance windows
-from an Uptime Kuma MariaDB database. It only
+`kuma-import` copies monitors, groups, notifications, history, the account, status pages, maintenance windows,
+settings, API keys and alert state from an Uptime Kuma MariaDB database, and `-verify` checks the result. It only
 reads the source, inside a read-only transaction. Give it a user that can only read, too:
 
 ```sql
@@ -616,8 +673,26 @@ Check these parts of the report:
 
 You can run it as often as you like. It duplicates nothing and picks up changes, except for monitors that have
 been resumed here, which are left alone because they produce their own data. The same goes for notifications
-that have been switched on here. Other settings aren't imported, such as `primaryBaseURL`, so set `KUMA_BASE_URL`
-yourself.
+that have been switched on here.
+
+**Settings** that take effect here are copied: `primaryBaseURL`, the entry page, search engine visibility, trusting
+a proxy, the certificate and domain expiry days, the retention, the Steam key, the Globalping token, the Chrome
+executable, and the update check's. One changed here since is left alone: the server records whether each value is
+a default, the import's, or the UI's. `settings` in the report lists each with `copied`, `same`, `kept` and why, or
+`not set in the source`, and never a value. A new retention applies at the next restart.
+
+**API keys** keep working, so that scripts using them needn't change. better-auth's keys are stored as the SHA-256
+of the key, as this service's are, and the older `uk<id>_…` keys with their bcrypt hash, which is checked once per
+key and process. They get every scope, since Uptime Kuma gave them none, and keep their names, expiry and whether
+they're on. A key revoked here stays revoked. They're used as `Authorization: Bearer <key>`, as Uptime Kuma took
+them.
+
+**Alert state** comes along, so that alerts aren't sent again: the certificate expiry alerts already sent, the
+certificates last seen, which the monitor pages then show before the first check, and the domains' expiry and last
+alert, unless checked here since.
+
+**Skipped monitors' history** (their beats and statistics) is kept apart, by their id in the source, and given to
+the monitor when a later version can import it, even after Uptime Kuma has pruned it. `skippedHistory` counts it.
 
 **The account** is copied with its password, when there's no account here yet, so it can't take over a server
 that's been set up. Logging in works as before, with the same password and authenticator app. If two-factor login
@@ -648,6 +723,41 @@ Uptime Kuma's alerts. Check them with `POST /api/v1/notifications/{id}/test`, wh
 Uptime before the last whole hour comes from the source's aggregates, and everything after comes from beats, so
 nothing counts twice. The same applies per day for daily figures. Dashboards and the API read the `uptime_hourly`
 and `uptime_daily` views, which join the two.
+
+### Checking the move
+
+`-verify` compares each imported monitor with the source, and imports nothing: that each of the source's beats
+is here (beats this service recorded itself don't count against it), the newest beat, and the uptime over the last 24 whole hours, 30 whole days and 365 whole days
+before the source's newest beat, from the source's statistics and this service's views. Uptime may differ by
+0.01 percentage points. It prints a JSON report that lists every monitor that differs and how, and exits with 3 if
+any does, 1 if it couldn't check, and 0 otherwise.
+
+```bash
+docker compose run --rm --no-deps -e SOURCE_MARIADB_DSN --entrypoint /kuma-import analytics -verify
+```
+
+Run it right after an import: while Uptime Kuma keeps checking, the source moves ahead of what was imported.
+
+### Cutover runbook
+
+1. **Dry run.** Read the report: skipped monitors, notifications and API keys, and settings that would be kept.
+   Fix what you can in Uptime Kuma, or accept it.
+2. **Import while both run.** `-apply`. Monitors arrive paused and notifications off, so nothing checks or alerts
+   twice. Set `KUMA_SECRET_KEY` first if secrets are to be encrypted. Look around the UI, and test notifications
+   with `POST /api/v1/notifications/{id}/test`.
+3. **Verify.** `-apply` again, then `-verify` straight after. It should exit 0; read any differences.
+4. **Stop Uptime Kuma**, so that its beats, statistics and alerts stop, and nothing changes in the source.
+5. **Last import.** `-apply -activate`: it copies the last beats, then resumes the monitors that were active and
+   switches on their notifications.
+6. **Restart** this service (`docker compose restart analytics`), which starts the monitors and applies an
+   imported retention.
+7. **Verify again.** `-verify` must exit 0, since the source no longer changes.
+8. **Point traffic here**: DNS, the reverse proxy, push monitors' URLs, and status page domains.
+
+**Going back**, if something's wrong before step 8: start Uptime Kuma again, which still has everything, since the
+import only reads it. Then pause the monitors here, with `POST /api/v1/monitors/{id}/pause` or the UI, so that
+they don't alert alongside it. After step 8, point traffic back first. Beats recorded here in between stay here,
+and aren't copied back.
 
 ## Observability
 

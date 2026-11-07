@@ -14,8 +14,33 @@
                     </button>
                 </p>
 
-                <h5 class="my-4 settings-subheading">{{ $t("Change Password") }}</h5>
-                <form class="mb-3" @submit.prevent="savePassword">
+                <div v-if="account && account.method === 'github'" class="mb-3" data-testid="github-account">
+                    <h5 class="my-4 settings-subheading">{{ $t("Logging in with GitHub") }}</h5>
+                    <p>{{ $t("securityGitHubIntro") }}</p>
+                    <dl class="row">
+                        <dt class="col-sm-3">{{ $t("Organization") }}</dt>
+                        <dd class="col-sm-9">{{ account.org || "—" }}</dd>
+                        <dt class="col-sm-3">{{ $t("Teams") }}</dt>
+                        <dd class="col-sm-9">
+                            <span v-for="team in account.teams" :key="team" class="badge bg-secondary me-1">
+                                {{ team }}
+                            </span>
+                            <span v-if="account.teams.length === 0">—</span>
+                        </dd>
+                        <dt class="col-sm-3">{{ $t("Role") }}</dt>
+                        <dd class="col-sm-9">
+                            {{ account.role === "admin" ? $t("accountRoleAdmin") : $t("accountRoleViewer") }}
+                        </dd>
+                        <dt class="col-sm-3">{{ $t("accountTeamsChecked") }}</dt>
+                        <dd class="col-sm-9">{{ account.checkedAt || $t("Never") }}</dd>
+                    </dl>
+                    <p class="text-secondary small">
+                        {{ $t("securityGitHubRecheck", { hours: account.recheckHours }) }}
+                    </p>
+                </div>
+
+                <h5 v-if="!isGitHub" class="my-4 settings-subheading">{{ $t("Change Password") }}</h5>
+                <form v-if="!isGitHub" class="mb-3" @submit.prevent="savePassword">
                     <div class="mb-3">
                         <label for="current-password" class="form-label">
                             {{ $t("Current Password") }}
@@ -70,7 +95,7 @@
                 </form>
             </template>
 
-            <div v-if="!settings.disableAuth" class="mt-5 mb-3">
+            <div v-if="!settings.disableAuth && !isGitHub" class="mt-5 mb-3">
                 <h5 class="my-4 settings-subheading">
                     {{ $t("Two Factor Authentication") }}
                 </h5>
@@ -81,7 +106,7 @@
                 </div>
             </div>
 
-            <div class="my-4">
+            <div v-if="!isGitHub && $root.canEdit" class="my-4">
                 <!-- Advanced -->
                 <h5 class="my-4 settings-subheading">{{ $t("Advanced") }}</h5>
 
@@ -157,6 +182,7 @@ export default {
     data() {
         return {
             invalidPassword: false,
+            account: null,
             password: {
                 currentPassword: "",
                 newPassword: "",
@@ -175,12 +201,23 @@ export default {
         settingsLoaded() {
             return this.$parent.$parent.$parent.settingsLoaded;
         },
+        isGitHub() {
+            return this.account?.method === "github";
+        },
     },
 
     watch: {
         "password.repeatNewPassword"() {
             this.invalidPassword = false;
         },
+    },
+
+    mounted() {
+        this.$root.getSocket().emit("getOwnAccount", (res) => {
+            if (res.ok) {
+                this.account = res;
+            }
+        });
     },
 
     methods: {

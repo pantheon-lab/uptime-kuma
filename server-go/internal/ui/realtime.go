@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 )
 
 // The realtime protocol, as src/realtime-client.ts speaks it:
@@ -34,6 +36,9 @@ const (
 	inboxBuffer   = 256
 	maxSendBody   = 32 << 20
 	maxBatchCount = 1000
+	// sessionCheckInterval is how often an open stream checks that its login is still valid:
+	// that the session hasn't expired or ended, and, for a GitHub account, its teams when due.
+	sessionCheckInterval = 5 * time.Minute
 )
 
 type inMessage struct {
@@ -185,6 +190,9 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go s.process(c, login)
+	if login != nil {
+		go s.watchSession(c, login)
+	}
 
 	keepAlive := time.NewTicker(keepAliveInterval)
 	defer keepAlive.Stop()
@@ -204,6 +212,45 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+// watchSession closes a logged-in stream once its login is no longer valid, or its role
+// changed: the client reconnects, and gets what its login allows now. A stream doesn't
+// otherwise make requests that would check, as its events only name the connection.
+func (s *Server) watchSession(c *conn, login *userInfo) {
+	ticker := time.NewTicker(sessionCheckInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-c.done:
+			return
+		case <-ticker.C:
+			if !s.loginStillValid(c.ctx, login) {
+				c.close()
+				return
+			}
+		}
+	}
+}
+
+func (s *Server) loginStillValid(ctx context.Context, login *userInfo) bool {
+	ctx, cancel := context.WithTimeout(ctx, handlerTimeout)
+	defer cancel()
+	_, user, err := s.store.FindSession(ctx, login.tokenHash)
+	if errors.Is(err, store.ErrNotFound) {
+		return false
+	}
+	if err != nil {
+		// Keep the stream; the next check tries again.
+		s.log.Warn("check realtime session", "error", err)
+		return true
+	}
+	user, allowed, err := s.checkGitHubAccount(ctx, user)
+	if err != nil {
+		s.log.Warn("check realtime session", "error", err)
+		return true
+	}
+	return allowed && user.IsAdmin() == login.admin
 }
 
 // acceptsGzip reports whether an Accept-Encoding header allows gzip, ignoring q=0.

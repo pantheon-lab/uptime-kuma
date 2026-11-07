@@ -1,8 +1,11 @@
+import { applyFavicon, appIconSrc, storedAppIcon } from "../app-icon.js";
+
 export default {
     data() {
         return {
             system: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
             userTheme: localStorage.theme,
+            appIcon: storedAppIcon(),
             userHeartbeatBar: localStorage.heartbeatBarTheme,
             styleElapsedTime: localStorage.styleElapsedTime,
             statusPageTheme: "light",
@@ -32,6 +35,14 @@ export default {
     },
 
     computed: {
+        /**
+         * The image of the browser's chosen app icon
+         * @returns {string} Image URL
+         */
+        appIconUrl() {
+            return appIconSrc(this.appIcon);
+        },
+
         theme() {
             // As entry can be status page now, set forceStatusPageTheme to true to use status page theme
             if (this.forceStatusPageTheme) {
@@ -67,6 +78,15 @@ export default {
     watch: {
         "$route.fullPath"(path) {
             this.path = path;
+        },
+
+        appIcon(to) {
+            try {
+                localStorage.appIcon = to;
+            } catch (e) {
+                // Private windows can refuse storage; the choice then lasts until reload.
+            }
+            applyFavicon(to);
         },
 
         userTheme(to, from) {
