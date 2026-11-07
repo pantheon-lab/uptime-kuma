@@ -1709,5 +1709,7 @@
     "Teams": "Teams",
     "Role": "Role",
     "securityGitHubIntro": "This account logs in with GitHub, so it has no password here, and two-factor login is GitHub's: turn it on in your GitHub account, and the organization can require it.",
-    "securityGitHubRecheck": "Your teams decide your role. They're checked at each login, and every {hours} hours while you're logged in; leaving them logs you out."
+    "securityGitHubRecheck": "Your teams decide your role. They're checked at each login, and every {hours} hours while you're logged in; leaving them logs you out.",
+    "App icon": "App icon",
+    "appIconHint": "Shown in the header and the browser tab, in this browser only. Status pages keep their own logo."
 }
