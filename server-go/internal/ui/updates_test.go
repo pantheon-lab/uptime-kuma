@@ -20,7 +20,7 @@ func TestUpdateNotice(t *testing.T) {
 	if got := s.info(context.Background(), true)["latestVersion"]; got != "3.1.0" {
 		t.Fatalf("info: %v", got)
 	}
-	c := &conn{userID: 1, username: "admin", out: make(chan []byte, 256), done: make(chan struct{})}
+	c := &conn{userID: 1, admin: true, username: "admin", out: make(chan []byte, 256), done: make(chan struct{})}
 	save := func(settings map[string]any) {
 		t.Helper()
 		raw, _ := json.Marshal(settings)
@@ -48,7 +48,7 @@ func TestWebpushKeyEvents(t *testing.T) {
 	s.notifyEnv.WebpushKeys = func(context.Context) (string, string, error) { return "the-public", "the-private", nil }
 	fs.settings["webpushPublicVapidKey"] = json.RawMessage(`"the-public"`)
 	fs.settings["webpushPrivateVapidKey"] = json.RawMessage(`"the-private"`)
-	c := &conn{userID: 1, username: "admin", out: make(chan []byte, 256), done: make(chan struct{})}
+	c := &conn{userID: 1, admin: true, username: "admin", out: make(chan []byte, 256), done: make(chan struct{})}
 	call := func(event string, args ...any) reply {
 		t.Helper()
 		raws := make([]json.RawMessage, len(args))

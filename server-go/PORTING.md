@@ -7,25 +7,26 @@ Update this file in the same pull request as each phase. Only mark a phase done 
 wasn't. The order of the planned phases is a proposal, and should follow what's actually in use: the dry run of
 `kuma-import` lists every monitor it can't bring over, and why.
 
-| Phase | Scope                                                               | Status  |
-| ----- | ------------------------------------------------------------------- | ------- |
-| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done    |
-| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done    |
-| 2     | Push, Ping and DNS monitors                                         | Done    |
-| 3     | Status pages and badges                                             | Done    |
-| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done    |
-| 4b    | Other databases and messaging                                       | Done    |
-| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done    |
-| 4d    | Docker, system and remote browser monitors                          | Done    |
-| 4e    | HTTP options, proxies and domain expiry                             | Done    |
-| 4f    | Globalping, GameDig and Tailscale ping                              | Done    |
-| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done    |
-| 5b    | Settings that take effect, and the Monitor History page             | Done    |
-| 5c    | Importing accounts, status pages and maintenance windows            | Done    |
-| 6a    | The MCP server and the update check                                 | Done    |
-| 6b    | The `nostr` and `Webpush` notification providers                    | Done    |
-| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Done    |
-| 7     | Logging in with GitHub                                              | Planned |
+| Phase | Scope                                                               | Status |
+| ----- | ------------------------------------------------------------------- | ------ |
+| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done   |
+| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done   |
+| 2     | Push, Ping and DNS monitors                                         | Done   |
+| 3     | Status pages and badges                                             | Done   |
+| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done   |
+| 4b    | Other databases and messaging                                       | Done   |
+| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done   |
+| 4d    | Docker, system and remote browser monitors                          | Done   |
+| 4e    | HTTP options, proxies and domain expiry                             | Done   |
+| 4f    | Globalping, GameDig and Tailscale ping                              | Done   |
+| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done   |
+| 5b    | Settings that take effect, and the Monitor History page             | Done   |
+| 5c    | Importing accounts, status pages and maintenance windows            | Done   |
+| 6a    | The MCP server and the update check                                 | Done   |
+| 6b    | The `nostr` and `Webpush` notification providers                    | Done   |
+| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Done   |
+| 7a    | More than one account, with full and read-only roles                | Done   |
+| 7b    | Logging in with GitHub                                              | Next   |
 
 ## Phase 0: Core (done)
 
@@ -542,28 +543,55 @@ Known limits and differences from Node.js:
 - The tunnel can't be started or stopped from the UI.
 - Other apprise versions need a rebuilt image.
 
-## Phase 7: Logging in with GitHub (planned)
+## Phase 7: Logging in with GitHub
 
 Not in the Node.js server, which only had a password and an authenticator app. Pantheon Lab's team signs in to
 GitHub already, so this lets them log in to Uptime Kuma the same way, and lets access follow GitHub: leaving the
 organization ends it.
 
-- **OAuth with a GitHub App or OAuth App**, configured with `KUMA_GITHUB_CLIENT_ID` and `KUMA_GITHUB_CLIENT_SECRET`.
-  The login page shows "Log in with GitHub" when it's set. The authorization code flow with `state` and PKCE, and a
-  session cookie as with a password.
-- **Who may log in:** members of a GitHub organization, optionally only of some teams, such as
-  `KUMA_GITHUB_ORG=pantheon-lab` and `KUMA_GITHUB_TEAMS=sre,platform`, checked at every login and again when a
-  session is renewed, so that someone removed from the organization is logged out within a day.
-- **Accounts:** this needs more than one account, which Phase 5 left out. The likely design is an account per GitHub
-  user, made at their first login, with the same rights as the password account, since the UI has no roles. Logins
-  and changes would then record who made them.
-- **The password account stays**, as a way in when GitHub is down, and it can be turned off with
-  `KUMA_PASSWORD_LOGIN=false` once GitHub login works.
-- `kuma-import` and the REST API aren't affected. API keys stay as they are.
+Decided with the team:
 
-To decide before it's built:
+- **Roles:** members of some GitHub teams get full access, and members of others can only look. The password
+  account keeps full access.
+- **Two-factor login** for GitHub accounts is left to GitHub, where the organization can require it.
+- **An OAuth App**, with the `read:org` scope to read team membership.
 
-- Whether everyone who may log in can change everything, or whether some teams only read, which the UI would need
-  read-only views for.
-- Whether two-factor login is left to GitHub, which can require it for the organization.
-- A GitHub App or an OAuth App: an App can be limited to reading organization membership.
+It's split in two, because read-only access needs more than one account first, and more than hiding buttons: every
+logged-in page is sent monitors with their credentials, notification settings and proxy passwords.
+
+### Phase 7a: More than one account, with full and read-only roles (done)
+
+- Accounts have a role, `admin` or `viewer`. Existing accounts and the one made at setup are admins.
+- The server enforces it. A viewer's realtime events are limited to a list of those that only read, so that an
+  event added later is closed to viewers until it's added there; anything else answers "Your account can only
+  view".
+- A viewer gets no credentials. Monitors are sent as a list of the fields the pages show, again so that a field
+  added later stays hidden, with URLs stripped of their credentials, query and fragment. The lists of
+  notifications, proxies, Docker hosts and remote browsers come empty, and broadcasts of them go to admins only.
+  A monitor's page loads it with `getMonitor`, which a viewer gets in the same form.
+- The session carries the role (`session` event, and better-auth's `user.role`). The UI hides the buttons that
+  change things, the settings menu and the monitor list's selection, and sends a viewer from forms and settings
+  back to the dashboard.
+
+Tested with the race detector: the role in the store and in sessions, and a viewer's stream over HTTP, which got the
+monitor without six kinds of secret that an admin's list has, empty lists, reads that work, eleven kinds of change
+refused, and broadcasts without credentials. In headless Chromium against the built image
+(`internal/e2e/browser/roles-7a.mjs`), 6 of 6 steps passed with no page errors: the admin's page held the
+monitor's credentials and the viewer's held none; the viewer's monitor page rendered without the edit, delete and
+clear buttons, and the dashboard, maintenance and status page lists without their add buttons; settings and forms
+sent the viewer back; and the server refused a delete sent directly.
+
+Known limits:
+
+- There's no page for managing accounts. Phase 7b makes them from GitHub logins; until then a viewer is made in the
+  database.
+- A viewer still sees heartbeat messages, which can quote a response, and status pages' settings, which are public.
+
+### Phase 7b: Logging in with GitHub (next)
+
+- An OAuth App, configured with `KUMA_GITHUB_CLIENT_ID` and `KUMA_GITHUB_CLIENT_SECRET`, and "Log in with GitHub" on
+  the login page. The authorization code flow with `state`, and a session cookie as with a password.
+- `KUMA_GITHUB_ORG`, with `KUMA_GITHUB_ADMIN_TEAMS` and `KUMA_GITHUB_VIEWER_TEAMS`: membership decides the role at
+  every login, and is checked again when a session is renewed, so someone removed is logged out within a day.
+- An account for each GitHub user, made at their first login, named `@login`.
+- The password account stays, as a way in when GitHub is down, and `KUMA_PASSWORD_LOGIN=false` turns it off.

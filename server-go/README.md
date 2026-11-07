@@ -23,7 +23,15 @@ on the same port as the API. `/api/v1/` and `/healthz` are the REST API, `/api/a
 On first start, open the UI and create the account, or set `KUMA_INITIAL_ADMIN_USERNAME` and
 `KUMA_INITIAL_ADMIN_PASSWORD` to have it made at start. Setup is only offered for **10 minutes after the
 service starts**, so that a stranger can't claim a server someone forgot to set up; restart the service if
-the window has passed. There's one account, and it can do everything.
+the window has passed. The account made at setup is an admin, which can do everything.
+
+Accounts can also be **viewers**, which can look at monitors, beats, maintenance windows and status pages, but
+can't change anything, and aren't sent credentials. The server enforces this: a viewer's page gets monitors without
+URLs' credentials and query strings, headers, bodies, connection strings, push tokens or passwords, and empty lists
+of notifications, proxies, Docker hosts and remote browsers, and every event that would change something, or read
+settings or API keys, is refused. The UI hides those buttons, and sends a viewer back from settings and forms.
+Logging in with GitHub, planned in [`PORTING.md`](PORTING.md), will make viewers. Until then, one can be made in the
+database: `INSERT INTO app_user (username, password_hash, role) VALUES (..., ..., 'viewer')`.
 
 What works in the UI: logging in and out, two-factor login, changing the password, API keys, the dashboard with live beats, uptime and
 response times, the event list, adding, editing, pausing and deleting the monitor types above, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public

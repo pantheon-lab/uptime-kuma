@@ -21,7 +21,7 @@
 
                 <div class="filters-group">
                     <input
-                        v-if="!selectMode"
+                        v-if="$root.canEdit && !selectMode"
                         v-model="selectMode"
                         class="form-check-input"
                         data-testid="select-mode-toggle"
@@ -30,7 +30,7 @@
                         @change="selectAll = selectMode"
                     />
                     <input
-                        v-else
+                        v-else-if="$root.canEdit"
                         v-model="selectAll"
                         class="form-check-input"
                         data-testid="select-all-toggle"

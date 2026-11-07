@@ -38,7 +38,7 @@ func TestMonitorHistoryEvents(t *testing.T) {
 	s, fs, ts := newTestServer(t)
 	sched := s.scheduler.(*fakeScheduler)
 	ctx := context.Background()
-	c := &conn{userID: 1, username: "admin", out: make(chan []byte, 256), done: make(chan struct{})}
+	c := &conn{userID: 1, admin: true, username: "admin", out: make(chan []byte, 256), done: make(chan struct{})}
 	call := func(event string, args ...any) reply {
 		t.Helper()
 		raws := make([]json.RawMessage, len(args))

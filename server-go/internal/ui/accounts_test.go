@@ -435,7 +435,7 @@ func TestLeakedPasswordCheck(t *testing.T) {
 func TestAPIKeyEvents(t *testing.T) {
 	s, fs, _ := newTestServer(t)
 	ctx := context.Background()
-	c := &conn{userID: 1, username: "admin", out: make(chan []byte, 256), done: make(chan struct{})}
+	c := &conn{userID: 1, admin: true, username: "admin", out: make(chan []byte, 256), done: make(chan struct{})}
 	call := func(event string, args ...any) reply {
 		t.Helper()
 		raws := make([]json.RawMessage, len(args))
@@ -527,7 +527,7 @@ func TestImportedBcryptPassword(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fs.users = append(fs.users, store.User{ID: 1, Username: "admin", PasswordHash: string(legacy)})
+	fs.users = append(fs.users, store.User{ID: 1, Username: "admin", PasswordHash: string(legacy), Role: store.RoleAdmin})
 	signIn := func(password string) int {
 		res, _ := postJSON(t, newClient(t), ts.URL+"/api/auth/sign-in/username", map[string]any{"username": "admin", "password": password})
 		return res.StatusCode
