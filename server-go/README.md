@@ -462,13 +462,16 @@ at least every 25 seconds, so a read timeout of a minute or more is enough. With
 location / {
     proxy_pass http://127.0.0.1:3002;
     proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-Host $http_host;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_read_timeout 120s;
 }
 ```
+
+Pass the `Host` header on as the browser sent it, with its port, as `$http_host` does: logging in and changes are
+refused when the browser's `Origin` doesn't match it, and nginx's `$host` leaves the port out.
 
 Then set Trust Proxy under Settings > Reverse Proxy, so that status pages' domains and links use
 `X-Forwarded-Host` and `X-Forwarded-Proto`, and `KUMA_BASE_URL` to the public address. The login cookie is marked

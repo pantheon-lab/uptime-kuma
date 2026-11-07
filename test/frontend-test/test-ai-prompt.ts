@@ -95,6 +95,8 @@ describe("buildMonitorPrompt()", () => {
         assert.strictEqual(rows.length, 3);
         assert.ok(rows[0].includes("| DOWN |"));
         assert.ok(prompt.includes("```sh\ncurl -sS"));
+        assert.ok(prompt.includes("2>&1 | head -n 80"), "the second curl keeps the body");
+        assert.ok(prompt.includes("If it isn't found there, they aren't exported"));
         assert.ok(prompt.includes("-X POST"));
         assert.ok(prompt.includes("openssl s_client -connect 'api.example.com:443'"));
         assert.ok(prompt.includes("--proxy"));
@@ -118,11 +120,29 @@ describe("reproduceCommands()", () => {
             })[0] === "dig @1.1.1.1 'example.com' MX"
         );
         assert.ok(
-            reproduceCommands({ id: 1, name: "c", type: "docker", docker_container: "web" })[0].startsWith(
+            reproduceCommands({ id: 1, name: "c", type: "docker", docker_container: "web" })[1].startsWith(
                 "docker ps -a"
             )
         );
         assert.deepStrictEqual(reproduceCommands({ id: 1, name: "push", type: "push" }), []);
+        const plain = reproduceCommands({
+            id: 1,
+            name: "g",
+            type: "grpc-keyword",
+            grpcUrl: "h:9000",
+            grpcServiceName: "s.S",
+            grpcMethod: "M",
+        });
+        assert.strictEqual(plain[0], "grpcurl -plaintext 'h:9000' list");
+        assert.strictEqual(plain[1], "grpcurl -plaintext 'h:9000' 's.S/M'");
+        const tls = reproduceCommands({
+            id: 1,
+            name: "g",
+            type: "grpc-keyword",
+            grpcUrl: "h:443",
+            grpcEnableTls: true,
+        });
+        assert.strictEqual(tls[0], "grpcurl 'h:443' list");
     });
 
     test("a database's host and port, not its connection string", () => {

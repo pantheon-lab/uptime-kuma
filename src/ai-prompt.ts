@@ -44,6 +44,7 @@ export interface PromptMonitor {
     grpcUrl?: string | null;
     grpcServiceName?: string | null;
     grpcMethod?: string | null;
+    grpcEnableTls?: boolean;
     mqttTopic?: string | null;
     game?: string | null;
     active?: boolean | number;
@@ -266,7 +267,8 @@ export function reproduceCommands(m: PromptMonitor): string[] {
         commands.push(
             `curl -sS -o /dev/null -w 'status %{http_code}, dns %{time_namelookup}s, connect %{time_connect}s, tls %{time_appconnect}s, total %{time_total}s\\n' -X ${method}${insecure} --max-time ${timeout} ${shellQuote(url)}`
         );
-        commands.push(`curl -v${insecure} -X ${method} --max-time ${timeout} ${shellQuote(url)} -o /dev/null`);
+        // The response's headers and body often say why, such as which dependency is down
+        commands.push(`curl -sSv${insecure} -X ${method} --max-time ${timeout} ${shellQuote(url)} 2>&1 | head -n 80`);
         try {
             const parsed = new URL(m.url);
             hostChecks(parsed.hostname);
@@ -307,6 +309,7 @@ export function reproduceCommands(m: PromptMonitor): string[] {
         commands.push(`dig${server} ${shellQuote(m.hostname)} ${m.dns_resolve_type || "A"}`);
         commands.push(`dig +trace ${shellQuote(m.hostname)} ${m.dns_resolve_type || "A"}`);
     } else if (m.type === "docker" && m.docker_container) {
+        commands.push("# On the Docker host the monitor uses:");
         commands.push(`docker ps -a --filter name=${shellQuote(m.docker_container)}`);
         commands.push(
             `docker inspect --format '{{.State.Status}} {{.State.Health}}' ${shellQuote(m.docker_container)}`
@@ -314,10 +317,17 @@ export function reproduceCommands(m: PromptMonitor): string[] {
         commands.push(`docker logs --tail 100 ${shellQuote(m.docker_container)}`);
     } else if (m.type === "grpc-keyword" && m.grpcUrl) {
         const target = redactText(m.grpcUrl);
-        commands.push(`grpcurl ${shellQuote(target)} list`);
+        // Without TLS, as the monitor connects then, grpcurl needs -plaintext
+        const flags = m.grpcEnableTls ? "" : "-plaintext ";
+        commands.push(`grpcurl ${flags}${shellQuote(target)} list`);
         if (m.grpcServiceName && m.grpcMethod) {
-            commands.push(`grpcurl ${shellQuote(target)} ${shellQuote(`${m.grpcServiceName}/${m.grpcMethod}`)}`);
+            commands.push(
+                `grpcurl ${flags}${shellQuote(target)} ${shellQuote(`${m.grpcServiceName}/${m.grpcMethod}`)}`
+            );
         }
+        commands.push(
+            "# list needs the server to offer reflection; without it, give grpcurl the monitor's .proto with -proto."
+        );
     } else if (m.databaseConnectionString) {
         const target = connectionTarget(m.databaseConnectionString);
         if (target) {
@@ -457,7 +467,7 @@ function monitorSection(input: PromptInput, options: PromptOptions, level: numbe
     const traced = beats.find((b) => b.status === DOWN && b.traceId && !/^0+$/.test(b.traceId));
     if (traced) {
         out.push(
-            `- Trace ID of the latest failed check: \`${traced.traceId}\`. The check's OpenTelemetry trace, with its timings and error, is in the trace backend (Tempo in this deployment).`
+            `- Trace ID of the latest failed check: \`${traced.traceId}\`. If Uptime Kuma exports traces (\`OTEL_EXPORTER_OTLP_ENDPOINT\` is set), the check's OpenTelemetry trace, with its timings and error, is in the trace backend, such as Tempo. If it isn't found there, they aren't exported: go on without it.`
         );
     }
     const pings = beats.filter((b) => b.status === UP && typeof b.ping === "number").map((b) => b.ping as number);
