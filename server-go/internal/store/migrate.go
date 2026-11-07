@@ -283,6 +283,16 @@ var migrations = [][]string{
 			PRIMARY KEY (monitor_id, days)
 		)`,
 	},
+	{
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS push_token text NOT NULL DEFAULT ''`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS ping_count integer NOT NULL DEFAULT 1`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS ping_per_request_timeout integer NOT NULL DEFAULT 2`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS packet_size integer NOT NULL DEFAULT 56`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS dns_resolve_type text NOT NULL DEFAULT 'A'`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS dns_resolve_server text NOT NULL DEFAULT '1.1.1.1'`,
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS dns_last_result text NOT NULL DEFAULT ''`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS ` + pushTokenIndex + ` ON monitor (push_token) WHERE push_token <> ''`,
+	},
 }
 
 // Migrate brings the schema up to date.

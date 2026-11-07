@@ -393,7 +393,8 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		return nil, false
 	}
 	if err != nil {
-		if !errors.Is(err, store.ErrNotFound) && !errors.Is(err, store.ErrInvalidParent) && !isUserError(err) {
+		if !errors.Is(err, store.ErrNotFound) && !errors.Is(err, store.ErrInvalidParent) &&
+			!errors.Is(err, store.ErrPushTokenTaken) && !isUserError(err) {
 			s.log.Error("realtime event failed", "event", event, "error", err)
 			return fail(errors.New("internal error, see the server log")), true
 		}

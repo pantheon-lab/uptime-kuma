@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"crypto/tls"
+	"errors"
 	"strings"
 )
 
@@ -15,6 +16,8 @@ type Result struct {
 	// Pending reports PENDING directly, without using up a retry. Groups use it when they
 	// are empty or a child is pending.
 	Pending bool
+	// NoRetry makes a failure DOWN at once, because the target itself reported it.
+	NoRetry bool
 	// TLS is the connection's state, if the check made an HTTPS request.
 	TLS *tls.ConnectionState
 }
@@ -74,9 +77,13 @@ func (m *Monitor) Next(prev *Previous, result Result) Outcome {
 	switch {
 	case !failed:
 		retries = 0
+	case result.NoRetry && !m.UpsideDown:
+		// The target itself reported this, so there is nothing to retry. (An
+		// upside-down monitor reports the opposite, and never reaches this.)
+		retries = 0
 	case m.UpsideDown && out.Status == StatusUp:
 		retries = 0
-	case m.MaxRetries > 0 && retries < m.MaxRetries:
+	case m.MaxRetries > 0 && retries < m.MaxRetries && !result.NoRetry:
 		retries++
 		out.Status = StatusPending
 	default:
@@ -91,6 +98,32 @@ func (m *Monitor) Next(prev *Previous, result Result) Outcome {
 		out.Important = IsImportant(prev.Status, out.Status)
 	}
 	m.applyNotify(prev, &out)
+	return out
+}
+
+// Push is what a push monitor's sender reports.
+type Push struct {
+	Up bool
+	// ExplicitDown means that the sender said status=down, rather than another status.
+	ExplicitDown bool
+	Msg          string
+	Ping         *float64
+}
+
+var (
+	// ErrPushNotFound means that no active monitor has the token.
+	ErrPushNotFound = errors.New("no active monitor has this push token")
+	// ErrPushTooFast means that a monitor is getting more pushes than it can keep.
+	ErrPushTooFast = errors.New("too many pushes")
+)
+
+// NoHeartbeatMsg is the message of a beat made when a push is late, as in the Node.js backend.
+const NoHeartbeatMsg = "No heartbeat in the time window"
+
+// NextPush is Next for a received push. The beat keeps the sender's message, even upside down.
+func (m *Monitor) NextPush(prev *Previous, push Push) Outcome {
+	out := m.Next(prev, Result{OK: push.Up, Ping: push.Ping, Msg: push.Msg, NoRetry: push.ExplicitDown})
+	out.Msg = SanitizeMsg(push.Msg)
 	return out
 }
 

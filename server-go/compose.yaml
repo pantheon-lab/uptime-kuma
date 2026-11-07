@@ -33,6 +33,9 @@ services:
       KUMA_TIMEZONE: ${KUMA_TIMEZONE:-UTC}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_EXPORTER_OTLP_INSECURE: "true"
+    # Lets ping monitors open unprivileged ICMP sockets, without the NET_RAW capability.
+    sysctls:
+      net.ipv4.ping_group_range: "0 2147483647"
     ports:
       # Set API_BIND=0.0.0.0 to open the API to other machines. Put TLS in front of it
       # first, because API keys and the admin token are bearer credentials.

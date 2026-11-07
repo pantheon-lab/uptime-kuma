@@ -15,13 +15,22 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/time/rate"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/telemetry"
 )
 
-const tracerName = "kuma-analytics/scheduler"
+const (
+	tracerName = "kuma-analytics/scheduler"
+	// pushGrace allows for clock differences and network delay, as in the Node.js backend.
+	pushGrace = time.Second
+	// A push's token is its only login, and each push is a stored beat, so one sender that
+	// loops or a leaked token mustn't be able to fill the database.
+	pushRate  = 10
+	pushBurst = 20
+)
 
 // Checker runs one check.
 type Checker interface {
@@ -42,6 +51,11 @@ type Sink interface {
 type runner struct {
 	cancel context.CancelFunc
 	done   chan struct{}
+
+	// Only for push monitors. Pushes go through the runner, which owns the monitor's state.
+	pushToken string
+	pushes    chan monitor.Push
+	limiter   *rate.Limiter
 }
 
 // Scheduler owns one goroutine per active monitor. A semaphore bounds how many
@@ -61,6 +75,8 @@ type Scheduler struct {
 	mu      sync.Mutex
 	stopped bool
 	runners map[int32]*runner
+	// pushRunners finds the runner of an active push monitor by its token.
+	pushRunners map[string]*runner
 
 	// groupNames maps group ids to names for metric labels. It's read on every check, so
 	// a renamed or deleted group takes effect without restarting its children.
@@ -81,7 +97,9 @@ func New(checker Checker, sink Sink, concurrency int, log *slog.Logger) *Schedul
 		log:     log,
 		slots:   make(chan struct{}, concurrency),
 		runners: make(map[int32]*runner),
-		last:    make(map[int32]*monitor.Previous),
+
+		pushRunners: make(map[string]*runner),
+		last:        make(map[int32]*monitor.Previous),
 	}
 }
 
@@ -194,6 +212,9 @@ func (s *Scheduler) stopRunnerLocked(id int32) {
 		r.cancel()
 		<-r.done
 		delete(s.runners, id)
+		if r.pushToken != "" {
+			delete(s.pushRunners, r.pushToken)
+		}
 	}
 }
 
@@ -201,13 +222,24 @@ func (s *Scheduler) startLocked(m monitor.Monitor, delay time.Duration) {
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &runner{cancel: cancel, done: make(chan struct{})}
 	s.runners[m.ID] = r
+	if m.Type == monitor.TypePush {
+		r.pushToken = m.PushToken
+		r.pushes = make(chan monitor.Push)
+		r.limiter = rate.NewLimiter(pushRate, pushBurst)
+		s.pushRunners[m.PushToken] = r
+	}
 
 	s.stateMu.Lock()
 	state := s.last[m.ID]
 	s.stateMu.Unlock()
 	go func() {
 		defer close(r.done)
-		final := s.run(ctx, m, delay, state)
+		var final *monitor.Previous
+		if m.Type == monitor.TypePush {
+			final = s.runPush(ctx, m, r.pushes, state)
+		} else {
+			final = s.run(ctx, m, delay, state)
+		}
 		// Taking s.mu here would deadlock with whoever waits on r.done while holding
 		// it, so the state goes through its own lock.
 		s.stateMu.Lock()
@@ -234,16 +266,7 @@ func (s *Scheduler) run(ctx context.Context, m monitor.Monitor, delay time.Durat
 
 		// Under maintenance, the target isn't checked: the beat says so, and never alerts.
 		if s.maintenance != nil && s.maintenance.UnderMaintenance(m.ID) {
-			out := m.Maintenance(state)
-			state = &monitor.Previous{Status: out.Status, Retries: out.Retries, DownCount: out.DownCount}
-			s.sink.Add(store.Beat{
-				MonitorID: m.ID,
-				Time:      time.Now().UTC().Truncate(time.Microsecond),
-				Status:    out.Status,
-				Msg:       out.Msg,
-				Important: out.Important,
-			})
-			metrics.SetMonitorUp(m.ID, m.Name, s.groupName(m), false)
+			state = s.maintenanceBeat(m, state)
 			wait := max(time.Millisecond, time.Duration(m.Interval)*time.Second-time.Since(scheduled))
 			due = time.Now().Add(wait)
 			timer.Reset(wait)
@@ -322,6 +345,107 @@ func (s *Scheduler) run(ctx context.Context, m monitor.Monitor, delay time.Durat
 		wait := max(time.Millisecond, time.Duration(interval)*time.Second-time.Since(scheduled))
 		due = time.Now().Add(wait)
 		timer.Reset(wait)
+	}
+}
+
+// maintenanceBeat records that a monitor is under maintenance, and returns its new state.
+func (s *Scheduler) maintenanceBeat(m monitor.Monitor, state *monitor.Previous) *monitor.Previous {
+	out := m.Maintenance(state)
+	s.sink.Add(store.Beat{
+		MonitorID: m.ID,
+		Time:      time.Now().UTC().Truncate(time.Microsecond),
+		Status:    out.Status,
+		Msg:       out.Msg,
+		Important: out.Important,
+	})
+	telemetry.Metrics().SetMonitorUp(m.ID, m.Name, s.groupName(m), false)
+	return &monitor.Previous{Status: out.Status, Retries: out.Retries, DownCount: out.DownCount}
+}
+
+// Push hands a received push to its monitor, and returns monitor.ErrPushNotFound if no active
+// monitor has the token.
+func (s *Scheduler) Push(ctx context.Context, token string, push monitor.Push) error {
+	s.mu.Lock()
+	r, ok := s.pushRunners[token]
+	s.mu.Unlock()
+	if !ok {
+		return monitor.ErrPushNotFound
+	}
+	if !r.limiter.Allow() {
+		return monitor.ErrPushTooFast
+	}
+	select {
+	case r.pushes <- push:
+		return nil
+	case <-r.done:
+		// Paused, deleted or edited just now. A sender tries again at its next beat.
+		return monitor.ErrPushNotFound
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// runPush waits for a push monitor's sender until cancelled, and returns its last state. The
+// window starts again here, so a restart or an edit can't make a healthy sender look late. It
+// also starts again after maintenance, because the Node.js backend's DOWN right after a window
+// would alert about nothing.
+func (s *Scheduler) runPush(ctx context.Context, m monitor.Monitor, pushes <-chan monitor.Push, state *monitor.Previous) *monitor.Previous {
+	timer := time.NewTimer(time.Duration(m.Interval)*time.Second + pushGrace)
+	defer timer.Stop()
+	for {
+		var out monitor.Outcome
+		select {
+		case <-ctx.Done():
+			return state
+		case push := <-pushes:
+			if s.maintenance != nil && s.maintenance.UnderMaintenance(m.ID) {
+				state = s.maintenanceBeat(m, state)
+				timer.Reset(time.Duration(m.Interval)*time.Second + pushGrace)
+				continue
+			}
+			out = m.NextPush(state, push)
+		case <-timer.C:
+			if s.maintenance != nil && s.maintenance.UnderMaintenance(m.ID) {
+				state = s.maintenanceBeat(m, state)
+				timer.Reset(time.Duration(m.Interval)*time.Second + pushGrace)
+				continue
+			}
+			// Upside down, this is what makes it UP.
+			out = m.Next(state, monitor.Result{Msg: monitor.NoHeartbeatMsg})
+		}
+		state = &monitor.Previous{Status: out.Status, Retries: out.Retries, DownCount: out.DownCount}
+		s.recordPushBeat(m, out)
+
+		interval := m.Interval
+		if out.Status == monitor.StatusPending && m.RetryInterval > 0 {
+			interval = m.RetryInterval
+		}
+		timer.Reset(time.Duration(interval)*time.Second + pushGrace)
+	}
+}
+
+// recordPushBeat is the end of a check, for a beat that no check made, so it has no trace.
+func (s *Scheduler) recordPushBeat(m monitor.Monitor, out monitor.Outcome) {
+	beat := store.Beat{
+		MonitorID: m.ID,
+		Time:      time.Now().UTC().Truncate(time.Microsecond),
+		Status:    out.Status,
+		Ping:      out.Ping,
+		Msg:       out.Msg,
+		Important: out.Important,
+		Retries:   out.Retries,
+		DownCount: out.DownCount,
+	}
+	group := s.groupName(m)
+	if out.Important && out.Status == monitor.StatusDown {
+		s.log.Warn("monitor is down", "monitor", m.ID, "name", m.Name, "detail", out.Msg)
+	}
+	metrics := telemetry.Metrics()
+	metrics.RecordOutcome(context.Background(), m.Type, group, outcomeName(out.Status))
+	metrics.SetMonitorUp(m.ID, m.Name, group, out.Status == monitor.StatusUp)
+	s.sink.Add(beat)
+	if out.Notify && s.notifier != nil {
+		s.notifier.Notify(m, beat)
 	}
 }
 

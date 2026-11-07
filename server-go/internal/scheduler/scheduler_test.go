@@ -340,3 +340,156 @@ func TestMaintenanceSkipsChecksAndAlerts(t *testing.T) {
 		t.Fatal("no check after the window")
 	}
 }
+
+func pushMonitor(id int32, token string, interval int32) monitor.Monitor {
+	m := monitor.New()
+	m.ID, m.Type, m.PushToken, m.Interval = id, monitor.TypePush, token, interval
+	return m
+}
+
+func TestPushReachesItsMonitor(t *testing.T) {
+	sink := &fakeSink{}
+	checker := checkFunc(func(context.Context, monitor.Monitor) monitor.Result {
+		t.Error("a push monitor is never checked")
+		return monitor.Result{}
+	})
+	s := New(checker, sink, 10, quiet)
+	defer s.Stop()
+
+	s.Upsert(pushMonitor(1, "token-one", 60))
+	if err := s.Push(context.Background(), "nope", monitor.Push{Up: true}); !errors.Is(err, monitor.ErrPushNotFound) {
+		t.Errorf("unknown token: %v", err)
+	}
+	if err := s.Push(context.Background(), "", monitor.Push{Up: true}); !errors.Is(err, monitor.ErrPushNotFound) {
+		t.Errorf("empty token: %v", err)
+	}
+
+	ping := 4.0
+	if err := s.Push(context.Background(), "token-one", monitor.Push{Up: true, Msg: "beat", Ping: &ping}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the pushed beat", func() bool { return len(sink.snapshot()) >= 1 })
+	beats := sink.snapshot()
+	if len(beats) != 1 || beats[0].Status != monitor.StatusUp || beats[0].Msg != "beat" || beats[0].Ping == nil || *beats[0].Ping != 4 {
+		t.Fatalf("beat: %+v", beats)
+	}
+	if !beats[0].Important {
+		t.Error("the first beat is an event")
+	}
+
+	// Paused, the token leads nowhere, as in the Node.js backend.
+	s.Upsert(monitor.Monitor{ID: 1, Active: false, Interval: 60})
+	if err := s.Push(context.Background(), "token-one", monitor.Push{Up: true}); !errors.Is(err, monitor.ErrPushNotFound) {
+		t.Errorf("paused: %v", err)
+	}
+
+	// An edit that replaced the token moves the sender's target with it.
+	s.Upsert(pushMonitor(1, "token-two", 60))
+	if err := s.Push(context.Background(), "token-one", monitor.Push{Up: true}); !errors.Is(err, monitor.ErrPushNotFound) {
+		t.Errorf("old token after an edit: %v", err)
+	}
+	if err := s.Push(context.Background(), "token-two", monitor.Push{Up: true, Msg: "again"}); err != nil {
+		t.Fatalf("new token: %v", err)
+	}
+	waitFor(t, "the beat of the edited monitor", func() bool { return len(sink.snapshot()) >= 2 })
+
+	// After the scheduler stops, no runner is left to receive the push.
+	s.Stop()
+	if err := s.Push(context.Background(), "token-two", monitor.Push{Up: true}); !errors.Is(err, monitor.ErrPushNotFound) {
+		t.Errorf("after Stop: %v", err)
+	}
+}
+
+func TestPushWithoutHeartbeatGoesDown(t *testing.T) {
+	sink := &fakeSink{}
+	s := New(checkFunc(func(context.Context, monitor.Monitor) monitor.Result {
+		return monitor.Result{OK: true}
+	}), sink, 10, quiet)
+	defer s.Stop()
+
+	// With no retries, the first missed window is DOWN at once. The window is the
+	// interval plus the one second of grace, so this takes about two seconds.
+	s.Upsert(monitor.Monitor{ID: 2, Active: true, Interval: 1, Type: monitor.TypePush, PushToken: "token", MaxRetries: 0})
+	waitFor(t, "the missed heartbeat", func() bool { return len(sink.snapshot()) >= 1 })
+	beats := sink.snapshot()
+	if beats[0].Status != monitor.StatusDown || beats[0].Msg != monitor.NoHeartbeatMsg || !beats[0].Important {
+		t.Fatalf("first beat: %+v", beats[0])
+	}
+
+	// A push brings it back up, and starts the window again.
+	if err := s.Push(context.Background(), "token", monitor.Push{Up: true, Msg: "here"}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the recovery", func() bool {
+		beats := sink.snapshot()
+		return len(beats) >= 2 && beats[len(beats)-1].Status == monitor.StatusUp
+	})
+	if last := sink.snapshot()[1]; last.Msg != "here" || !last.Important {
+		t.Errorf("recovery beat: %+v", last)
+	}
+
+	// Without another push, the window expires again.
+	waitFor(t, "the second missed heartbeat", func() bool {
+		beats := sink.snapshot()
+		return len(beats) >= 3 && beats[len(beats)-1].Status == monitor.StatusDown
+	})
+	if !sink.snapshot()[2].Important {
+		t.Error("losing the sender is an event")
+	}
+}
+
+func TestPushIsRateLimited(t *testing.T) {
+	sink := &fakeSink{}
+	s := New(checkFunc(func(context.Context, monitor.Monitor) monitor.Result {
+		return monitor.Result{OK: true}
+	}), sink, 10, quiet)
+	defer s.Stop()
+	s.Upsert(pushMonitor(3, "token", 60))
+
+	// The burst of twenty is spent at once, and a loop can't fill the queue behind it.
+	for range pushBurst {
+		if err := s.Push(context.Background(), "token", monitor.Push{Up: true}); err != nil {
+			t.Fatalf("within the burst: %v", err)
+		}
+	}
+	if err := s.Push(context.Background(), "token", monitor.Push{Up: true}); !errors.Is(err, monitor.ErrPushTooFast) {
+		t.Errorf("past the burst: %v", err)
+	}
+}
+
+func TestPushUnderMaintenanceIsNotAnAlert(t *testing.T) {
+	sink := &fakeSink{}
+	window := &switchableMaintenance{}
+	window.on.Store(true)
+	notifier := &countingNotifier{}
+	s := New(checkFunc(func(context.Context, monitor.Monitor) monitor.Result {
+		return monitor.Result{OK: true}
+	}), sink, 10, quiet)
+	s.SetNotifier(notifier)
+	s.SetMaintenance(window)
+	defer s.Stop()
+
+	s.Upsert(pushMonitor(4, "token", 60))
+	if err := s.Push(context.Background(), "token", monitor.Push{Up: true}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the maintenance beat", func() bool { return len(sink.snapshot()) >= 1 })
+	if beats := sink.snapshot(); beats[0].Status != monitor.StatusMaintenance || beats[0].Msg != monitor.MaintenanceMsg {
+		t.Fatalf("first beat: %+v", beats[0])
+	}
+	if notifier.count.Load() != 0 {
+		t.Fatalf("%d alerts under maintenance", notifier.count.Load())
+	}
+
+	window.on.Store(false)
+	if err := s.Push(context.Background(), "token", monitor.Push{Up: true, Msg: "back"}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "an up beat after the window", func() bool {
+		beats := sink.snapshot()
+		return len(beats) >= 2 && beats[len(beats)-1].Status == monitor.StatusUp
+	})
+	if notifier.count.Load() != 0 {
+		t.Errorf("a recovery alerted: %d", notifier.count.Load())
+	}
+}

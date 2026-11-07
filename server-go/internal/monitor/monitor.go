@@ -3,9 +3,13 @@
 package monitor
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"math/big"
+	"net"
 	"net/url"
 	"regexp"
 	"slices"
@@ -20,6 +24,9 @@ const (
 	TypeKeyword = "keyword"
 	TypePort    = "port"
 	TypeGroup   = "group"
+	TypePush    = "push"
+	TypePing    = "ping"
+	TypeDNS     = "dns"
 )
 
 // Beat statuses, using the Node.js backend's values.
@@ -37,11 +44,27 @@ const (
 	maxRedirects       = 100
 	maxBodyLen         = 1 << 20
 	redactedValue      = "***"
+
+	// The limits and defaults of ping settings, the same as the Node.js backend's.
+	minPingCount, maxPingCount           = 1, 100
+	minPingPerRequest, maxPingPerRequest = 1, 60
+	minPacketSize, maxPacketSize         = 1, 65500
+	minPingTimeout, maxPingTimeout       = 1, 300
+	defaultPingCount                     = 1
+	defaultPingPerRequest                = 2
+	defaultPacketSize                    = 56
+
+	defaultDNSServer = "1.1.1.1"
+	defaultDNSPort   = 53
+	defaultDNSType   = "A"
 )
 
 var (
 	statusCodeRange = regexp.MustCompile(`^\d{3}(-\d{3})?$`)
 	httpMethods     = []string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	// Tokens from older Node.js versions are shorter than the 32 characters the UI makes now.
+	pushTokenFormat = regexp.MustCompile(`^[A-Za-z0-9_-]{8,64}$`)
+	dnsTypes        = []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "PTR", "SOA", "SRV", "TXT"}
 )
 
 // Monitor is one monitor's configuration. Timeout is in seconds and 0 means 80%
@@ -77,6 +100,20 @@ type Monitor struct {
 	Hostname string `json:"hostname"`
 	Port     int32  `json:"port"`
 
+	// PushToken is the secret in a push monitor's URL. Empty means make one when saving.
+	PushToken string `json:"pushToken"`
+
+	// PingCount is how many replies a ping waits for. PingPerRequestTimeout is in seconds.
+	PingCount             int32 `json:"pingCount"`
+	PingPerRequestTimeout int32 `json:"pingPerRequestTimeout"`
+	PacketSize            int32 `json:"packetSize"`
+
+	DNSResolveType string `json:"dnsResolveType"`
+	// DNSResolveServer is a comma-separated list of IP addresses or hostnames.
+	DNSResolveServer string `json:"dnsResolveServer"`
+	// DNSLastResult is set by the checker, and ignored in input.
+	DNSLastResult string `json:"dnsLastResult"`
+
 	// PropagateTrace sends a W3C traceparent header to the target, so that the target's
 	// traces join this one. It's off by default, to not share trace ids with third parties.
 	PropagateTrace bool `json:"propagateTrace"`
@@ -92,11 +129,21 @@ func New() Monitor {
 		AcceptedStatusCodes: []string{"200-299"},
 		MaxRedirects:        10,
 		Headers:             map[string]string{},
+
+		PingCount:             defaultPingCount,
+		PingPerRequestTimeout: defaultPingPerRequest,
+		PacketSize:            defaultPacketSize,
+		DNSResolveType:        defaultDNSType,
+		DNSResolveServer:      defaultDNSServer,
 	}
 }
 
-// Normalize replaces empty collections, so that explicit JSON nulls can't reach the database.
+// Normalize replaces empty collections, so that explicit JSON nulls can't reach the database,
+// and gives a DNS monitor the standard port.
 func (m *Monitor) Normalize() {
+	if m.Type == TypeDNS && m.Port == 0 {
+		m.Port = defaultDNSPort
+	}
 	if m.Headers == nil {
 		m.Headers = map[string]string{}
 	}
@@ -106,7 +153,7 @@ func (m *Monitor) Normalize() {
 }
 
 // Redacted returns a copy without the fields that can hold credentials, for clients
-// that may only read: header values, the body, and the URL's user info and query.
+// that may only read: header values, the body, the push token, and the URL's user info and query.
 func (m Monitor) Redacted() Monitor {
 	headers := make(map[string]string, len(m.Headers))
 	for name := range m.Headers {
@@ -115,6 +162,9 @@ func (m Monitor) Redacted() Monitor {
 	m.Headers = headers
 	if m.Body != "" {
 		m.Body = redactedValue
+	}
+	if m.PushToken != "" {
+		m.PushToken = redactedValue
 	}
 	if u, err := url.Parse(m.URL); err == nil && m.URL != "" {
 		u.User = nil
@@ -169,9 +219,78 @@ func (m *Monitor) Validate() error {
 			return errors.New("port must be from 1 to 65535")
 		}
 		return nil
+	case TypePush:
+		if m.PushToken != "" && !pushTokenFormat.MatchString(m.PushToken) {
+			return errors.New("pushToken must be 8 to 64 letters, digits, dashes or underscores")
+		}
+		return nil
+	case TypePing:
+		return m.validatePing()
+	case TypeDNS:
+		return m.validateDNS()
 	default:
-		return fmt.Errorf("type must be one of %s, %s, %s or %s", TypeHTTP, TypeKeyword, TypePort, TypeGroup)
+		return fmt.Errorf("type must be one of %s", strings.Join([]string{TypeHTTP, TypeKeyword, TypePort, TypeGroup, TypePush, TypePing, TypeDNS}, ", "))
 	}
+}
+
+func (m *Monitor) validatePing() error {
+	if strings.TrimSpace(m.Hostname) == "" {
+		return errors.New("hostname is required")
+	}
+	if m.PingCount < minPingCount || m.PingCount > maxPingCount {
+		return fmt.Errorf("pingCount must be from %d to %d", minPingCount, maxPingCount)
+	}
+	if m.PingPerRequestTimeout < minPingPerRequest || m.PingPerRequestTimeout > maxPingPerRequest {
+		return fmt.Errorf("pingPerRequestTimeout must be from %d to %d seconds", minPingPerRequest, maxPingPerRequest)
+	}
+	if m.PacketSize < minPacketSize || m.PacketSize > maxPacketSize {
+		return fmt.Errorf("packetSize must be from %d to %d", minPacketSize, maxPacketSize)
+	}
+	if m.Timeout > 0 {
+		timeout := int32(math.Round(m.Timeout))
+		if timeout < minPingTimeout || timeout > maxPingTimeout {
+			return fmt.Errorf("timeout of a ping must be from %d to %d seconds", minPingTimeout, maxPingTimeout)
+		}
+		if timeout < m.PingPerRequestTimeout {
+			return errors.New("timeout must not be shorter than pingPerRequestTimeout")
+		}
+	}
+	return nil
+}
+
+func (m *Monitor) validateDNS() error {
+	hostname := strings.TrimSpace(m.Hostname)
+	if hostname == "" {
+		return errors.New("hostname is required")
+	}
+	if m.Port < 1 || m.Port > 65535 {
+		return errors.New("port must be from 1 to 65535")
+	}
+	if !slices.Contains(dnsTypes, m.DNSResolveType) {
+		return fmt.Errorf("dnsResolveType must be one of %s", strings.Join(dnsTypes, ", "))
+	}
+	if m.DNSResolveType == "PTR" && net.ParseIP(hostname) == nil {
+		return errors.New("hostname of a PTR lookup must be an IP address")
+	}
+	if strings.Trim(m.DNSResolveServer, " ,") == "" {
+		return errors.New("dnsResolveServer is required")
+	}
+	return nil
+}
+
+// NewPushToken makes a token in the format of the UI's: 32 letters and digits.
+func NewPushToken() string {
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	token := make([]byte, 32)
+	for i := range token {
+		// rand.Int only fails if the system has no randomness, where nothing else would work.
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
+		if err != nil {
+			panic(err)
+		}
+		token[i] = letters[n.Int64()]
+	}
+	return string(token)
 }
 
 func (m *Monitor) validateHTTP() error {

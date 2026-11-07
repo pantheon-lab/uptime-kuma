@@ -41,6 +41,13 @@ spec:
         runAsGroup: 65534
         seccompProfile:
           type: RuntimeDefault
+        {{- with .Values.analytics.sysctls }}
+        sysctls:
+          {{- range $name, $value := . }}
+          - name: {{ $name }}
+            value: {{ $value | quote }}
+          {{- end }}
+        {{- end }}
       terminationGracePeriodSeconds: 30
       containers:
         - name: analytics

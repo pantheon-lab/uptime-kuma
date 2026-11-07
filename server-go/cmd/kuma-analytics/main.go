@@ -132,7 +132,11 @@ func run(log *slog.Logger) error {
 	writer := scheduler.NewWriter(db, hub.Publish, log)
 	go writer.Run()
 	checker := check.New(db)
+	checker.SetDNSResults(db)
 	defer checker.Close()
+	if err := check.PingAllowed(); err != nil {
+		log.Warn("ping monitors will fail", "detail", err)
+	}
 	location, err := loadLocation()
 	if err != nil {
 		return err
@@ -180,6 +184,7 @@ func run(log *slog.Logger) error {
 	restAPI := apiServer.Handler()
 	routes.Handle("/api/v1/", restAPI)
 	routes.Handle("/healthz", restAPI)
+	routes.Handle("/api/push/", restAPI)
 	uiServer.Register(routes)
 
 	server := &http.Server{

@@ -30,6 +30,13 @@ analytics:
   baseUrl: ""
   timezone: UTC
   traceSuccessRatio: "0.01"
+  # Pod sysctls. net.ipv4.ping_group_range says which groups may open unprivileged ICMP
+  # sockets, which is how ping monitors work, without the NET_RAW capability. It only applies
+  # to this pod's network namespace. Kubernetes counts it as a safe sysctl since 1.18, so no
+  # kubelet allow-list is needed. Set sysctls to null (--set analytics.sysctls=null) to keep
+  # the node's own value; where that's "1 0", every ping check fails.
+  sysctls:
+    net.ipv4.ping_group_range: "0 2147483647"
   extraEnv: []
   resources:
     requests:

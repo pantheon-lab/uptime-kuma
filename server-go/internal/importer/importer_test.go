@@ -166,9 +166,10 @@ func (f *fixture) seedMonitors(t *testing.T) {
 	f.monitor(t, 5, "Bearer", "http", map[string]any{"url": "https://example.com", "auth_method": "bearer", "bearer_token": "tok", "headers": `{"X-A":"b"}`})
 	f.monitor(t, 6, "Keyword", "keyword", map[string]any{"url": "https://example.com", "keyword": "ok", "invert_keyword": 1, "active": 0})
 	f.monitor(t, 7, "Port", "port", map[string]any{"hostname": "db.internal", "port": 5432, "url": "https://", "upside_down": 1, "parent": 1})
-	// Each of these would give false results without the setting.
+	// Dns and Ping import now; Steam has no Go implementation.
 	f.monitor(t, 10, "Dns", "dns", map[string]any{"hostname": "example.com"})
 	f.monitor(t, 11, "Ping", "ping", map[string]any{"hostname": "example.com"})
+	f.monitor(t, 21, "Steam", "steam", nil)
 	f.monitor(t, 12, "Mtls", "http", map[string]any{"url": "https://example.com", "auth_method": "mtls"})
 	f.monitor(t, 13, "Oauth", "http", map[string]any{"url": "https://example.com", "auth_method": "oauth2-cc"})
 	f.monitor(t, 14, "Ntlm", "http", map[string]any{"url": "https://example.com", "auth_method": "ntlm"})
@@ -186,7 +187,7 @@ func TestDryRunWritesNothing(t *testing.T) {
 	f.seedMonitors(t)
 	f.exec(t, "INSERT INTO heartbeat (monitor_id, status, time, msg) VALUES (3, 1, UTC_TIMESTAMP(), 'ok')")
 	report := f.run(t, false, false)
-	if !report.DryRun || report.Imported != 8 || report.Beats != 1 || report.NewBeats != 0 {
+	if !report.DryRun || report.Imported != 10 || report.Beats != 1 || report.NewBeats != 0 {
 		t.Errorf("report: %+v", report)
 	}
 	if n := f.count(t, `SELECT count(*) FROM monitor`); n != 0 {
@@ -199,7 +200,7 @@ func TestImportsMonitorsFaithfully(t *testing.T) {
 	f.seedMonitors(t)
 	report := f.run(t, true, false)
 
-	if report.SourceMonitors != 17 || report.Imported != 8 || len(report.Skipped) != 9 {
+	if report.SourceMonitors != 18 || report.Imported != 10 || len(report.Skipped) != 8 {
 		t.Errorf("counts: source %d imported %d skipped %d: %+v", report.SourceMonitors, report.Imported, len(report.Skipped), report.Skipped)
 	}
 	reasons := map[string]string{}
@@ -207,8 +208,8 @@ func TestImportsMonitorsFaithfully(t *testing.T) {
 		reasons[s.Name] = s.Reason
 	}
 	for name, want := range map[string]string{
-		"Dns": "unsupported monitor type: dns", "Ping": "unsupported monitor type: ping",
-		"Mtls": "unsupported setting: authentication method mtls", "Oauth": "unsupported setting: authentication method oauth2-cc",
+		"Steam": "unsupported monitor type: steam",
+		"Mtls":  "unsupported setting: authentication method mtls", "Oauth": "unsupported setting: authentication method oauth2-cc",
 		"Ntlm": "unsupported setting: authentication method ntlm", "BadHeaders": "invalid setting: headers aren't a valid JSON object",
 		"BadUrl": "invalid setting: url must be a valid http or https URL", "BadBody": "invalid setting: body is not valid JSON",
 		"Proxied": "unsupported setting: proxy",
@@ -217,7 +218,7 @@ func TestImportsMonitorsFaithfully(t *testing.T) {
 			t.Errorf("%s: %q, want %q", name, reasons[name], want)
 		}
 	}
-	if report.SkippedByReason["unsupported monitor type"] != 2 {
+	if report.SkippedByReason["unsupported monitor type"] != 1 {
 		t.Errorf("by reason: %+v", report.SkippedByReason)
 	}
 	if report.DroppedSettings["cacheBust"] != 1 || report.DroppedSettings["resendInterval"] != 0 || report.DroppedSettings["certificateExpiryNotification"] != 0 || report.DroppedSettings["saveResponse"] != 0 || report.WithAlerts != 2 {
@@ -259,6 +260,15 @@ func TestImportsMonitorsFaithfully(t *testing.T) {
 	if p := get(7); p.Hostname != "db.internal" || p.Port != 5432 || !p.UpsideDown || p.URL != "" {
 		t.Errorf("port: %+v", p)
 	}
+	// The source row says nothing about the resolver, so the Go defaults fill in.
+	if d := get(10); d.Type != "dns" || d.Hostname != "example.com" || d.Port != 53 ||
+		d.DNSResolveType != "A" || d.DNSResolveServer != "1.1.1.1" {
+		t.Errorf("dns: %+v", d)
+	}
+	if p := get(11); p.Type != "ping" || p.Hostname != "example.com" || p.PingCount != 1 ||
+		p.PingPerRequestTimeout != 2 || p.PacketSize != 56 {
+		t.Errorf("ping: %+v", p)
+	}
 	members := f.count(t, `SELECT count(*) FROM monitor_group_member WHERE group_name = 'Top'`)
 	if members != 2 {
 		t.Errorf("Top has %d members, want Site through Inner, and Port", members)
@@ -284,7 +294,8 @@ func TestSourceIsNeverWritten(t *testing.T) {
 func TestHistoryWithoutDoubleCounting(t *testing.T) {
 	f := newFixture(t)
 	f.monitor(t, 3, "Site", "http", map[string]any{"url": "https://example.com"})
-	f.monitor(t, 20, "Skipped", "dns", map[string]any{"hostname": "x"})
+	// Conditions aren't ported, so this one still can't be imported.
+	f.monitor(t, 20, "Skipped", "dns", map[string]any{"hostname": "x", "conditions": `[{"type":"header"}]`})
 
 	f.now = time.Now().UTC().Truncate(time.Hour).Add(10 * time.Minute)
 	cutover := f.now.Truncate(time.Hour)
@@ -587,6 +598,40 @@ func TestImportsNotifications(t *testing.T) {
 	}
 }
 
+// TestImportsPushMonitors keeps a sender's URL working: the token the source
+// database holds is the one that arrives, and a token used twice is skipped.
+func TestImportsPushMonitors(t *testing.T) {
+	f := newFixture(t)
+	f.monitor(t, 1, "Heartbeat", "push", map[string]any{"push_token": "sharedToken123456789012345678x"})
+	f.monitor(t, 2, "Twin", "push", map[string]any{"push_token": "sharedToken123456789012345678x"})
+	f.monitor(t, 3, "Own", "push", map[string]any{"push_token": "anotherToken123456789012345678y"})
+
+	report := f.run(t, true, false)
+	if report.Imported != 2 || len(report.Skipped) != 1 {
+		t.Fatalf("imported %d skipped %+v", report.Imported, report.Skipped)
+	}
+	if s := report.Skipped[0]; s.SourceID != 2 || s.Reason != "invalid setting: another monitor has the same push token" {
+		t.Fatalf("skipped: %+v", s)
+	}
+	if got := f.count(t, "SELECT count(*) FROM monitor"); got != 2 {
+		t.Fatalf("%d monitors", got)
+	}
+	for sourceID, token := range map[int]string{
+		1: "sharedToken123456789012345678x",
+		3: "anotherToken123456789012345678y",
+	} {
+		var stored string
+		err := f.targetSQL.QueryRow(context.Background(),
+			`SELECT push_token FROM monitor WHERE id = $1`, f.targetID(t, sourceID)).Scan(&stored)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stored != token {
+			t.Errorf("source %d: token %q, want %q", sourceID, stored, token)
+		}
+	}
+}
+
 func TestImportsResendInterval(t *testing.T) {
 	f := newFixture(t)
 	f.monitor(t, 1, "Resends", "http", map[string]any{"url": "https://example.com", "resend_interval": 5})
@@ -601,7 +646,7 @@ func TestImportsTagsAndCertificateAlerts(t *testing.T) {
 	ctx := context.Background()
 	f.monitor(t, 1, "Secure", "http", map[string]any{"url": "https://example.com", "expiry_notification": 1})
 	f.monitor(t, 2, "Ignored", "http", map[string]any{"url": "https://example.com", "expiry_notification": 1, "ignore_tls": 1})
-	f.monitor(t, 3, "Unsupported", "ping", map[string]any{"hostname": "example.com"})
+	f.monitor(t, 3, "Unsupported", "steam", map[string]any{"hostname": "example.com"})
 	f.exec(t, "INSERT INTO tag (id, name, color) VALUES (7, 'prod', '#ff0000'), (8, 'eu', '#00ff00')")
 	f.exec(t, "INSERT INTO monitor_tag (monitor_id, tag_id, value) VALUES (1, 7, ''), (1, 8, 'west'), (3, 7, '')")
 

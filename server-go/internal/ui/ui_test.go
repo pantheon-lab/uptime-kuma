@@ -32,6 +32,8 @@ type fakeStore struct {
 	monitors map[int32]monitor.Monitor
 	nextID   int32
 	settings map[string]json.RawMessage
+	// createErr is returned by CreateMonitor, to test how a failure is shown.
+	createErr error
 
 	windows   map[int32]maintenance.Window
 	links     map[int32][]int32
@@ -166,6 +168,9 @@ func (f *fakeStore) GetMonitor(_ context.Context, id int32) (monitor.Monitor, er
 func (f *fakeStore) CreateMonitor(_ context.Context, m monitor.Monitor) (monitor.Monitor, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.createErr != nil {
+		return m, f.createErr
+	}
 	f.nextID++
 	m.ID = f.nextID
 	f.monitors[m.ID] = m
@@ -1231,5 +1236,114 @@ func TestExpiryNotificationField(t *testing.T) {
 	}
 	if out := newMonitorTree(nil, nil).monitorJSON(monitor.Monitor{ExpiryNotification: true}); out["expiryNotification"] != true {
 		t.Fatalf("json: %v", out["expiryNotification"])
+	}
+}
+
+func TestParsePushPingDNSMonitor(t *testing.T) {
+	m, _, _, err := parseMonitor(json.RawMessage(`{
+		"type": "ping", "name": " Router ", "hostname": " 10.0.0.1 ",
+		"ping_count": "4", "ping_per_request_timeout": 3, "packetSize": 64, "timeout": 30
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Type != monitor.TypePing || m.Hostname != "10.0.0.1" || m.Name != "Router" ||
+		m.PingCount != 4 || m.PingPerRequestTimeout != 3 || m.PacketSize != 64 || m.Timeout != 30 {
+		t.Fatalf("ping: %+v", m)
+	}
+
+	m, _, _, err = parseMonitor(json.RawMessage(`{
+		"type": "dns", "name": "records", "hostname": " example.com ", "port": 5353,
+		"dns_resolve_type": "AAAA", "dns_resolve_server": " 8.8.8.8 "
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Hostname != "example.com" || m.Port != 5353 || m.DNSResolveType != "AAAA" || m.DNSResolveServer != "8.8.8.8" {
+		t.Fatalf("dns: %+v", m)
+	}
+	// The form sends nothing for a monitor that has just been created.
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "dns", "name": "records", "hostname": "example.com"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Port != 53 || m.DNSResolveType != "A" || m.DNSResolveServer != "1.1.1.1" || m.DNSLastResult != "" {
+		t.Fatalf("dns defaults: %+v", m)
+	}
+
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "push", "name": "sender", "pushToken": " abc12345 "}`))
+	if err != nil || m.PushToken != "abc12345" {
+		t.Fatalf("push: %+v %v", m, err)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "push", "name": "sender"}`))
+	if err != nil || m.PushToken != "" {
+		t.Fatalf("push without a token: %+v %v", m, err)
+	}
+
+	for name, raw := range map[string]string{
+		"ping count":         `{"type": "ping", "name": "x", "hostname": "h", "ping_count": 0}`,
+		"ping packet size":   `{"type": "ping", "name": "x", "hostname": "h", "packetSize": 65501}`,
+		"ping deadline":      `{"type": "ping", "name": "x", "hostname": "h", "ping_per_request_timeout": 30, "timeout": 10}`,
+		"ping hostname":      `{"type": "ping", "name": "x", "hostname": " "}`,
+		"dns record type":    `{"type": "dns", "name": "x", "hostname": "example.com", "dns_resolve_type": "BOGUS"}`,
+		"dns PTR of a name":  `{"type": "dns", "name": "x", "hostname": "example.com", "dns_resolve_type": "PTR"}`,
+		"dns servers":        `{"type": "dns", "name": "x", "hostname": "example.com", "dns_resolve_server": " , "}`,
+		"push token":         `{"type": "push", "name": "x", "pushToken": "not a token"}`,
+		"a type still to do": `{"type": "docker", "name": "x"}`,
+	} {
+		if _, _, _, err := parseMonitor(json.RawMessage(raw)); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestMonitorJSONShowsPushPingDNSSettings(t *testing.T) {
+	m := monitor.New()
+	m.ID, m.Name, m.Type = 7, "sender", monitor.TypePush
+	m.PushToken, m.PingCount, m.PingPerRequestTimeout, m.PacketSize = "tok", 4, 3, 64
+	m.DNSResolveType, m.DNSResolveServer, m.DNSLastResult = "AAAA", "8.8.8.8", "Records: 2001:db8::1"
+
+	out := newMonitorTree([]monitor.Monitor{m}, nil).monitorJSON(m)
+	for key, want := range map[string]any{
+		"pushToken":                "tok",
+		"ping_count":               int32(4),
+		"ping_per_request_timeout": int32(3),
+		"packetSize":               int32(64),
+		"dns_resolve_type":         "AAAA",
+		"dns_resolve_server":       "8.8.8.8",
+		"dns_last_result":          "Records: 2001:db8::1",
+	} {
+		if got := out[key]; got != want {
+			t.Errorf("%s: got %v, want %v", key, got, want)
+		}
+	}
+}
+
+func TestPushTokenConflictIsShown(t *testing.T) {
+	s, fs, _ := newTestServer(t)
+	ctx := context.Background()
+	c := &conn{userID: 1, out: make(chan []byte, 256), done: make(chan struct{})}
+	s.mu.Lock()
+	s.conns["test"] = c
+	s.mu.Unlock()
+	call := func(event string, args ...any) reply {
+		t.Helper()
+		raws := make([]json.RawMessage, len(args))
+		for i, a := range args {
+			raws[i], _ = json.Marshal(a)
+		}
+		r, known := s.handle(ctx, c, event, raws)
+		if !known {
+			t.Fatalf("%s: unknown event", event)
+		}
+		return r.(reply)
+	}
+
+	// A token that another monitor already uses is the user's problem to solve, so it
+	// is shown as it is rather than as an internal error.
+	fs.createErr = store.ErrPushTokenTaken
+	r := call("add", map[string]any{"type": "push", "name": "sender", "url": "https://"})
+	if r["ok"] != false || r["msg"] != store.ErrPushTokenTaken.Error() {
+		t.Fatalf("add: %v", r)
 	}
 }

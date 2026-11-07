@@ -11,8 +11,8 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | ----- | --------------------------------------------------------------- | ------- |
 | 0     | Core: checks, notifications, history, web UI, login, deployment | Done    |
 | 1     | Maintenance windows and public holidays, tags, TLS certificates | Done    |
-| 2     | Push, Ping and DNS monitors                                     | Next    |
-| 3     | Status pages and badges                                         | Planned |
+| 2     | Push, Ping and DNS monitors                                     | Done    |
+| 3     | Status pages and badges                                         | Next    |
 | 4     | Remaining monitor types                                         | Planned |
 | 5     | Accounts and administration                                     | Planned |
 | 6     | Integrations                                                    | Planned |
@@ -50,14 +50,29 @@ Known limits:
 - A certificate that fails verification makes the check fail, and the page keeps showing the last good one. A monitor
   changed to plain HTTP keeps showing its old certificate. After a redirect, the final host's certificate is shown.
 
-## Phase 2: Push, Ping and DNS (next)
+## Phase 2: Push, Ping and DNS (done)
 
-The most commonly used of the missing monitor types, and each is fairly small.
+- **Push:** `/api/push/:token` with `status`, `msg` and `ping`, by any method, with the same answers as Node.js. A late
+  beat is DOWN, and an explicit `status=down` skips retries. Tokens are unique, made when left empty, and kept on edit.
+- **Ping:** unprivileged ICMP sockets in Go, so the image stays `scratch` and non-root, without `NET_RAW`. The host
+  must allow it with `net.ipv4.ping_group_range`, which `compose.yaml` and the Helm chart set for the container.
+- **DNS:** all ten record types, several resolvers by IP address or hostname, and the last result on the monitor page.
+- All three in the REST API, the web UI's form, and `kuma-import`, which keeps push tokens so senders keep working.
 
-- **Push:** `/api/push/:pushToken`, with its token, and DOWN when a beat is late.
-- **Ping:** needs raw network access, or the `ping` command, neither of which the non-root `scratch` image has now. Decide
-  how to provide it first, because it also affects the Helm chart.
-- **DNS:** resolve types and a chosen server.
+Tested with the race detector against TimescaleDB and MariaDB, and by a scripted client against the built image, with
+real lookups and pings over the internet, on IPv4 and IPv6 loopback. Ping was tested as user 65534 with every
+capability dropped, with and without the sysctl.
+
+Not tested: the edit form in a browser, IPv6 over the internet, and installing on Kubernetes, so the chart's sysctl
+has only been rendered and linted.
+
+Known limits and differences from Node.js:
+
+- Pushes are limited to 10 a second per monitor, with bursts of 20. Node.js had no limit.
+- After a restart, an edit or maintenance, a push monitor's wait starts again, rather than counting from the last beat.
+- DNS conditions aren't supported, so a DNS monitor with them is refused, and skipped by the importer.
+- Ping's packet size is the data size, as with the `ping` command, but the numeric output setting is ignored.
+- Records come in the order the resolver sends them, so a round-robin answer changes the message between checks.
 
 ## Phase 3: Status pages and badges (planned)
 
