@@ -52,18 +52,26 @@ const (
 	TypeSIP    = "sip-options"
 	TypeRADIUS = "radius"
 	TypeSteam  = "steam"
+
+	TypeDocker        = "docker"
+	TypeSystemService = "system-service"
+	TypePM2           = "pm2"
+	TypeSFTP          = "sftp"
+	TypeGRPC          = "grpc-keyword"
+	TypeRealBrowser   = "real-browser"
 )
 
 // Types are every supported type, in the order error messages list them.
 var Types = []string{TypeHTTP, TypeKeyword, TypeJSONQuery, TypePort, TypePing, TypeDNS, TypePush, TypeGroup,
 	TypeManual, TypeWebSocket, TypePostgres, TypeMySQL, TypeRedis, TypeSQLServer, TypeOracle, TypeMongoDB, TypeMQTT,
-	TypeRabbitMQ, TypeKafka, TypeNTP, TypeSNMP, TypeSMTP, TypeSIP, TypeRADIUS, TypeSteam}
+	TypeRabbitMQ, TypeKafka, TypeNTP, TypeSNMP, TypeSMTP, TypeSIP, TypeRADIUS, TypeSteam, TypeDocker, TypeSystemService,
+	TypePM2, TypeSFTP, TypeGRPC, TypeRealBrowser}
 
 // SNMPVersions and SMTPSecurities are the choices of the SNMP and SMTP types.
 var (
 	SNMPVersions   = []string{"1", "2c", "3"}
 	SMTPSecurities = []string{"", "secure", "nostarttls", "starttls"}
-	defaultPortOf  = map[string]int32{TypeNTP: 123, TypeSNMP: 161, TypeSMTP: 25, TypeSIP: 5060, TypeRADIUS: 1812}
+	defaultPortOf  = map[string]int32{TypeNTP: 123, TypeSNMP: 161, TypeSMTP: 25, TypeSIP: 5060, TypeRADIUS: 1812, TypeSFTP: 22}
 	hostnameTypes  = []string{TypeNTP, TypeSNMP, TypeSMTP, TypeSIP, TypeRADIUS, TypeSteam}
 )
 
@@ -247,6 +255,38 @@ type Settings struct {
 	RadiusSecret           string `json:"radiusSecret,omitempty"`
 	RadiusCalledStationID  string `json:"radiusCalledStationId,omitempty"`
 	RadiusCallingStationID string `json:"radiusCallingStationId,omitempty"`
+
+	// DockerHostID is the Docker host a docker monitor asks about DockerContainer, a name or id.
+	DockerHostID    int32  `json:"dockerHost,omitempty"`
+	DockerContainer string `json:"dockerContainer,omitempty"`
+
+	// SystemServiceName is the systemd unit of a system-service monitor, or the PM2 process of a
+	// pm2 monitor, by name or id.
+	SystemServiceName string `json:"systemServiceName,omitempty"`
+
+	// SSHAuthMethod is password or privateKey. SFTPPath, if set, must exist on the server.
+	SSHAuthMethod string `json:"sshAuthMethod,omitempty"`
+	SSHUsername   string `json:"sshUsername,omitempty"`
+	SSHPassword   string `json:"sshPassword,omitempty"`
+	SSHPrivateKey string `json:"sshPrivateKey,omitempty"`
+	SSHPassphrase string `json:"sshPassphrase,omitempty"`
+	SFTPPath      string `json:"sftpPath,omitempty"`
+
+	// GRPCURL is host:port. GRPCProtobuf is the text of a .proto file that defines
+	// GRPCServiceName, whose GRPCMethod is called with GRPCBody, a JSON object.
+	GRPCURL         string `json:"grpcUrl,omitempty"`
+	GRPCProtobuf    string `json:"grpcProtobuf,omitempty"`
+	GRPCServiceName string `json:"grpcServiceName,omitempty"`
+	GRPCMethod      string `json:"grpcMethod,omitempty"`
+	GRPCBody        string `json:"grpcBody,omitempty"`
+	// GRPCMetadata is a JSON object of metadata to send, which the Node.js backend ignored.
+	GRPCMetadata  string `json:"grpcMetadata,omitempty"`
+	GRPCEnableTLS bool   `json:"grpcEnableTls,omitempty"`
+
+	// RemoteBrowserID is the remote browser a real-browser monitor uses. Zero uses a local one.
+	RemoteBrowserID int32 `json:"remoteBrowser,omitempty"`
+	// ScreenshotDelay is how long to wait after the page loads before the screenshot, in ms.
+	ScreenshotDelay int32 `json:"screenshotDelay,omitempty"`
 }
 
 // KafkaSASL is how a Kafka producer monitor logs in.
@@ -319,7 +359,8 @@ func (m Monitor) Redacted() Monitor {
 			m.DatabaseConnectionString = redactedValue
 		}
 	}
-	for _, secret := range []*string{&m.MQTTPassword, &m.RabbitMQPassword, &m.SNMPCommunity, &m.RadiusPassword, &m.RadiusSecret} {
+	for _, secret := range []*string{&m.MQTTPassword, &m.RabbitMQPassword, &m.SNMPCommunity, &m.RadiusPassword, &m.RadiusSecret,
+		&m.SSHPassword, &m.SSHPrivateKey, &m.SSHPassphrase, &m.GRPCBody, &m.GRPCMetadata} {
 		if *secret != "" {
 			*secret = redactedValue
 		}
@@ -429,6 +470,22 @@ func (m *Monitor) Validate() error {
 		return m.validateKafka()
 	case TypeNTP, TypeSNMP, TypeSMTP, TypeSIP, TypeRADIUS, TypeSteam:
 		return m.validateNetwork()
+	case TypeDocker:
+		if strings.TrimSpace(m.DockerContainer) == "" {
+			return errors.New("dockerContainer is required")
+		}
+		if m.DockerHostID <= 0 {
+			return errors.New("dockerHost is required")
+		}
+		return nil
+	case TypeSystemService, TypePM2:
+		return m.validateService()
+	case TypeSFTP:
+		return m.validateSFTP()
+	case TypeGRPC:
+		return m.validateGRPC()
+	case TypeRealBrowser:
+		return m.validateRealBrowser()
 	case TypeKeyword:
 		if m.Keyword == "" {
 			return errors.New("keyword is required")
@@ -591,6 +648,105 @@ func (m *Monitor) validateNetwork() error {
 		if m.RadiusSecret == "" {
 			return errors.New("radiusSecret is required")
 		}
+	}
+	return nil
+}
+
+var (
+	serviceName    = regexp.MustCompile(`^[a-zA-Z0-9._\-@]+$`)
+	controlChars   = regexp.MustCompile(`[\x00-\x1f\x7f]`)
+	grpcName       = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$`)
+	SSHAuthMethods = []string{"password", "privateKey"}
+)
+
+// validateService trims the name, as the Node.js backend does.
+func (m *Monitor) validateService() error {
+	m.SystemServiceName = strings.TrimSpace(m.SystemServiceName)
+	if m.SystemServiceName == "" {
+		if m.Type == TypePM2 {
+			return errors.New("PM2 process name is required.") //nolint:staticcheck // Shown to users.
+		}
+		return errors.New("Service Name is required.") //nolint:staticcheck // Shown to users.
+	}
+	if m.Type == TypeSystemService && !serviceName.MatchString(m.SystemServiceName) {
+		return errors.New("Invalid service name. Please use the internal Service Name (no spaces).") //nolint:staticcheck // Shown to users.
+	}
+	if m.Type == TypePM2 && (controlChars.MatchString(m.SystemServiceName) || len(m.SystemServiceName) > 255) {
+		return errors.New("Invalid PM2 process name.") //nolint:staticcheck // Shown to users.
+	}
+	return nil
+}
+
+func (m *Monitor) validateSFTP() error {
+	if h := strings.TrimSpace(m.Hostname); h == "" || strings.ContainsAny(h, " /\\@") {
+		return errors.New("hostname must be a host name or an IP address")
+	}
+	if m.Port < 1 || m.Port > 65535 {
+		return errors.New("port must be from 1 to 65535")
+	}
+	if strings.TrimSpace(m.SSHUsername) == "" {
+		return errors.New("sshUsername is required")
+	}
+	if m.SSHAuthMethod == "" {
+		m.SSHAuthMethod = "password"
+	}
+	if !slices.Contains(SSHAuthMethods, m.SSHAuthMethod) {
+		return errors.New("sshAuthMethod must be password or privateKey")
+	}
+	if m.SSHAuthMethod == "privateKey" && strings.TrimSpace(m.SSHPrivateKey) == "" {
+		return errors.New("SSH private key is required for key-based authentication")
+	}
+	return nil
+}
+
+func (m *Monitor) validateGRPC() error {
+	if _, port, err := net.SplitHostPort(strings.TrimSpace(m.GRPCURL)); err != nil || port == "" {
+		return errors.New("grpcUrl must be host:port, such as example.com:443")
+	}
+	if strings.TrimSpace(m.GRPCProtobuf) == "" || len(m.GRPCProtobuf) > maxBodyLen {
+		return errors.New("grpcProtobuf is required, and at most 1 MB")
+	}
+	if !grpcName.MatchString(strings.TrimSpace(m.GRPCServiceName)) {
+		return errors.New("grpcServiceName must be a service name, such as example.Greeter")
+	}
+	if !grpcName.MatchString(strings.TrimSpace(m.GRPCMethod)) || strings.Contains(m.GRPCMethod, ".") {
+		return errors.New("grpcMethod must be the name of a method of the service")
+	}
+	if len(m.GRPCBody) > maxBodyLen {
+		return errors.New("grpcBody must be at most 1 MB")
+	}
+	if body := strings.TrimSpace(m.GRPCBody); body != "" {
+		var object map[string]any
+		if json.Unmarshal([]byte(body), &object) != nil {
+			return errors.New("grpcBody must be a JSON object")
+		}
+	}
+	if metadata := strings.TrimSpace(m.GRPCMetadata); metadata != "" {
+		var object map[string]string
+		if json.Unmarshal([]byte(metadata), &object) != nil {
+			return errors.New("grpcMetadata must be a JSON object of strings")
+		}
+	}
+	if m.Keyword == "" {
+		return errors.New("keyword is required")
+	}
+	return nil
+}
+
+func (m *Monitor) validateRealBrowser() error {
+	u, err := url.Parse(m.URL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return errors.New("Invalid url protocol, only http and https are allowed.") //nolint:staticcheck // Shown to users.
+	}
+	if m.RemoteBrowserID < 0 {
+		return errors.New("remoteBrowser must be a remote browser's id")
+	}
+	if m.ScreenshotDelay < 0 {
+		return errors.New("Screenshot delay must be a non-negative number") //nolint:staticcheck // Shown to users.
+	}
+	// As in Node.js, the delay must leave time for the page to load and for the next check.
+	if limit := int64(m.Interval) * 500; int64(m.ScreenshotDelay) >= limit {
+		return fmt.Errorf("Screenshot delay must be less than %dms (0.5 × interval)", limit) //nolint:staticcheck // Shown to users.
 	}
 	return nil
 }

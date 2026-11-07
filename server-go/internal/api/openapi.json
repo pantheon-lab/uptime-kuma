@@ -2310,7 +2310,13 @@
               "smtp",
               "sip-options",
               "radius",
-              "steam"
+              "steam",
+              "docker",
+              "system-service",
+              "pm2",
+              "sftp",
+              "grpc-keyword",
+              "real-browser"
             ]
           },
           "active": {
@@ -2689,6 +2695,84 @@
           },
           "radiusCallingStationId": {
             "type": "string"
+          },
+          "dockerHost": {
+            "type": "integer",
+            "description": "docker: the id of a Docker host, which is added in the web UI"
+          },
+          "dockerContainer": {
+            "type": "string",
+            "description": "docker: the container's name or id"
+          },
+          "systemServiceName": {
+            "type": "string",
+            "description": "system-service: a systemd unit, such as nginx. pm2: a process's name or id"
+          },
+          "sshAuthMethod": {
+            "type": "string",
+            "enum": [
+              "password",
+              "privateKey"
+            ],
+            "default": "password",
+            "description": "sftp"
+          },
+          "sshUsername": {
+            "type": "string",
+            "description": "sftp"
+          },
+          "sshPassword": {
+            "type": "string",
+            "description": "sftp. Redacted for keys without monitors:write."
+          },
+          "sshPrivateKey": {
+            "type": "string",
+            "description": "sftp: a private key in OpenSSH or PEM format. Redacted for keys without monitors:write."
+          },
+          "sshPassphrase": {
+            "type": "string",
+            "description": "sftp: the private key's passphrase. Redacted for keys without monitors:write."
+          },
+          "sftpPath": {
+            "type": "string",
+            "description": "sftp: a path that must exist"
+          },
+          "grpcUrl": {
+            "type": "string",
+            "description": "grpc-keyword: host:port"
+          },
+          "grpcProtobuf": {
+            "type": "string",
+            "description": "grpc-keyword: the text of a .proto file that defines the service"
+          },
+          "grpcServiceName": {
+            "type": "string",
+            "description": "grpc-keyword: a service, with or without its package"
+          },
+          "grpcMethod": {
+            "type": "string",
+            "description": "grpc-keyword: a unary method, such as Check or check"
+          },
+          "grpcBody": {
+            "type": "string",
+            "description": "grpc-keyword: the request as a JSON object. Redacted for keys without monitors:write."
+          },
+          "grpcMetadata": {
+            "type": "string",
+            "description": "grpc-keyword: metadata to send, as a JSON object of strings. Redacted for keys without monitors:write."
+          },
+          "grpcEnableTls": {
+            "type": "boolean",
+            "default": false
+          },
+          "remoteBrowser": {
+            "type": "integer",
+            "description": "real-browser: the id of a remote browser, which is added in the web UI. Unset uses a local Chrome"
+          },
+          "screenshotDelay": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "real-browser: milliseconds to wait before the screenshot, less than half the interval"
           }
         }
       },

@@ -79,6 +79,8 @@ type Store interface {
 	MaintenanceMonitorLinks(ctx context.Context) (map[int32][]int32, error)
 	SetHolidayOverride(ctx context.Context, o holidays.Override) error
 	DeleteHolidayOverride(ctx context.Context, country, date string) error
+
+	ResourceStore
 }
 
 // Scheduler runs checks. Upsert starts, restarts or stops a monitor as its Active field says.
@@ -181,6 +183,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/auth/", s.authNotSupported)
 	mux.HandleFunc("GET /api/realtime/stream", s.stream)
 	mux.HandleFunc("POST /api/realtime/send", s.sameOrigin(s.send))
+	mux.HandleFunc("GET /screenshots/{file}", s.screenshot)
 	if s.pages != nil {
 		s.registerPublic(mux)
 	} else {

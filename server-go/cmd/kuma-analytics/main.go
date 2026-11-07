@@ -144,7 +144,10 @@ func run(log *slog.Logger) error {
 		_ = json.Unmarshal(settings["steamAPIKey"], &key)
 		return key, nil
 	})
+	checker.SetDockerHosts(db)
+	checker.SetBrowsers(db)
 	defer checker.Close()
+	defer check.StopBrowser()
 	if err := check.PingAllowed(); err != nil {
 		log.Warn("ping monitors will fail", "detail", err)
 	}

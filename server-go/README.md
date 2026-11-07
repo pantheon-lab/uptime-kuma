@@ -2,7 +2,8 @@
 
 The Uptime Kuma backend, rewritten in Go and still in progress. It runs HTTP, keyword, JSON query,
 TCP port, ping, DNS, push, group, manual, WebSocket, PostgreSQL, MySQL/MariaDB, SQL Server, Oracle, MongoDB, Redis,
-MQTT, RabbitMQ, Kafka producer, NTP, SNMP, SMTP, SIP, RADIUS and Steam monitors, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
+MQTT, RabbitMQ, Kafka producer, NTP, SNMP, SMTP, SIP, RADIUS, Steam, Docker container, system service, PM2, SFTP, gRPC
+and real browser monitors, stores raw beats in TimescaleDB, and serves monitor config, history, charts,
 percentiles and dashboard stats over REST, plus new beats over Server-Sent Events. It serves public
 status pages and badges, exports traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
@@ -135,6 +136,40 @@ BlastRADIUS (CVE-2024-3596), such as FreeRADIUS 3.2.5 and later, require.
 
 **Steam** monitors ask the Steam Web API whether it lists the game server, and need a key under **Settings > General**.
 
+## Docker, system and browser monitors
+
+**Docker container** monitors ask a Docker host, added under **Settings > Docker Hosts**, about one container. It's UP
+when it's running and healthy, or running without a health check, and PENDING while it starts or restarts. A host is
+the daemon's socket or a `tcp://` or `https://` URL. To use the host's socket, mount it and give the server its group:
+
+```bash
+docker run ... -v /var/run/docker.sock:/var/run/docker.sock --group-add "$(stat -c %g /var/run/docker.sock)" ...
+```
+
+This gives the server control of the host's Docker. For an `https://` host, put `ca.pem`, `cert.pem` and `key.pem` in a
+directory named after the host, under the directory that `DOCKER_TLS_DIR_PATH` names, as with the Node.js server.
+
+**System service** monitors ask systemd whether a unit is active, as `systemctl is-active` does, over D-Bus instead of
+running `systemctl`. In a container, mount the host's system bus. Docker's default AppArmor profile blocks D-Bus, so the
+container also needs `--security-opt apparmor=unconfined`, or a profile of its own that allows the calls to
+`org.freedesktop.systemd1`:
+
+```bash
+docker run ... -v /run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket --security-opt apparmor=unconfined ...
+```
+
+**PM2** monitors run `pm2 jlist`, as the Node.js server did, so they only work where the server runs next to PM2, not in
+the image. **SFTP** monitors log in with a password or a private key, and check that the path exists, if one is set.
+As in Node.js, the server's host key isn't checked. **gRPC keyword** monitors read the service from the `.proto` text,
+call one unary method with the JSON body, and look for the keyword in the JSON response.
+
+**Real browser** monitors load the page in Chrome, keep a screenshot of it, which the monitor's page shows, and are UP
+for a status from 200 to 399. Use a remote browser, added under **Settings > Remote Browsers**: its URL is a Chrome
+DevTools Protocol address, such as `ws://browserless:3000?token=...` for browserless, or `http://chrome:9222` for Chrome
+started with `--remote-debugging-port`. The image has no Chrome of its own. Where the server runs next to one, it finds
+`chromium` or `google-chrome`, or uses the path under **Settings > General**, which must be one of the usual paths unless
+`UPTIME_KUMA_ALLOW_ALL_CHROME_EXEC=1` is set. As with Playwright, Chrome runs without its sandbox.
+
 ## Status pages
 
 Status pages are made and edited in the web UI, under **Status Pages**, and anyone can see them at
@@ -233,6 +268,7 @@ docker compose up --build
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | not set          | OTLP gRPC endpoint. Without it nothing is exported. Other standard `OTEL_*` variables apply too |
 | `KUMA_TRACE_SUCCESS_RATIO`    | `0.01`           | Share of successful traces to export. Failures are always exported                              |
 | `GRAFANA_DB_PASSWORD`         | not set          | Creates or updates the read-only `kuma_grafana` database role                                   |
+| `DOCKER_TLS_DIR_PATH`         | not set          | Client certificates for `https://` Docker hosts, in a directory per host                        |
 
 To deploy on Kubernetes, use the Helm chart in [`charts/uptime-kuma`](charts/uptime-kuma/README.md), which
 runs the same stack.
@@ -448,6 +484,7 @@ Check these parts of the report:
 - `skipped` lists monitors that weren't imported, and why. Unsupported types and settings are skipped
   because checking without them would show false results. Monitors with basic or bearer authentication are
   imported with an `Authorization` header.
+- `dockerHosts` and `remoteBrowsers` count the Docker hosts and remote browsers copied. Monitors keep using them.
 - `tags` and `tagLinks` count the tags copied and how many were put on monitors. Monitors that were already resumed here keep theirs.
 - `droppedSettings` counts settings that are lost but don't change whether a check passes.
 - `notifications.skipped` lists notifications that weren't imported, and `notifications.monitorsLosingAlerts`
@@ -501,7 +538,9 @@ Database tests are skipped when `TEST_DATABASE_URL` is not set. The importer and
 `redis://:testpass@127.0.0.1:56379/0`. The other monitor types test with these, which the comment in
 `internal/check/types4b_test.go` describes: `TEST_MSSQL_DSN`, `TEST_ORACLE` with `TEST_ORACLE_USER` and
 `TEST_ORACLE_PASSWORD`, `TEST_MONGODB_URL`, `TEST_MQTT_HOST` and `TEST_KAFKA_BROKER`, and `TEST_SNMP_HOST` and
-`TEST_RADIUS`, which `internal/check/network_test.go` describes.
+`TEST_RADIUS`, which `internal/check/network_test.go` describes. `TEST_DOCKER_CONTAINER` names a running container to ask
+the local Docker daemon about, and `TEST_CHROME` is a Chrome or Chromium executable for the real browser monitor. The
+system service test uses this machine's systemd, if it has one.
 
 `internal/e2e/browser/` has scripts that drive the web UI in a browser against the built image. Each says what it needs.
 

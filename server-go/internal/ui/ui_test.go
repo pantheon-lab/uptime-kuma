@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/holidays"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/maintenance"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
@@ -42,6 +43,10 @@ type fakeStore struct {
 	tags        []store.Tag
 	monitorTags map[int32][]store.MonitorTag
 	tlsInfo     map[int32]string
+
+	dockerHosts    []check.DockerHost
+	remoteBrowsers []check.RemoteBrowser
+	screenshots    map[int32][]byte
 }
 
 func newFakeStore() *fakeStore {
@@ -1453,5 +1458,223 @@ func TestParsePhase4cMonitors(t *testing.T) {
 	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "smtp", "name": "M", "hostname": "mail", "port": 587, "smtpSecurity": "starttls"}`))
 	if err != nil || m.SMTPSecurity != "starttls" {
 		t.Fatalf("smtp: %+v %v", m, err)
+	}
+}
+
+func (f *fakeStore) ListDockerHosts(context.Context) ([]check.DockerHost, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.dockerHosts), nil
+}
+
+func (f *fakeStore) SaveDockerHost(_ context.Context, h check.DockerHost) (check.DockerHost, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if h.ID == 0 {
+		h.ID = int32(len(f.dockerHosts) + 1)
+		f.dockerHosts = append(f.dockerHosts, h)
+		return h, nil
+	}
+	for i := range f.dockerHosts {
+		if f.dockerHosts[i].ID == h.ID {
+			f.dockerHosts[i] = h
+			return h, nil
+		}
+	}
+	return h, store.ErrNotFound
+}
+
+func (f *fakeStore) DeleteDockerHost(_ context.Context, id int32) ([]int32, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i, h := range f.dockerHosts {
+		if h.ID == id {
+			f.dockerHosts = slices.Delete(f.dockerHosts, i, i+1)
+			var changed []int32
+			for mid, m := range f.monitors {
+				if m.DockerHostID == id {
+					m.DockerHostID = 0
+					f.monitors[mid] = m
+					changed = append(changed, mid)
+				}
+			}
+			return changed, nil
+		}
+	}
+	return nil, store.ErrNotFound
+}
+
+func (f *fakeStore) ListRemoteBrowsers(context.Context) ([]check.RemoteBrowser, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.remoteBrowsers), nil
+}
+
+func (f *fakeStore) SaveRemoteBrowser(_ context.Context, b check.RemoteBrowser) (check.RemoteBrowser, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if b.ID == 0 {
+		b.ID = int32(len(f.remoteBrowsers) + 1)
+	}
+	f.remoteBrowsers = append(f.remoteBrowsers, b)
+	return b, nil
+}
+
+func (f *fakeStore) DeleteRemoteBrowser(_ context.Context, id int32) ([]int32, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i, b := range f.remoteBrowsers {
+		if b.ID == id {
+			f.remoteBrowsers = slices.Delete(f.remoteBrowsers, i, i+1)
+			return nil, nil
+		}
+	}
+	return nil, store.ErrNotFound
+}
+
+func (f *fakeStore) Screenshot(_ context.Context, id int32) ([]byte, time.Time, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if png, found := f.screenshots[id]; found {
+		return png, time.Unix(0, 0), nil
+	}
+	return nil, time.Time{}, store.ErrNotFound
+}
+
+func TestParsePhase4dMonitors(t *testing.T) {
+	m, _, _, err := parseMonitor(json.RawMessage(`{"type": "docker", "name": "D", "docker_container": " web ", "docker_host": "3"}`))
+	if err != nil || m.DockerContainer != "web" || m.DockerHostID != 3 {
+		t.Fatalf("docker: %+v %v", m, err)
+	}
+	if out := newMonitorTree([]monitor.Monitor{m}, nil).monitorJSON(m); out["docker_host"] != int32(3) || out["docker_container"] != "web" {
+		t.Fatalf("docker JSON: %v", out)
+	}
+	if _, _, _, err := parseMonitor(json.RawMessage(`{"type": "docker", "name": "D", "docker_container": "web", "docker_host": null}`)); err == nil {
+		t.Fatal("a docker monitor without a host was accepted")
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "system-service", "name": "S", "config": {"systemServiceName": " nginx "}}`))
+	if err != nil || m.SystemServiceName != "nginx" {
+		t.Fatalf("system service: %+v %v", m, err)
+	}
+	if out := newMonitorTree([]monitor.Monitor{m}, nil).monitorJSON(m); out["config"].(map[string]any)["systemServiceName"] != "nginx" {
+		t.Fatalf("system service JSON: %v", out)
+	}
+	if _, _, _, err := parseMonitor(json.RawMessage(`{"type": "system-service", "name": "S", "config": {"systemServiceName": "nginx; rm -rf"}}`)); err == nil {
+		t.Fatal("an invalid service name was accepted")
+	}
+	if _, _, _, err := parseMonitor(json.RawMessage(`{"type": "pm2", "name": "P", "config": {"systemServiceName": "api worker"}}`)); err != nil {
+		t.Fatalf("pm2: %v", err)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "sftp", "name": "F", "hostname": "files", "port": null,
+		"sshAuthMethod": "privateKey", "sshUsername": "kuma", "sshPassword": "left over", "sshPrivateKey": "KEY", "sftpPath": "/upload"}`))
+	if err != nil || m.Port != 22 || m.SSHPrivateKey != "KEY" || m.SSHPassword != "" || m.SFTPPath != "/upload" {
+		t.Fatalf("sftp: %+v %v", m, err)
+	}
+	if redacted := m.Redacted(); redacted.SSHPrivateKey != "***" {
+		t.Fatalf("sftp redacted: %+v", redacted)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "grpc-keyword", "name": "G", "grpcUrl": "api:443", "grpcProtobuf": "syntax = \"proto3\";",
+		"grpcServiceName": "Health", "grpcMethod": "check", "grpcBody": "{}", "grpcEnableTls": true, "keyword": "SERVING"}`))
+	if err != nil || m.GRPCURL != "api:443" || !m.GRPCEnableTLS || m.Keyword != "SERVING" {
+		t.Fatalf("grpc: %+v %v", m, err)
+	}
+	if _, _, _, err := parseMonitor(json.RawMessage(`{"type": "grpc-keyword", "name": "G", "grpcUrl": "api", "grpcProtobuf": "x",
+		"grpcServiceName": "Health", "grpcMethod": "check", "keyword": "x"}`)); err == nil {
+		t.Fatal("a gRPC URL without a port was accepted")
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "real-browser", "name": "B", "url": "https://example.com", "interval": 60,
+		"remote_browser": 2, "screenshot_delay": "500"}`))
+	if err != nil || m.RemoteBrowserID != 2 || m.ScreenshotDelay != 500 {
+		t.Fatalf("real browser: %+v %v", m, err)
+	}
+	m.ID = 9
+	if out := newMonitorTree([]monitor.Monitor{m}, nil).monitorJSON(m); out["screenshot"] != "/screenshots/9.png" || out["remote_browser"] != int32(2) {
+		t.Fatalf("real browser JSON: %v", out)
+	}
+	if _, _, _, err := parseMonitor(json.RawMessage(`{"type": "real-browser", "name": "B", "url": "https://example.com", "interval": 20,
+		"screenshot_delay": 10000}`)); err == nil {
+		t.Fatal("a screenshot delay over half the interval was accepted")
+	}
+	if _, _, _, err := parseMonitor(json.RawMessage(`{"type": "real-browser", "name": "B", "url": "file:///etc/passwd"}`)); err == nil {
+		t.Fatal("a file URL was accepted")
+	}
+}
+
+func TestResourceEvents(t *testing.T) {
+	s, fs, ts := newTestServer(t)
+	ctx := context.Background()
+	c := &conn{userID: 1, out: make(chan []byte, 256), done: make(chan struct{})}
+	s.mu.Lock()
+	s.conns["test"] = c
+	s.mu.Unlock()
+	call := func(event string, args ...any) reply {
+		t.Helper()
+		raws := make([]json.RawMessage, len(args))
+		for i, a := range args {
+			raws[i], _ = json.Marshal(a)
+		}
+		r, known := s.handle(ctx, c, event, raws)
+		if !known {
+			t.Fatalf("%s: unknown event", event)
+		}
+		return r.(reply)
+	}
+
+	r := call("addDockerHost", map[string]any{"name": "local", "dockerType": "socket", "dockerDaemon": "/var/run/docker.sock"}, nil)
+	if r["ok"] != true || r["id"] != int32(1) {
+		t.Fatalf("add docker host: %v", r)
+	}
+	if r := call("addDockerHost", map[string]any{"name": "bad", "dockerType": "tcp", "dockerDaemon": "docker"}, nil); r["ok"] != false {
+		t.Fatalf("invalid docker host: %v", r)
+	}
+	r = call("addDockerHost", map[string]any{"name": "renamed", "dockerType": "socket", "dockerDaemon": "/run/docker.sock"}, 1)
+	if r["ok"] != true || fs.dockerHosts[0].Name != "renamed" || len(fs.dockerHosts) != 1 {
+		t.Fatalf("edit docker host: %v %+v", r, fs.dockerHosts)
+	}
+	m := monitor.New()
+	m.Name, m.Type, m.DockerHostID, m.DockerContainer = "web", monitor.TypeDocker, 1, "web"
+	m, _ = fs.CreateMonitor(ctx, m)
+
+	saved := testDockerHost
+	t.Cleanup(func() { testDockerHost = saved })
+	testDockerHost = func(context.Context, check.DockerHost) (int, error) { return 4, nil }
+	if r := call("testDockerHost", map[string]any{"name": "x", "dockerType": "socket", "dockerDaemon": "/x.sock"}); r["msg"] != "Connected Successfully. Amount of containers: 4" {
+		t.Fatalf("test docker host: %v", r)
+	}
+	if r := call("deleteDockerHost", 1); r["ok"] != true || len(fs.dockerHosts) != 0 || fs.monitors[m.ID].DockerHostID != 0 {
+		t.Fatalf("delete docker host: %v %+v", r, fs.monitors[m.ID])
+	}
+
+	if r := call("addRemoteBrowser", map[string]any{"name": "browserless", "url": "ws://browserless:3000?token=x"}, nil); r["ok"] != true {
+		t.Fatalf("add remote browser: %v", r)
+	}
+	if r := call("addRemoteBrowser", map[string]any{"name": "bad", "url": "chrome:3000"}, nil); r["ok"] != false {
+		t.Fatalf("invalid remote browser: %v", r)
+	}
+	savedChrome := testChrome
+	t.Cleanup(func() { testChrome = savedChrome })
+	testChrome = func(context.Context, string) (string, error) { return "HeadlessChrome/140", nil }
+	r = call("testChrome", "/usr/bin/chromium")
+	if msg, _ := r["msg"].(map[string]any); r["ok"] != true || msg["key"] != "foundChromiumVersion" {
+		t.Fatalf("test chrome: %v", r)
+	}
+	savedPM2 := pm2ProcessList
+	t.Cleanup(func() { pm2ProcessList = savedPM2 })
+	pm2ProcessList = func(context.Context) ([]check.PM2Process, error) {
+		return []check.PM2Process{{ID: "0", Name: "api", Status: "online"}}, nil
+	}
+	if r := call("getPM2ProcessList"); r["ok"] != true || len(r["processList"].([]check.PM2Process)) != 1 {
+		t.Fatalf("pm2 list: %v", r)
+	}
+
+	// Screenshots are for logged-in users only.
+	fs.screenshots = map[int32][]byte{5: []byte("\x89PNG")}
+	res, err := http.Get(ts.URL + "/screenshots/5.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("anonymous screenshot: %d", res.StatusCode)
 	}
 }

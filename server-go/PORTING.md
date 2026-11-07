@@ -16,8 +16,8 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done    |
 | 4b    | Other databases and messaging                                       | Done    |
 | 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done    |
-| 4d    | Docker, system and remote browser monitors                          | Next    |
-| 4e    | HTTP options, proxies and domain expiry                             | Planned |
+| 4d    | Docker, system and remote browser monitors                          | Done    |
+| 4e    | HTTP options, proxies and domain expiry                             | Next    |
 | 4f    | Globalping, GameDig and Tailscale ping                              | Planned |
 | 5     | Accounts and administration                                         | Planned |
 | 6     | Integrations                                                        | Planned |
@@ -191,9 +191,43 @@ Known limits and differences from Node.js:
 - SNMPv3 has no authentication or privacy, as in Node.js.
 - Steam's ping is the API's response time, where Node.js pinged the game server.
 
-### Phase 4d: Docker, system and remote browser monitors (planned)
+### Phase 4d: Docker, system and remote browser monitors (done)
 
-Docker containers with Docker hosts, PM2, system services, SFTP, gRPC keyword, and Real browser with remote browsers.
+- **Docker container** monitors, with Docker hosts over a socket or TCP and TLS, managed under Settings > Docker Hosts.
+- **System service** monitors ask systemd over D-Bus instead of running `systemctl`, so that they also work in a
+  container that has the host's system bus mounted. **PM2** monitors run `pm2 jlist`, as in Node.js.
+- **SFTP** (golang.org/x/crypto/ssh and pkg/sftp) and **gRPC keyword** monitors. The `.proto` text is compiled with
+  bufbuild/protocompile, and the response is compared as protobuf JSON, with the field names Node.js gave.
+- **Real browser** monitors use the Chrome DevTools Protocol (chromedp), with remote browsers managed under
+  Settings > Remote Browsers. Screenshots are kept in the database and served to logged-in users only.
+- All of them in the REST API, the UI's form, and `kuma-import`, which also copies Docker hosts and remote browsers.
+- The form no longer hides system service and SIP options monitors when the server runs in a container.
+
+Tested with the race detector against a fake Docker API and the real daemon, an in-process gRPC health server and SFTP
+server, this machine's systemd, a faked `pm2`, and headless Chromium both started locally and reached through its
+DevTools port. In headless Chromium against the built image, with the Docker socket and the system bus mounted, a
+Docker host and a remote browser were added and tested in the settings, and a monitor of each type was made through
+the form, checked, and opened again, against a TimescaleDB container's health check, the `docker` service, a missing
+`pm2`, atmoz/sftp, a gRPC health server, and example.com through the remote browser, whose screenshot the monitor's
+page showed: `internal/e2e/browser/monitor-types-4d.mjs`.
+
+Not tested: Docker hosts over TCP or TLS, PM2 with real PM2, SFTP against a server that only takes
+keyboard-interactive logins, gRPC with TLS or metadata, and remote browsers such as browserless.
+
+Known limits and differences from Node.js:
+
+- Remote browsers must speak the Chrome DevTools Protocol. Node.js connected with Playwright's own protocol, so a
+  Playwright endpoint, such as browserless's `/playwright/chromium`, needs changing to its CDP address.
+- The image has no Chrome, so a real browser monitor needs a remote browser, or the server running next to Chrome.
+  Node.js installed Chromium in its container when one was first needed.
+- In a container, system service monitors need the host's system bus and an AppArmor profile that allows D-Bus, such
+  as `--security-opt apparmor=unconfined`. Windows services aren't supported.
+- PM2 monitors don't work in the image, which has no `pm2`.
+- A real browser check waits for the page's load event, where Node.js waited for `DOMContentLoaded`. Its ping is the
+  time to the response's headers.
+- A gRPC keyword that isn't found says `keyword [x] is not in [response]`, without the stray quotes and plus signs of
+  the Node.js message. The metadata, which Node.js ignored, is sent.
+- A Docker check's ping is the API's response time, where Node.js set none.
 
 ### Phase 4f: Globalping, GameDig and Tailscale ping (planned)
 

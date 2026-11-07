@@ -685,3 +685,61 @@ func TestImportsTagsAndCertificateAlerts(t *testing.T) {
 		t.Fatalf("with ignored TLS: %+v %v", m, err)
 	}
 }
+
+func TestImportsPhase4dMonitors(t *testing.T) {
+	f := newFixture(t)
+	f.exec(t, "INSERT INTO docker_host (id, user_id, docker_daemon, docker_type, name) VALUES (5, 1, '/var/run/docker.sock', 'socket', 'local')")
+	f.exec(t, "INSERT INTO remote_browser (id, name, url) VALUES (3, 'browserless', 'ws://browserless:3000')")
+	f.monitor(t, 1, "Container", "docker", map[string]any{"docker_host": 5, "docker_container": "web"})
+	f.monitor(t, 2, "Lost container", "docker", map[string]any{"docker_host": 99, "docker_container": "db"})
+	f.monitor(t, 3, "Nginx", "system-service", map[string]any{"config": `{"systemServiceName":"nginx"}`})
+	f.monitor(t, 4, "API", "pm2", map[string]any{"config": `{"systemServiceName":"api"}`})
+	f.monitor(t, 5, "Files", "sftp", map[string]any{"hostname": "files", "port": 2222, "ssh_username": "kuma",
+		"ssh_password": "pw", "ssh_private_key": "unused", "sftp_path": "/upload"})
+	f.monitor(t, 6, "Health", "grpc-keyword", map[string]any{"grpc_url": "api:443", "grpc_protobuf": "syntax = \"proto3\";",
+		"grpc_service_name": "Health", "grpc_method": "check", "grpc_body": "{}", "grpc_enable_tls": 1, "keyword": "SERVING"})
+	f.monitor(t, 7, "Page", "real-browser", map[string]any{"url": "https://example.com", "remote_browser": 3, "screenshot_delay": 200})
+
+	report := f.run(t, true, false)
+	if report.Imported != 6 || report.DockerHosts != 1 || report.RemoteBrowsers != 1 || len(report.Skipped) != 1 ||
+		report.Skipped[0].Reason != "invalid setting: the Docker host doesn't exist" {
+		t.Fatalf("report: %+v", report)
+	}
+	ctx := context.Background()
+	get := func(sourceID int) monitor.Monitor {
+		m, err := f.target.GetMonitor(ctx, f.targetID(t, sourceID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	hosts, _ := f.target.ListDockerHosts(ctx)
+	browsers, _ := f.target.ListRemoteBrowsers(ctx)
+	if len(hosts) != 1 || len(browsers) != 1 {
+		t.Fatalf("hosts %+v browsers %+v", hosts, browsers)
+	}
+	if m := get(1); m.DockerHostID != hosts[0].ID || m.DockerContainer != "web" {
+		t.Errorf("docker: %+v", m.Settings)
+	}
+	if m := get(3); m.SystemServiceName != "nginx" {
+		t.Errorf("system service: %+v", m.Settings)
+	}
+	if m := get(4); m.SystemServiceName != "api" {
+		t.Errorf("pm2: %+v", m.Settings)
+	}
+	if m := get(5); m.Port != 2222 || m.SSHPassword != "pw" || m.SSHPrivateKey != "" || m.SFTPPath != "/upload" {
+		t.Errorf("sftp: %+v", m)
+	}
+	if m := get(6); m.GRPCURL != "api:443" || !m.GRPCEnableTLS || m.Keyword != "SERVING" {
+		t.Errorf("grpc: %+v", m)
+	}
+	if m := get(7); m.RemoteBrowserID != browsers[0].ID || m.ScreenshotDelay != 200 {
+		t.Errorf("real browser: %+v", m.Settings)
+	}
+
+	// A second import uses the same hosts.
+	f.run(t, true, false)
+	if hosts, _ := f.target.ListDockerHosts(ctx); len(hosts) != 1 {
+		t.Fatalf("hosts after a second import: %+v", hosts)
+	}
+}

@@ -381,6 +381,26 @@ var migrations = [][]string{
 		// Settings of the types added since Phase 4b, together, so that adding a type adds no column.
 		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS settings jsonb NOT NULL DEFAULT '{}'`,
 	},
+	{
+		// Docker hosts and remote browsers, which monitors name in settings, and the last
+		// screenshot of each real-browser monitor.
+		`CREATE TABLE IF NOT EXISTS docker_host (
+			id serial PRIMARY KEY,
+			name text NOT NULL,
+			docker_type text NOT NULL,
+			docker_daemon text NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS remote_browser (
+			id serial PRIMARY KEY,
+			name text NOT NULL,
+			url text NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS monitor_screenshot (
+			monitor_id integer PRIMARY KEY REFERENCES monitor (id) ON DELETE CASCADE,
+			png bytea NOT NULL,
+			taken_at timestamptz NOT NULL DEFAULT now()
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.

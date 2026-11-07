@@ -51,6 +51,9 @@ type Checker struct {
 	dnsResults DNSResultWriter
 	// steamKey is optional, and set before checks start.
 	steamKey SteamKey
+	// dockerHosts and browsers are optional, and set before checks start.
+	dockerHosts DockerHostReader
+	browsers    BrowserStore
 }
 
 // Child is what a group needs to know about one of its direct children.
@@ -130,6 +133,18 @@ func (c *Checker) Run(ctx context.Context, m monitor.Monitor) monitor.Result {
 		return runRADIUS(ctx, m)
 	case monitor.TypeSteam:
 		return c.runSteam(ctx, m)
+	case monitor.TypeDocker:
+		return c.runDocker(ctx, m)
+	case monitor.TypeSystemService:
+		return runSystemService(ctx, m)
+	case monitor.TypePM2:
+		return runPM2(ctx, m)
+	case monitor.TypeSFTP:
+		return runSFTP(ctx, m)
+	case monitor.TypeGRPC:
+		return runGRPC(ctx, m)
+	case monitor.TypeRealBrowser:
+		return c.runRealBrowser(ctx, m)
 	case monitor.TypePort:
 		return c.runPort(ctx, m)
 	case monitor.TypeGroup:

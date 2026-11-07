@@ -53,6 +53,8 @@ var supportedTypes = map[string]bool{
 	monitor.TypeRedis: true, monitor.TypeSQLServer: true, monitor.TypeOracle: true, monitor.TypeMongoDB: true,
 	monitor.TypeMQTT: true, monitor.TypeRabbitMQ: true, monitor.TypeKafka: true, monitor.TypeNTP: true,
 	monitor.TypeSNMP: true, monitor.TypeSMTP: true, monitor.TypeSIP: true, monitor.TypeRADIUS: true, monitor.TypeSteam: true,
+	monitor.TypeDocker: true, monitor.TypeSystemService: true, monitor.TypePM2: true, monitor.TypeSFTP: true,
+	monitor.TypeGRPC: true, monitor.TypeRealBrowser: true,
 }
 
 // uiDefaults are fields of the UI's monitor form that this service doesn't have. They're sent
@@ -259,8 +261,37 @@ func (t *monitorTree) monitorJSON(m monitor.Monitor) map[string]any {
 		"kafkaProducerSsl":                    m.KafkaSSL,
 		"kafkaProducerAllowAutoTopicCreation": m.KafkaAllowAutoTopicCreation,
 		"kafkaProducerSaslOptions":            kafkaSASLJSON(m.KafkaSASL),
+
+		"docker_container": m.DockerContainer,
+		"docker_host":      nilIfZero(m.DockerHostID),
+		"config":           map[string]any{"systemServiceName": m.SystemServiceName},
+		"sshAuthMethod":    cmp.Or(m.SSHAuthMethod, "password"),
+		"sshUsername":      m.SSHUsername,
+		"sshPassword":      m.SSHPassword,
+		"sshPrivateKey":    m.SSHPrivateKey,
+		"sshPassphrase":    m.SSHPassphrase,
+		"sftpPath":         nilIfEmpty(m.SFTPPath),
+		"grpcUrl":          nilIfEmpty(m.GRPCURL),
+		"grpcProtobuf":     nilIfEmpty(m.GRPCProtobuf),
+		"grpcServiceName":  nilIfEmpty(m.GRPCServiceName),
+		"grpcMethod":       nilIfEmpty(m.GRPCMethod),
+		"grpcBody":         nilIfEmpty(m.GRPCBody),
+		"grpcMetadata":     nilIfEmpty(m.GRPCMetadata),
+		"grpcEnableTls":    m.GRPCEnableTLS,
+		"remote_browser":   nilIfZero(m.RemoteBrowserID),
+		"screenshot_delay": m.ScreenshotDelay,
 	})
+	if m.Type == monitor.TypeRealBrowser {
+		out["screenshot"] = fmt.Sprintf("/screenshots/%d.png", m.ID)
+	}
 	return out
+}
+
+func nilIfZero(id int32) any {
+	if id == 0 {
+		return nil
+	}
+	return id
 }
 
 func (t *monitorTree) listJSON() map[string]any {
@@ -401,6 +432,27 @@ type monitorInput struct {
 	RadiusSecret               *string   `json:"radiusSecret"`
 	RadiusCalledStationID      *string   `json:"radiusCalledStationId"`
 	RadiusCallingStationID     *string   `json:"radiusCallingStationId"`
+
+	DockerContainer *string `json:"docker_container"`
+	DockerHost      flexInt `json:"docker_host"`
+	Config          *struct {
+		SystemServiceName *string `json:"systemServiceName"`
+	} `json:"config"`
+	SSHAuthMethod   *string `json:"sshAuthMethod"`
+	SSHUsername     *string `json:"sshUsername"`
+	SSHPassword     *string `json:"sshPassword"`
+	SSHPrivateKey   *string `json:"sshPrivateKey"`
+	SSHPassphrase   *string `json:"sshPassphrase"`
+	SFTPPath        *string `json:"sftpPath"`
+	GRPCURL         *string `json:"grpcUrl"`
+	GRPCProtobuf    *string `json:"grpcProtobuf"`
+	GRPCServiceName *string `json:"grpcServiceName"`
+	GRPCMethod      *string `json:"grpcMethod"`
+	GRPCBody        *string `json:"grpcBody"`
+	GRPCMetadata    *string `json:"grpcMetadata"`
+	GRPCEnableTLS   bool    `json:"grpcEnableTls"`
+	RemoteBrowser   flexInt `json:"remote_browser"`
+	ScreenshotDelay flexInt `json:"screenshot_delay"`
 }
 
 // parseMonitor converts the UI's form to a monitor, and returns the notifications to link.
@@ -561,6 +613,44 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 			m.RadiusCalledStationID = text(in.RadiusCalledStationID)
 			m.RadiusCallingStationID = text(in.RadiusCallingStationID)
 		}
+	case monitor.TypeDocker:
+		m.DockerContainer = strings.TrimSpace(text(in.DockerContainer))
+		m.DockerHostID = int32(in.DockerHost.value)
+	case monitor.TypeSystemService, monitor.TypePM2:
+		if in.Config != nil {
+			m.SystemServiceName = strings.TrimSpace(text(in.Config.SystemServiceName))
+		}
+	case monitor.TypeSFTP:
+		if in.Hostname != nil {
+			m.Hostname = strings.TrimSpace(*in.Hostname)
+		}
+		m.Port = int32(in.Port.value)
+		m.SSHAuthMethod = cmp.Or(text(in.SSHAuthMethod), "password")
+		m.SSHUsername = strings.TrimSpace(text(in.SSHUsername))
+		// Only the secrets of the chosen method are kept.
+		if m.SSHAuthMethod == "privateKey" {
+			m.SSHPrivateKey = text(in.SSHPrivateKey)
+			m.SSHPassphrase = text(in.SSHPassphrase)
+		} else {
+			m.SSHPassword = text(in.SSHPassword)
+		}
+		m.SFTPPath = strings.TrimSpace(text(in.SFTPPath))
+	case monitor.TypeGRPC:
+		m.GRPCURL = strings.TrimSpace(text(in.GRPCURL))
+		m.GRPCProtobuf = text(in.GRPCProtobuf)
+		m.GRPCServiceName = strings.TrimSpace(text(in.GRPCServiceName))
+		m.GRPCMethod = strings.TrimSpace(text(in.GRPCMethod))
+		m.GRPCBody = text(in.GRPCBody)
+		m.GRPCMetadata = text(in.GRPCMetadata)
+		m.GRPCEnableTLS = in.GRPCEnableTLS
+		if in.Keyword != nil {
+			m.Keyword = *in.Keyword
+			m.InvertKeyword = in.InvertKeyword
+		}
+	case monitor.TypeRealBrowser:
+		m.URL = strings.TrimSpace(in.URL)
+		m.RemoteBrowserID = int32(in.RemoteBrowser.value)
+		m.ScreenshotDelay = int32(in.ScreenshotDelay.value)
 	case monitor.TypePostgres, monitor.TypeMySQL, monitor.TypeRedis:
 		m.DatabaseConnectionString = strings.TrimSpace(text(in.DatabaseConnectionString))
 		if m.Type != monitor.TypeRedis {
@@ -669,9 +759,9 @@ func nilIfEmpty(s string) any {
 	return s
 }
 
-func orEmpty(list []string) []string {
+func orEmpty[T any](list []T) []T {
 	if list == nil {
-		return []string{}
+		return []T{}
 	}
 	return list
 }
