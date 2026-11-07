@@ -8,7 +8,8 @@ percentiles and dashboard stats over REST, plus new beats over Server-Sent Event
 status pages and badges, exports traces and metrics with OpenTelemetry, and ships Grafana dashboards.
 
 **Status:** this is now the only backend, because the Node.js server and MariaDB support have
-been removed. It isn't feature complete. Not built yet: two-factor login and more than one account.
+been removed. It isn't feature complete. Not built yet: more than one account, and the settings and Monitor History
+page acting on what they say.
 
 [PORTING.md](PORTING.md) records what has moved from the Node.js server, phase by phase, and what's left.
 
@@ -19,16 +20,17 @@ on the same port as the API. `/api/v1/` and `/healthz` are the REST API, `/api/a
 `/api/realtime/` are the UI's own API, `/api/push/` receives push monitors' beats, `/status/`,
 `/api/status-page/` and `/api/badge/` are public, and every other path is the UI. A plain `go build` leaves the UI out.
 
-On first start, open the UI and create the account. Setup is only offered for **10 minutes after the
+On first start, open the UI and create the account, or set `KUMA_INITIAL_ADMIN_USERNAME` and
+`KUMA_INITIAL_ADMIN_PASSWORD` to have it made at start. Setup is only offered for **10 minutes after the
 service starts**, so that a stranger can't claim a server someone forgot to set up; restart the service if
 the window has passed. There's one account, and it can do everything.
 
-What works in the UI: logging in and out, changing the password, the dashboard with live beats, uptime and
+What works in the UI: logging in and out, two-factor login, changing the password, API keys, the dashboard with live beats, uptime and
 response times, the event list, adding, editing, pausing and deleting the monitor types above, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public
 holidays, tags, certificate details and expiry alerts, status pages with incidents, badges, and saving settings.
 
 Everything else answers "This isn't supported by this server yet", or shows an empty list where a page asks
-on its own (API keys). In particular:
+on its own (the database size). In particular:
 
 - Saving a monitor with another type, a proxy, or an authentication method other than basic or bearer is refused, so that a check never runs differently from what the form shows. Basic and bearer
   authentication are saved as an `Authorization` header, and show up under Headers when you edit again.
@@ -41,6 +43,22 @@ send `X-Forwarded-Proto`). Only a SHA-256 hash of the token is stored. A remembe
 renewed while used, and changing the password ends every other login. Passwords are hashed with scrypt in
 better-auth's format, so accounts from the Node.js backend could be imported unchanged; the importer doesn't
 do that yet. Logins are limited to 10 a minute per username and 60 a minute overall.
+
+A new password, at setup or when it's changed, is checked against the
+[Pwned Passwords](https://haveibeenpwned.com/Passwords) list of leaked passwords, as the Node.js backend did. Only
+the first 5 characters of its SHA-1 hash are sent. If the list can't be reached, the password is refused, so a
+server without internet access needs `KUMA_DISABLE_LEAK_PASSWORD_CHECK=true`.
+
+**Two-factor login** is set up under **Settings > Security > 2FA Settings**, with any authenticator app: codes
+are RFC 6238, 6 digits every 30 seconds, and a code from the step before or after also works. Turning it on ends
+the account's other logins, which didn't need a code. With it on, a right password gives a challenge for 10
+minutes rather than a session, and the code completes the login. A code works only once, a challenge allows 5
+tries, and 10 wrong codes in a row refuse codes for 15 minutes. There are no backup codes, which the UI never
+showed, so if the app is lost, turn it off in the database: `UPDATE app_user SET totp_enabled = false,
+totp_secret = NULL`. The key is stored as it is, like the password hashes beside it.
+
+**API keys** made under **Settings > API Keys** are the REST API's keys below, with the scopes ticked in the
+form. Deleting one revokes it at once.
 
 ## Certificates
 
@@ -292,20 +310,23 @@ export GRAFANA_DB_PASSWORD="$(openssl rand -hex 32)"
 docker compose up --build
 ```
 
-| Variable                      | Default          | Purpose                                                                                         |
-| ----------------------------- | ---------------- | ----------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                | required         | PostgreSQL URL of a server with TimescaleDB Community Edition                                   |
-| `ANALYTICS_API_TOKEN`         | required         | Admin bearer token for managing API keys, at least 32 characters                                |
-| `LISTEN_ADDR`                 | `127.0.0.1:3002` | Address to listen on                                                                            |
-| `RETENTION_DAYS`              | `365`            | Raw beat retention, `0` keeps them forever. Aggregates are kept regardless                      |
-| `CHECK_CONCURRENCY`           | `2000`           | Maximum checks running at once                                                                  |
-| `API_KEY_RATE_LIMIT`          | `50`             | Requests per second allowed per API key                                                         |
-| `KUMA_BASE_URL`               | not set          | Public address of the web UI, for links in notifications. Without it, alerts have no link       |
-| `KUMA_TIMEZONE`               | `UTC`            | IANA timezone that notifications show, such as `Asia/Hong_Kong`                                 |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | not set          | OTLP gRPC endpoint. Without it nothing is exported. Other standard `OTEL_*` variables apply too |
-| `KUMA_TRACE_SUCCESS_RATIO`    | `0.01`           | Share of successful traces to export. Failures are always exported                              |
-| `GRAFANA_DB_PASSWORD`         | not set          | Creates or updates the read-only `kuma_grafana` database role                                   |
-| `DOCKER_TLS_DIR_PATH`         | not set          | Client certificates for `https://` Docker hosts, in a directory per host                        |
+| Variable                           | Default          | Purpose                                                                                         |
+| ---------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                     | required         | PostgreSQL URL of a server with TimescaleDB Community Edition                                   |
+| `ANALYTICS_API_TOKEN`              | required         | Admin bearer token for managing API keys, at least 32 characters                                |
+| `LISTEN_ADDR`                      | `127.0.0.1:3002` | Address to listen on                                                                            |
+| `RETENTION_DAYS`                   | `365`            | Raw beat retention, `0` keeps them forever. Aggregates are kept regardless                      |
+| `CHECK_CONCURRENCY`                | `2000`           | Maximum checks running at once                                                                  |
+| `API_KEY_RATE_LIMIT`               | `50`             | Requests per second allowed per API key                                                         |
+| `KUMA_BASE_URL`                    | not set          | Public address of the web UI, for links in notifications. Without it, alerts have no link       |
+| `KUMA_TIMEZONE`                    | `UTC`            | IANA timezone that notifications show, such as `Asia/Hong_Kong`                                 |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`      | not set          | OTLP gRPC endpoint. Without it nothing is exported. Other standard `OTEL_*` variables apply too |
+| `KUMA_TRACE_SUCCESS_RATIO`         | `0.01`           | Share of successful traces to export. Failures are always exported                              |
+| `GRAFANA_DB_PASSWORD`              | not set          | Creates or updates the read-only `kuma_grafana` database role                                   |
+| `KUMA_INITIAL_ADMIN_USERNAME`      | not set          | With the password, creates the account at start if there's none. Ignored once there's one       |
+| `KUMA_INITIAL_ADMIN_PASSWORD`      | not set          | The password of that account, which must pass the same checks as at setup                       |
+| `KUMA_DISABLE_LEAK_PASSWORD_CHECK` | `false`          | Stops checking new passwords against Pwned Passwords, for servers without internet access       |
+| `DOCKER_TLS_DIR_PATH`              | not set          | Client certificates for `https://` Docker hosts, in a directory per host                        |
 
 To deploy on Kubernetes, use the Helm chart in [`charts/uptime-kuma`](charts/uptime-kuma/README.md), which
 runs the same stack.

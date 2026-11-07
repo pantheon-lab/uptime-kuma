@@ -423,6 +423,24 @@ var migrations = [][]string{
 			last_notified_days integer
 		)`,
 	},
+	{
+		// Two-factor login with an authenticator app. totp_secret is set when it's being set
+		// up, and totp_enabled once a code has confirmed it. totp_last_step is the time step of
+		// the last code used, so that a code works only once.
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS totp_secret bytea`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS totp_enabled boolean NOT NULL DEFAULT false`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS totp_last_step bigint`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS totp_failures integer NOT NULL DEFAULT 0`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS totp_locked_until timestamptz`,
+		// A password that was right, waiting for its code. Only the token's hash is stored.
+		`CREATE TABLE IF NOT EXISTS app_two_factor_challenge (
+			token_hash bytea PRIMARY KEY,
+			user_id integer NOT NULL REFERENCES app_user (id) ON DELETE CASCADE,
+			remember boolean NOT NULL,
+			attempts integer NOT NULL DEFAULT 0,
+			expires_at timestamptz NOT NULL
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.

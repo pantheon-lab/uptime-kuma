@@ -24,7 +24,16 @@ type User struct {
 	Username     string
 	PasswordHash string
 	CreatedAt    time.Time
+
+	// TOTPSecret is the authenticator app's key, set while two-factor login is set up or on.
+	TOTPSecret []byte
+	// TOTPEnabled means that logging in needs a code as well as the password.
+	TOTPEnabled bool
+	// TOTPLockedUntil is set after too many wrong codes in a row.
+	TOTPLockedUntil *time.Time
 }
+
+const userColumns = `id, username, password_hash, created_at, totp_secret, totp_enabled, totp_locked_until`
 
 // Session is a web UI login. Only the token's hash is stored.
 type Session struct {
@@ -62,8 +71,8 @@ func (s *Store) CreateFirstUser(ctx context.Context, username, passwordHash stri
 		}
 		return tx.QueryRow(ctx, `
 			INSERT INTO app_user (username, password_hash) VALUES ($1, $2)
-			RETURNING id, username, password_hash, created_at`, username, passwordHash).
-			Scan(&user.ID, &user.Username, &user.PasswordHash, &user.CreatedAt)
+			RETURNING `+userColumns, username, passwordHash).
+			Scan(user.fields()...)
 	})
 	if err != nil {
 		if errors.Is(err, ErrSetupDone) {
@@ -74,9 +83,13 @@ func (s *Store) CreateFirstUser(ctx context.Context, username, passwordHash stri
 	return user, nil
 }
 
+func (u *User) fields() []any {
+	return []any{&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPLockedUntil}
+}
+
 func scanUser(row pgx.Row) (User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt)
+	err := row.Scan(u.fields()...)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
@@ -89,14 +102,14 @@ func scanUser(row pgx.Row) (User, error) {
 // UserByUsername returns an account or ErrNotFound. Usernames match case-insensitively.
 func (s *Store) UserByUsername(ctx context.Context, username string) (User, error) {
 	return scanUser(s.pool.QueryRow(ctx, `
-		SELECT id, username, password_hash, created_at FROM app_user
+		SELECT `+userColumns+` FROM app_user
 		WHERE lower(username) = lower($1) ORDER BY id LIMIT 1`, username))
 }
 
 // UserByID returns an account or ErrNotFound.
 func (s *Store) UserByID(ctx context.Context, id int32) (User, error) {
 	return scanUser(s.pool.QueryRow(ctx, `
-		SELECT id, username, password_hash, created_at FROM app_user WHERE id = $1`, id))
+		SELECT `+userColumns+` FROM app_user WHERE id = $1`, id))
 }
 
 // SetPassword replaces an account's password and ends its other sessions. keep is the hash
@@ -113,6 +126,10 @@ func (s *Store) SetPassword(ctx context.Context, userID int32, passwordHash stri
 		if _, err := tx.Exec(ctx, `DELETE FROM app_session WHERE user_id = $1 AND token_hash IS DISTINCT FROM $2`,
 			userID, keep); err != nil {
 			return fmt.Errorf("end sessions: %w", err)
+		}
+		// A login waiting for its code had the old password.
+		if _, err := tx.Exec(ctx, `DELETE FROM app_two_factor_challenge WHERE user_id = $1`, userID); err != nil {
+			return fmt.Errorf("end two-factor challenges: %w", err)
 		}
 		return nil
 	})
@@ -142,11 +159,10 @@ func (s *Store) FindSession(ctx context.Context, tokenHash []byte) (Session, Use
 	var user User
 	err := s.pool.QueryRow(ctx, `
 		SELECT s.user_id, s.remember, s.created_at, s.expires_at,
-		       u.id, u.username, u.password_hash, u.created_at
+		       u.id, u.username, u.password_hash, u.created_at, u.totp_secret, u.totp_enabled, u.totp_locked_until
 		FROM app_session s JOIN app_user u ON u.id = s.user_id
 		WHERE s.token_hash = $1 AND s.expires_at > now()`, tokenHash).
-		Scan(&session.UserID, &session.Remember, &session.CreatedAt, &session.ExpiresAt,
-			&user.ID, &user.Username, &user.PasswordHash, &user.CreatedAt)
+		Scan(append([]any{&session.UserID, &session.Remember, &session.CreatedAt, &session.ExpiresAt}, user.fields()...)...)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Session{}, User{}, ErrNotFound
 	}

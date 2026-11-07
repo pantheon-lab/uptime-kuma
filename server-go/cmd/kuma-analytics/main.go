@@ -199,15 +199,25 @@ func run(log *slog.Logger) error {
 		}
 		apiServer.SetKeyRateLimit(perSecond, max(1, int(perSecond*4)))
 	}
+	var passwordLeaked func(context.Context, string) (bool, error)
+	if envTrue(os.Getenv("KUMA_DISABLE_LEAK_PASSWORD_CHECK")) {
+		log.Warn("the leaked password check is off (KUMA_DISABLE_LEAK_PASSWORD_CHECK)")
+	} else {
+		passwordLeaked = ui.PwnedPasswords(nil, ui.PwnedPasswordsURL)
+	}
 	uiServer := ui.New(db, sched, notifyEnv, log, ui.Options{
-		Version:     version,
-		BaseURL:     strings.TrimRight(os.Getenv("KUMA_BASE_URL"), "/"),
-		Location:    location,
-		Maintenance: maintenanceService,
-		StatusPages: db,
-		IndexHTML:   webui.IndexHTML(),
-		Domains:     domainService,
+		PasswordLeaked: passwordLeaked,
+		Version:        version,
+		BaseURL:        strings.TrimRight(os.Getenv("KUMA_BASE_URL"), "/"),
+		Location:       location,
+		Maintenance:    maintenanceService,
+		StatusPages:    db,
+		IndexHTML:      webui.IndexHTML(),
+		Domains:        domainService,
 	})
+	if err := createInitialAdmin(ctx, uiServer, log); err != nil {
+		return err
+	}
 	go uiServer.Run(ctx, hub)
 	certService.OnChange(uiServer.BroadcastCertInfo)
 	domainService.OnChange(uiServer.BroadcastDomainInfo)
@@ -255,6 +265,34 @@ func run(log *slog.Logger) error {
 	}
 	if shutdownErr != nil {
 		return fmt.Errorf("shutdown: %w", shutdownErr)
+	}
+	return nil
+}
+
+func envTrue(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return value != "" && value != "false" && value != "0" && value != "no"
+}
+
+// createInitialAdmin creates the first account from KUMA_INITIAL_ADMIN_USERNAME and
+// KUMA_INITIAL_ADMIN_PASSWORD, which are ignored once an account exists.
+func createInitialAdmin(ctx context.Context, server *ui.Server, log *slog.Logger) error {
+	username := strings.TrimSpace(os.Getenv("KUMA_INITIAL_ADMIN_USERNAME"))
+	password := os.Getenv("KUMA_INITIAL_ADMIN_PASSWORD")
+	if username == "" && password == "" {
+		return nil
+	}
+	if username == "" || password == "" {
+		return errors.New("KUMA_INITIAL_ADMIN_USERNAME and KUMA_INITIAL_ADMIN_PASSWORD must be set together")
+	}
+	created, err := server.CreateInitialAdmin(ctx, username, password)
+	if err != nil {
+		return fmt.Errorf("KUMA_INITIAL_ADMIN_USERNAME: %w", err)
+	}
+	if created {
+		log.Info("created the first account from KUMA_INITIAL_ADMIN_USERNAME", "username", username)
+	} else {
+		log.Info("an account exists, so KUMA_INITIAL_ADMIN_USERNAME and KUMA_INITIAL_ADMIN_PASSWORD are ignored")
 	}
 	return nil
 }

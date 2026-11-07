@@ -122,7 +122,7 @@ func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
 		fail(err.Error())
 		return
 	}
-	if err := checkPasswordRules(body.Password); err != nil {
+	if err := s.checkNewPassword(r.Context(), body.Password); err != nil {
 		fail(err.Error())
 		return
 	}
@@ -175,6 +175,16 @@ func (s *Server) signIn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	remember := body.RememberMe == nil || *body.RememberMe
+	if user.TOTPEnabled {
+		if err := s.startChallenge(r.Context(), w, r, user.ID, remember); err != nil {
+			s.log.Error("sign in", "error", err)
+			authError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal error")
+			return
+		}
+		// better-auth's answer, which makes the UI ask for the code.
+		writeJSON(w, http.StatusOK, map[string]any{"twoFactorRedirect": true, "twoFactorMethods": []string{"totp"}})
+		return
+	}
 	if err := s.startSession(r.Context(), w, r, user.ID, remember); err != nil {
 		s.log.Error("sign in", "error", err)
 		authError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal error")
@@ -273,7 +283,7 @@ func userJSON(u store.User) map[string]any {
 		"emailVerified":    false,
 		"image":            nil,
 		"role":             "admin",
-		"twoFactorEnabled": false,
+		"twoFactorEnabled": u.TOTPEnabled,
 		"createdAt":        u.CreatedAt,
 		"updatedAt":        u.CreatedAt,
 	}
@@ -341,8 +351,15 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 		authError(w, http.StatusBadRequest, "INVALID_PASSWORD", "Invalid password")
 		return
 	}
-	if err := checkPasswordRules(body.NewPassword); err != nil {
-		authError(w, http.StatusBadRequest, "INVALID_PASSWORD_LENGTH", err.Error())
+	if err := s.checkNewPassword(r.Context(), body.NewPassword); err != nil {
+		switch {
+		case errors.Is(err, errPasswordLeaked):
+			authError(w, http.StatusBadRequest, "PASSWORD_COMPROMISED", err.Error())
+		case errors.Is(err, errLeakCheckFailed):
+			authError(w, http.StatusServiceUnavailable, "PASSWORD_CHECK_FAILED", err.Error())
+		default:
+			authError(w, http.StatusBadRequest, "INVALID_PASSWORD_LENGTH", err.Error())
+		}
 		return
 	}
 	hash, err := hashPassword(body.NewPassword)
@@ -372,13 +389,18 @@ func (s *Server) authNotSupported(w http.ResponseWriter, r *http.Request) {
 // loginLimiter allows 10 login attempts a minute per username and 60 overall. The service
 // usually runs behind a proxy, so the client's address isn't known reliably.
 type loginLimiter struct {
-	mu     sync.Mutex
-	global *rate.Limiter
-	users  map[string]*rate.Limiter
+	mu      sync.Mutex
+	global  *rate.Limiter
+	users   map[string]*rate.Limiter
+	perUser rate.Limit
+	burst   int
 }
 
 func newLoginLimiter() *loginLimiter {
-	return &loginLimiter{global: rate.NewLimiter(rate.Every(time.Second), 60), users: map[string]*rate.Limiter{}}
+	return &loginLimiter{
+		global: rate.NewLimiter(rate.Every(time.Second), 60), users: map[string]*rate.Limiter{},
+		perUser: rate.Every(6 * time.Second), burst: 10,
+	}
 }
 
 func (l *loginLimiter) allow(username string) bool {
@@ -390,8 +412,39 @@ func (l *loginLimiter) allow(username string) bool {
 		if len(l.users) > 10000 {
 			clear(l.users)
 		}
-		limiter = rate.NewLimiter(rate.Every(6*time.Second), 10)
+		limiter = rate.NewLimiter(l.perUser, l.burst)
 		l.users[key] = limiter
 	}
 	return limiter.Allow() && l.global.Allow()
+}
+
+// CreateInitialAdmin creates the first account, so that a deployment needs no setup in the
+// browser. It does nothing if an account exists, and returns whether it created one. The
+// password must meet the same rules as at setup.
+func (s *Server) CreateInitialAdmin(ctx context.Context, username, password string) (bool, error) {
+	exists, err := s.store.HasUser(ctx)
+	if err != nil {
+		return false, err
+	}
+	if exists {
+		return false, nil
+	}
+	username = strings.TrimSpace(username)
+	if err := checkUsername(username); err != nil {
+		return false, err
+	}
+	if err := s.checkNewPassword(ctx, password); err != nil {
+		return false, err
+	}
+	hash, err := hashPassword(password)
+	if err != nil {
+		return false, err
+	}
+	if _, err := s.store.CreateFirstUser(ctx, username, hash); err != nil {
+		if errors.Is(err, store.ErrSetupDone) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }

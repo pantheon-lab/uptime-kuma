@@ -28,6 +28,18 @@ type Store interface {
 	CreateFirstUser(ctx context.Context, username, passwordHash string) (store.User, error)
 	UserByUsername(ctx context.Context, username string) (store.User, error)
 	SetPassword(ctx context.Context, userID int32, passwordHash string, keep []byte) error
+	StartTOTPSetup(ctx context.Context, userID int32, secret []byte) error
+	EnableTOTP(ctx context.Context, userID int32, secret []byte, step int64, keep []byte) error
+	DisableTOTP(ctx context.Context, userID int32) error
+	UseTOTPStep(ctx context.Context, userID int32, step int64) (bool, error)
+	RecordTOTPFailure(ctx context.Context, userID int32, max int, lockFor time.Duration) error
+	CreateTwoFactorChallenge(ctx context.Context, tokenHash []byte, c store.TwoFactorChallenge) error
+	FindTwoFactorChallenge(ctx context.Context, tokenHash []byte) (store.TwoFactorChallenge, store.User, error)
+	CountTwoFactorAttempt(ctx context.Context, tokenHash []byte) (int, error)
+	DeleteTwoFactorChallenge(ctx context.Context, tokenHash []byte) (bool, error)
+	CreateAPIKey(ctx context.Context, key store.APIKey, hash []byte) (store.APIKey, error)
+	ListAPIKeys(ctx context.Context) ([]store.APIKey, error)
+	RevokeAPIKey(ctx context.Context, id int64) error
 	CreateSession(ctx context.Context, tokenHash []byte, session store.Session) error
 	FindSession(ctx context.Context, tokenHash []byte) (store.Session, store.User, error)
 	ExtendSession(ctx context.Context, tokenHash []byte, expiresAt time.Time) error
@@ -110,6 +122,9 @@ type Options struct {
 	StatusPages StatusPageStore
 	// Domains tracks domain expiry. Without it, the form says nothing about domains.
 	Domains Domains
+	// PasswordLeaked reports whether a new password is a known leaked one, which is then
+	// refused. Without it, passwords aren't checked. See PwnedPasswords.
+	PasswordLeaked func(ctx context.Context, password string) (bool, error)
 	// IndexHTML is the web UI's index.html, which status pages are rendered into. Without it,
 	// /status/ answers 404, and the data is still at /api/status-page/.
 	IndexHTML []byte
@@ -182,6 +197,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/auth/get-session", s.getSession)
 	mux.HandleFunc("POST /api/auth/sign-out", s.sameOrigin(s.signOut))
 	mux.HandleFunc("POST /api/auth/change-password", s.sameOrigin(s.changePassword))
+	mux.HandleFunc("POST /api/auth/two-factor/enable", s.sameOrigin(s.enableTwoFactor))
+	mux.HandleFunc("POST /api/auth/two-factor/disable", s.sameOrigin(s.disableTwoFactor))
+	mux.HandleFunc("POST /api/auth/two-factor/verify-totp", s.sameOrigin(s.verifyTOTP))
 	mux.HandleFunc("/api/auth/", s.authNotSupported)
 	mux.HandleFunc("GET /api/realtime/stream", s.stream)
 	mux.HandleFunc("POST /api/realtime/send", s.sameOrigin(s.send))

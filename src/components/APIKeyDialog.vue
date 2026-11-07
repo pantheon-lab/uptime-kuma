@@ -45,9 +45,32 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Scopes -->
+                        <div class="my-3">
+                            <label class="form-label">{{ $t("apiKeyScopes") }}</label>
+                            <div v-for="scope in scopes" :key="scope" class="form-check">
+                                <input
+                                    :id="'api-key-scope-' + scope"
+                                    v-model="key.scopes"
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    :value="scope"
+                                />
+                                <label class="form-check-label" :for="'api-key-scope-' + scope">
+                                    <code>{{ scope }}</code>
+                                </label>
+                            </div>
+                            <div class="form-text">{{ $t("apiKeyScopesHelp") }}</div>
+                        </div>
                     </div>
                     <div class="modal-footer">
-                        <button id="monitor-submit-btn" class="btn btn-primary" type="submit" :disabled="processing">
+                        <button
+                            id="monitor-submit-btn"
+                            class="btn btn-primary"
+                            type="submit"
+                            :disabled="processing || key.scopes.length === 0"
+                        >
                             {{ $t("Generate") }}
                         </button>
                     </div>
@@ -95,14 +118,27 @@ export default {
         CopyableInput,
         Datepicker,
     },
-    props: {},
-    // emits: [ "added" ],
+    props: {
+        // The scopes a key can have, from the server's getAPIKeyList answer.
+        scopes: {
+            type: Array,
+            default: () => [
+                "monitors:read",
+                "monitors:write",
+                "beats:read",
+                "beats:write",
+                "notifications:read",
+                "notifications:write",
+            ],
+        },
+    },
+    emits: ["keyAdded"],
     data() {
         return {
             keyaddmodal: null,
             keymodal: null,
             processing: false,
-            key: {},
+            key: { scopes: [] },
             dark: this.$root.theme === "dark",
             minDate: this.$root.date(dayjs()) + " 00:00",
             clearKey: null,
@@ -126,6 +162,7 @@ export default {
                 name: "",
                 expires: this.minDate,
                 active: 1,
+                scopes: [...this.scopes],
             };
 
             this.keyaddmodal.show();
@@ -165,6 +202,7 @@ export default {
                 name: "",
                 expires: this.minDate,
                 active: 1,
+                scopes: [...this.scopes],
             };
             this.noExpire = false;
         },
