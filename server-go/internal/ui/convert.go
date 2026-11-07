@@ -51,7 +51,8 @@ var supportedTypes = map[string]bool{
 	monitor.TypePush: true, monitor.TypePing: true, monitor.TypeDNS: true, monitor.TypeJSONQuery: true,
 	monitor.TypeManual: true, monitor.TypeWebSocket: true, monitor.TypePostgres: true, monitor.TypeMySQL: true,
 	monitor.TypeRedis: true, monitor.TypeSQLServer: true, monitor.TypeOracle: true, monitor.TypeMongoDB: true,
-	monitor.TypeMQTT: true, monitor.TypeRabbitMQ: true, monitor.TypeKafka: true,
+	monitor.TypeMQTT: true, monitor.TypeRabbitMQ: true, monitor.TypeKafka: true, monitor.TypeNTP: true,
+	monitor.TypeSNMP: true, monitor.TypeSMTP: true, monitor.TypeSIP: true, monitor.TypeRADIUS: true, monitor.TypeSteam: true,
 }
 
 // uiDefaults are fields of the UI's monitor form that this service doesn't have. They're sent
@@ -229,7 +230,18 @@ func (t *monitorTree) monitorJSON(m monitor.Monitor) map[string]any {
 		"wsIgnoreSecWebsocketAcceptHeader":    m.WSIgnoreAcceptHeader,
 		"databaseConnectionString":            m.DatabaseConnectionString,
 		"databaseQuery":                       m.DatabaseQuery,
-		"radiusPassword":                      m.DatabasePassword,
+		"radiusPassword":                      radiusPasswordField(m),
+		"radiusUsername":                      m.RadiusUsername,
+		"radiusSecret":                        m.RadiusSecret,
+		"radiusCalledStationId":               m.RadiusCalledStationID,
+		"radiusCallingStationId":              m.RadiusCallingStationID,
+		"snmpOid":                             m.SNMPOID,
+		"snmpVersion":                         cmp.Or(m.SNMPVersion, "2c"),
+		"snmpV3Username":                      m.SNMPV3Username,
+		"smtpSecurity":                        nilIfEmpty(m.SMTPSecurity),
+		"ntpStratumThreshold":                 cmp.Or(m.NTPStratumThreshold, 5),
+		"ntpTimeOffsetThreshold":              cmp.Or(m.NTPTimeOffsetThreshold, 1000),
+		"ntpRootDispersionThreshold":          cmp.Or(m.NTPRootDispersionThreshold, 500),
 		"basic_auth_user":                     m.DatabaseUsername,
 		"basic_auth_pass":                     oraclePassword(m),
 		"mqttTopic":                           m.MQTTTopic,
@@ -377,6 +389,18 @@ type monitorInput struct {
 	KafkaSSL                    bool               `json:"kafkaProducerSsl"`
 	KafkaAllowAutoTopicCreation bool               `json:"kafkaProducerAllowAutoTopicCreation"`
 	KafkaSASL                   *monitor.KafkaSASL `json:"kafkaProducerSaslOptions"`
+
+	NTPStratumThreshold        flexInt   `json:"ntpStratumThreshold"`
+	NTPTimeOffsetThreshold     flexFloat `json:"ntpTimeOffsetThreshold"`
+	NTPRootDispersionThreshold flexFloat `json:"ntpRootDispersionThreshold"`
+	SNMPOID                    *string   `json:"snmpOid"`
+	SNMPVersion                *string   `json:"snmpVersion"`
+	SNMPV3Username             *string   `json:"snmpV3Username"`
+	SMTPSecurity               *string   `json:"smtpSecurity"`
+	RadiusUsername             *string   `json:"radiusUsername"`
+	RadiusSecret               *string   `json:"radiusSecret"`
+	RadiusCalledStationID      *string   `json:"radiusCalledStationId"`
+	RadiusCallingStationID     *string   `json:"radiusCallingStationId"`
 }
 
 // parseMonitor converts the UI's form to a monitor, and returns the notifications to link.
@@ -507,6 +531,36 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 		if in.KafkaSASL != nil && in.KafkaSASL.Mechanism != "" && in.KafkaSASL.Mechanism != "None" {
 			m.KafkaSASL = in.KafkaSASL
 		}
+	case monitor.TypeNTP, monitor.TypeSNMP, monitor.TypeSMTP, monitor.TypeSIP, monitor.TypeRADIUS, monitor.TypeSteam:
+		if in.Hostname != nil {
+			m.Hostname = strings.TrimSpace(*in.Hostname)
+		}
+		m.Port = int32(in.Port.value)
+		m.IgnoreTLS = in.IgnoreTLS
+		switch m.Type {
+		case monitor.TypeNTP:
+			m.NTPStratumThreshold = int32(in.NTPStratumThreshold.value)
+			m.NTPTimeOffsetThreshold = in.NTPTimeOffsetThreshold.value
+			m.NTPRootDispersionThreshold = in.NTPRootDispersionThreshold.value
+		case monitor.TypeSNMP:
+			m.SNMPOID = strings.TrimSpace(text(in.SNMPOID))
+			m.SNMPVersion = text(in.SNMPVersion)
+			m.SNMPV3Username = strings.TrimSpace(text(in.SNMPV3Username))
+			m.SNMPCommunity = text(in.RadiusPassword)
+			m.JSONPath = text(in.JSONPath)
+			if in.JSONPathOperator != nil && *in.JSONPathOperator != "" {
+				m.JSONPathOperator = *in.JSONPathOperator
+			}
+			m.ExpectedValue = rawText(in.ExpectedValue)
+		case monitor.TypeSMTP:
+			m.SMTPSecurity = text(in.SMTPSecurity)
+		case monitor.TypeRADIUS:
+			m.RadiusUsername = text(in.RadiusUsername)
+			m.RadiusPassword = text(in.RadiusPassword)
+			m.RadiusSecret = text(in.RadiusSecret)
+			m.RadiusCalledStationID = text(in.RadiusCalledStationID)
+			m.RadiusCallingStationID = text(in.RadiusCallingStationID)
+		}
 	case monitor.TypePostgres, monitor.TypeMySQL, monitor.TypeRedis:
 		m.DatabaseConnectionString = strings.TrimSpace(text(in.DatabaseConnectionString))
 		if m.Type != monitor.TypeRedis {
@@ -594,6 +648,25 @@ func parseMonitor(raw json.RawMessage) (m monitor.Monitor, notificationIDs []int
 	}
 	sort.Slice(notificationIDs, func(i, j int) bool { return notificationIDs[i] < notificationIDs[j] })
 	return m, notificationIDs, note, nil
+}
+
+// radiusPasswordField is the form's radiusPassword field, which the form uses for the password of
+// MySQL and RADIUS, and the community of SNMP.
+func radiusPasswordField(m monitor.Monitor) string {
+	switch m.Type {
+	case monitor.TypeSNMP:
+		return m.SNMPCommunity
+	case monitor.TypeRADIUS:
+		return m.RadiusPassword
+	}
+	return m.DatabasePassword
+}
+
+func nilIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 func orEmpty(list []string) []string {

@@ -1430,3 +1430,28 @@ func TestParsePhase4bMonitors(t *testing.T) {
 		t.Fatal("MQTT conditions")
 	}
 }
+
+func TestParsePhase4cMonitors(t *testing.T) {
+	m, _, _, err := parseMonitor(json.RawMessage(`{"type": "snmp", "name": "S", "hostname": "sw1", "port": 161,
+		"snmpOid": "1.3.6.1.2.1.1.3.0", "snmpVersion": "2c", "radiusPassword": "public", "jsonPathOperator": ">", "expectedValue": 0}`))
+	if err != nil || m.SNMPCommunity != "public" || m.ExpectedValue != "0" || m.JSONPathOperator != ">" {
+		t.Fatalf("snmp: %+v %v", m, err)
+	}
+	if out := newMonitorTree([]monitor.Monitor{m}, nil).monitorJSON(m); out["radiusPassword"] != "public" || out["snmpVersion"] != "2c" {
+		t.Fatalf("snmp JSON: %v", out)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "radius", "name": "R", "hostname": "radius", "port": 1812,
+		"radiusUsername": "u", "radiusPassword": "p", "radiusSecret": "s", "radiusCalledStationId": "AP"}`))
+	if err != nil || m.RadiusPassword != "p" || m.RadiusSecret != "s" || m.RadiusCalledStationID != "AP" || m.DatabasePassword != "" {
+		t.Fatalf("radius: %+v %v", m, err)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "ntp", "name": "N", "hostname": "pool.ntp.org", "port": 123,
+		"ntpStratumThreshold": 4, "ntpTimeOffsetThreshold": 250, "ntpRootDispersionThreshold": "100"}`))
+	if err != nil || m.NTPStratumThreshold != 4 || m.NTPTimeOffsetThreshold != 250 || m.NTPRootDispersionThreshold != 100 {
+		t.Fatalf("ntp: %+v %v", m, err)
+	}
+	m, _, _, err = parseMonitor(json.RawMessage(`{"type": "smtp", "name": "M", "hostname": "mail", "port": 587, "smtpSecurity": "starttls"}`))
+	if err != nil || m.SMTPSecurity != "starttls" {
+		t.Fatalf("smtp: %+v %v", m, err)
+	}
+}

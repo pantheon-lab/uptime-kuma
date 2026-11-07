@@ -15,9 +15,10 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | 3     | Status pages and badges                                             | Done    |
 | 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done    |
 | 4b    | Other databases and messaging                                       | Done    |
-| 4c    | Network and game monitors                                           | Next    |
-| 4d    | Docker, system and remote browser monitors                          | Planned |
+| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done    |
+| 4d    | Docker, system and remote browser monitors                          | Next    |
 | 4e    | HTTP options, proxies and domain expiry                             | Planned |
+| 4f    | Globalping, GameDig and Tailscale ping                              | Planned |
 | 5     | Accounts and administration                                         | Planned |
 | 6     | Integrations                                                        | Planned |
 
@@ -168,13 +169,40 @@ Known limits and differences from Node.js:
 - MQTT waits for a message until the check's timeout, where Node.js waited 80% of the interval. With no timeout set,
   that's the same.
 
-### Phase 4c: Network and game monitors (planned)
+### Phase 4c: NTP, SNMP, SMTP, SIP, RADIUS and Steam (done)
 
-NTP, SNMP, SMTP, SIP options, RADIUS, Tailscale ping, Globalping, GameDig and Steam.
+- **NTP**, **SNMP** (gosnmp), **SMTP**, **SIP options**, **RADIUS** (layeh.com/radius) and **Steam**, as in Node.js.
+- SIP options no longer runs `sipsak`: the `OPTIONS` request is made directly, so the image needs nothing installed.
+- RADIUS requests carry a Message-Authenticator. FreeRADIUS 3.2.5 and later, patched for BlastRADIUS (CVE-2024-3596),
+  drop requests without one, which the Node.js client didn't send.
+- All of them in the REST API, the UI's form, and `kuma-import`.
+
+Tested with the race detector against fake NTP, SIP, RADIUS, SMTP and Steam servers, and against a real Net-SNMP agent
+(v1 and v2c) and FreeRADIUS. In headless Chromium against the built image, a monitor of each type but SIP was made through
+the form and checked against pool.ntp.org, the SNMP agent, smtp.gmail.com with STARTTLS, FreeRADIUS, and Steam without a
+key: `internal/e2e/browser/monitor-types-4c.mjs`.
+
+Not tested: SNMPv3, SIP against a real SIP server, SMTPS, and Steam with a real API key.
+
+Known limits and differences from Node.js:
+
+- SIP is UDP only, as `sipsak` was by default. Any final answer but `200 OK` is DOWN, with the status line as the message,
+  where Node.js failed with a generic error.
+- SNMPv3 has no authentication or privacy, as in Node.js.
+- Steam's ping is the API's response time, where Node.js pinged the game server.
 
 ### Phase 4d: Docker, system and remote browser monitors (planned)
 
 Docker containers with Docker hosts, PM2, system services, SFTP, gRPC keyword, and Real browser with remote browsers.
+
+### Phase 4f: Globalping, GameDig and Tailscale ping (planned)
+
+These need more than a port of the check, so they come last:
+
+- **Globalping** is a client of an external measurement API, with ping, HTTP and DNS sub-types.
+- **GameDig** wraps a JavaScript library that speaks the protocols of over 300 games. A Go port could cover the common
+  protocols, such as Valve's A2S and Minecraft's, if they're in use.
+- **Tailscale ping** runs the `tailscale` command, which needs `tailscaled` in the container.
 
 ### Phase 4e: HTTP options, proxies and domain expiry (planned)
 

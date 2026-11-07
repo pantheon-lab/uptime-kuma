@@ -2304,7 +2304,13 @@
               "mongodb",
               "mqtt",
               "rabbitmq",
-              "kafka-producer"
+              "kafka-producer",
+              "ntp",
+              "snmp",
+              "smtp",
+              "sip-options",
+              "radius",
+              "steam"
             ]
           },
           "active": {
@@ -2408,7 +2414,8 @@
             "type": "string"
           },
           "port": {
-            "type": "integer"
+            "type": "integer",
+            "description": "port, dns, mqtt, ntp (123), snmp (161), smtp (25), sip-options (5060), radius (1812) and steam"
           },
           "propagateTrace": {
             "type": "boolean",
@@ -2469,7 +2476,7 @@
           },
           "jsonPath": {
             "type": "string",
-            "description": "json-query: a JSONata 1.5 expression evaluated on the response. Empty compares the whole response."
+            "description": "json-query: a JSONata 1.5 expression evaluated on the response. Empty compares the whole response. Also snmp, on the OID's value."
           },
           "jsonPathOperator": {
             "type": "string",
@@ -2620,6 +2627,68 @@
                 "type": "string"
               }
             }
+          },
+          "ntpStratumThreshold": {
+            "type": "integer",
+            "default": 5
+          },
+          "ntpTimeOffsetThreshold": {
+            "type": "number",
+            "default": 1000,
+            "description": "Milliseconds"
+          },
+          "ntpRootDispersionThreshold": {
+            "type": "number",
+            "default": 500,
+            "description": "Milliseconds"
+          },
+          "snmpOid": {
+            "type": "string",
+            "description": "snmp: a numeric OID, such as 1.3.6.1.2.1.1.3.0"
+          },
+          "snmpVersion": {
+            "type": "string",
+            "enum": [
+              "1",
+              "2c",
+              "3"
+            ],
+            "default": "2c"
+          },
+          "snmpCommunity": {
+            "type": "string",
+            "description": "snmp v1 and v2c. Redacted for keys without monitors:write."
+          },
+          "snmpV3Username": {
+            "type": "string",
+            "description": "snmp v3, which is used without authentication or privacy"
+          },
+          "smtpSecurity": {
+            "type": "string",
+            "enum": [
+              "",
+              "secure",
+              "starttls",
+              "nostarttls"
+            ],
+            "description": "smtp: SMTPS, required STARTTLS, no STARTTLS, or STARTTLS when offered"
+          },
+          "radiusUsername": {
+            "type": "string"
+          },
+          "radiusPassword": {
+            "type": "string",
+            "description": "Redacted for keys without monitors:write."
+          },
+          "radiusSecret": {
+            "type": "string",
+            "description": "Redacted for keys without monitors:write."
+          },
+          "radiusCalledStationId": {
+            "type": "string"
+          },
+          "radiusCallingStationId": {
+            "type": "string"
           }
         }
       },

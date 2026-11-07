@@ -169,7 +169,7 @@ func (f *fixture) seedMonitors(t *testing.T) {
 	// Dns and Ping import now; Steam has no Go implementation.
 	f.monitor(t, 10, "Dns", "dns", map[string]any{"hostname": "example.com"})
 	f.monitor(t, 11, "Ping", "ping", map[string]any{"hostname": "example.com"})
-	f.monitor(t, 21, "Steam", "steam", nil)
+	f.monitor(t, 21, "Game", "gamedig", nil)
 	f.monitor(t, 12, "Mtls", "http", map[string]any{"url": "https://example.com", "auth_method": "mtls"})
 	f.monitor(t, 13, "Oauth", "http", map[string]any{"url": "https://example.com", "auth_method": "oauth2-cc"})
 	f.monitor(t, 14, "Ntlm", "http", map[string]any{"url": "https://example.com", "auth_method": "ntlm"})
@@ -208,8 +208,8 @@ func TestImportsMonitorsFaithfully(t *testing.T) {
 		reasons[s.Name] = s.Reason
 	}
 	for name, want := range map[string]string{
-		"Steam": "unsupported monitor type: steam",
-		"Mtls":  "unsupported setting: authentication method mtls", "Oauth": "unsupported setting: authentication method oauth2-cc",
+		"Game": "unsupported monitor type: gamedig",
+		"Mtls": "unsupported setting: authentication method mtls", "Oauth": "unsupported setting: authentication method oauth2-cc",
 		"Ntlm": "unsupported setting: authentication method ntlm", "BadHeaders": "invalid setting: headers aren't a valid JSON object",
 		"BadUrl": "invalid setting: url must be a valid http or https URL", "BadBody": "invalid setting: body is not valid JSON",
 		"Proxied": "unsupported setting: proxy",
@@ -646,7 +646,7 @@ func TestImportsTagsAndCertificateAlerts(t *testing.T) {
 	ctx := context.Background()
 	f.monitor(t, 1, "Secure", "http", map[string]any{"url": "https://example.com", "expiry_notification": 1})
 	f.monitor(t, 2, "Ignored", "http", map[string]any{"url": "https://example.com", "expiry_notification": 1, "ignore_tls": 1})
-	f.monitor(t, 3, "Unsupported", "steam", map[string]any{"hostname": "example.com"})
+	f.monitor(t, 3, "Unsupported", "gamedig", map[string]any{"hostname": "example.com"})
 	f.exec(t, "INSERT INTO tag (id, name, color) VALUES (7, 'prod', '#ff0000'), (8, 'eu', '#00ff00')")
 	f.exec(t, "INSERT INTO monitor_tag (monitor_id, tag_id, value) VALUES (1, 7, ''), (1, 8, 'west'), (3, 7, '')")
 

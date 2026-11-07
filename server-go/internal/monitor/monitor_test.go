@@ -535,3 +535,41 @@ func TestValidatePhase4bTypes(t *testing.T) {
 		t.Fatalf("redacted: %+v", r)
 	}
 }
+
+func TestValidatePhase4cTypes(t *testing.T) {
+	valid := func(kind string, set func(*Monitor)) Monitor {
+		m := New()
+		m.Name, m.Type, m.Hostname = "x", kind, "host.example"
+		set(&m)
+		m.Normalize()
+		return m
+	}
+	for name, c := range map[string]struct {
+		m  Monitor
+		ok bool
+	}{
+		"ntp":                {valid(TypeNTP, func(m *Monitor) {}), true},
+		"ntp bad stratum":    {valid(TypeNTP, func(m *Monitor) { m.NTPStratumThreshold = 17 }), false},
+		"snmp":               {valid(TypeSNMP, func(m *Monitor) { m.SNMPOID = "1.3.6.1.2.1.1.3.0" }), true},
+		"snmp bad oid":       {valid(TypeSNMP, func(m *Monitor) { m.SNMPOID = "sysUpTime" }), false},
+		"snmp v3 no user":    {valid(TypeSNMP, func(m *Monitor) { m.SNMPOID, m.SNMPVersion = "1.3.6.1", "3" }), false},
+		"smtp":               {valid(TypeSMTP, func(m *Monitor) { m.SMTPSecurity = "starttls" }), true},
+		"smtp bad security":  {valid(TypeSMTP, func(m *Monitor) { m.SMTPSecurity = "ssl" }), false},
+		"sip":                {valid(TypeSIP, func(m *Monitor) {}), true},
+		"radius no secret":   {valid(TypeRADIUS, func(m *Monitor) {}), false},
+		"radius":             {valid(TypeRADIUS, func(m *Monitor) { m.RadiusSecret = "s" }), true},
+		"steam":              {valid(TypeSteam, func(m *Monitor) { m.Port = 27015 }), true},
+		"hostname with path": {valid(TypeNTP, func(m *Monitor) { m.Hostname = "a/b" }), false},
+	} {
+		if err := c.m.Validate(); (err == nil) != c.ok {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	if m := valid(TypeSIP, func(*Monitor) {}); m.Port != 5060 {
+		t.Errorf("default SIP port: %d", m.Port)
+	}
+	r := Monitor{Settings: Settings{SNMPCommunity: "c", RadiusPassword: "p", RadiusSecret: "s"}}.Redacted()
+	if r.SNMPCommunity != "***" || r.RadiusPassword != "***" || r.RadiusSecret != "***" {
+		t.Fatalf("redacted: %+v", r.Settings)
+	}
+}
