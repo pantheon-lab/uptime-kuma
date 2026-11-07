@@ -236,11 +236,13 @@ func (f *fakeStore) LatestBeatPerMonitor(context.Context) ([]store.Beat, error) 
 func (f *fakeStore) BeatsSince(context.Context, int32, time.Time, int) ([]store.Beat, error) {
 	return nil, nil
 }
-func (f *fakeStore) ImportantBeats(context.Context, *int32, int, int) ([]store.Beat, error) {
+func (f *fakeStore) ImportantBeats(context.Context, *int32, store.EventFilter, int, int) ([]store.Beat, error) {
 	return nil, nil
 }
-func (f *fakeStore) CountImportantBeats(context.Context, *int32) (int64, error) { return 0, nil }
-func (f *fakeStore) ClearEvents(context.Context, int32) error                   { return nil }
+func (f *fakeStore) CountImportantBeats(context.Context, *int32, store.EventFilter) (int64, error) {
+	return 0, nil
+}
+func (f *fakeStore) ClearEvents(context.Context, *int32) error { return nil }
 func (f *fakeStore) Chart(context.Context, int32, int) ([]store.ChartPoint, error) {
 	return nil, nil
 }

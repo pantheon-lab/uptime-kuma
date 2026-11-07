@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -755,12 +756,55 @@ func optionalMonitorID(args []json.RawMessage, i int) (*int32, error) {
 	return &id, nil
 }
 
+// maxEventFilterMonitors bounds the monitors an event filter lists, such as a group's.
+const maxEventFilterMonitors = 10000
+
+// eventFilterArg reads the dashboard's filter of events, which may be absent or null.
+func eventFilterArg(args []json.RawMessage, i int) (store.EventFilter, error) {
+	var in struct {
+		MonitorIDs []flexInt `json:"monitorIDs"`
+		Statuses   []int16   `json:"statuses"`
+		Since      string    `json:"since"`
+	}
+	if err := arg(args, i, &in); err != nil {
+		return store.EventFilter{}, err
+	}
+	if len(in.MonitorIDs) > maxEventFilterMonitors || len(in.Statuses) > 8 {
+		return store.EventFilter{}, errors.New("invalid filter")
+	}
+	var f store.EventFilter
+	for _, id := range in.MonitorIDs {
+		if !id.set || id.value <= 0 || id.value > math.MaxInt32 {
+			return store.EventFilter{}, errors.New("invalid filter")
+		}
+		f.MonitorIDs = append(f.MonitorIDs, int32(id.value))
+	}
+	for _, status := range in.Statuses {
+		if status < 0 || status > 3 {
+			return store.EventFilter{}, errors.New("invalid filter")
+		}
+	}
+	f.Statuses = in.Statuses
+	if in.Since != "" {
+		since, err := time.Parse(time.RFC3339, in.Since)
+		if err != nil {
+			return store.EventFilter{}, errors.New("invalid filter")
+		}
+		f.Since = &since
+	}
+	return f, nil
+}
+
 func (s *Server) importantCount(ctx context.Context, args []json.RawMessage) (reply, error) {
 	id, err := optionalMonitorID(args, 0)
 	if err != nil {
 		return nil, userErr(err)
 	}
-	count, err := s.store.CountImportantBeats(ctx, id)
+	filter, err := eventFilterArg(args, 1)
+	if err != nil {
+		return nil, userErr(err)
+	}
+	count, err := s.store.CountImportantBeats(ctx, id, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -782,15 +826,20 @@ func (s *Server) importantPage(ctx context.Context, args []json.RawMessage) (rep
 	if offset.value < 0 || count.value < 0 || count.value > maxEventsPage {
 		return nil, userErr(errors.New("invalid page"))
 	}
-	beats, err := s.store.ImportantBeats(ctx, id, int(offset.value), int(count.value))
+	filter, err := eventFilterArg(args, 3)
+	if err != nil {
+		return nil, userErr(err)
+	}
+	beats, err := s.store.ImportantBeats(ctx, id, filter, int(offset.value), int(count.value))
 	if err != nil {
 		return nil, err
 	}
 	return ok("data", beatsJSON(beats)), nil
 }
 
+// clearEvents empties a monitor's event list or, given null, every monitor's.
 func (s *Server) clearEvents(ctx context.Context, args []json.RawMessage) (reply, error) {
-	id, err := idArg(args, 0)
+	id, err := optionalMonitorID(args, 0)
 	if err != nil {
 		return nil, userErr(err)
 	}

@@ -30,14 +30,76 @@
             </div>
 
             <div class="shadow-box table-shadow-box table-wrapper">
-                <div class="mb-3 text-end">
-                    <button
-                        class="btn btn-sm btn-outline-danger"
-                        :disabled="clearingAllEvents"
-                        @click="clearAllEventsDialog"
+                <div class="events-toolbar mb-3">
+                    <h2 class="h5 mb-0 me-auto">{{ $t("Events") }}</h2>
+                    <select
+                        v-model="eventFilter.status"
+                        class="form-select form-select-sm"
+                        data-testid="event-filter-status"
+                        :aria-label="$t('Status')"
                     >
-                        {{ $t("Clear All Events") }}
+                        <option value="">{{ $t("eventFilterAllStatuses") }}</option>
+                        <option v-for="option in statusOptions" :key="option.value" :value="option.value">
+                            {{ option.label }}
+                        </option>
+                    </select>
+                    <select
+                        v-model="eventFilter.monitorID"
+                        class="form-select form-select-sm monitor-select"
+                        data-testid="event-filter-monitor"
+                        :aria-label="$t('eventFilterMonitor')"
+                    >
+                        <option value="">{{ $t("eventFilterAllMonitors") }}</option>
+                        <option v-for="option in monitorOptions" :key="option.id" :value="String(option.id)">
+                            {{ option.label }}
+                        </option>
+                    </select>
+                    <select
+                        v-model="eventFilter.range"
+                        class="form-select form-select-sm"
+                        data-testid="event-filter-range"
+                        :aria-label="$t('eventFilterTimeRange')"
+                    >
+                        <option v-for="option in rangeOptions" :key="option.value" :value="option.value">
+                            {{ option.label }}
+                        </option>
+                    </select>
+                    <button
+                        v-if="eventFilterActive"
+                        type="button"
+                        class="btn btn-sm btn-link"
+                        data-testid="event-filter-clear"
+                        @click="clearEventFilter"
+                    >
+                        {{ $t("eventFilterClear") }}
                     </button>
+                    <div v-if="$root.canEdit" class="dropdown">
+                        <button
+                            type="button"
+                            class="btn btn-sm btn-outline-normal"
+                            data-bs-toggle="dropdown"
+                            data-testid="events-menu"
+                            aria-expanded="false"
+                            :aria-label="$t('eventsMoreActions')"
+                            :title="$t('eventsMoreActions')"
+                        >
+                            <font-awesome-icon icon="ellipsis-h" />
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <button
+                                    type="button"
+                                    class="dropdown-item text-danger"
+                                    data-testid="clear-all-events"
+                                    :disabled="clearingAllEvents"
+                                    @click="clearAllEventsDialog"
+                                >
+                                    <font-awesome-icon icon="trash" class="me-2" />
+                                    {{ $t("Clear All Events") }}
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
                 <table class="table table-borderless table-hover">
                     <thead>
@@ -75,8 +137,8 @@
                         </tr>
 
                         <tr v-if="importantHeartBeatListLength === 0">
-                            <td :colspan="tableColumnCount">
-                                {{ $t("No important events") }}
+                            <td :colspan="tableColumnCount" data-testid="events-empty">
+                                {{ eventFilterActive ? $t("eventFilterNoMatch") : $t("No important events") }}
                             </td>
                         </tr>
                     </tbody>
@@ -110,7 +172,29 @@ import Status from "../components/Status.vue";
 import Datetime from "../components/Datetime.vue";
 import Pagination from "v-pagination-3";
 import Confirm from "../components/Confirm.vue";
-import { DOWN, MAINTENANCE, UP } from "../util";
+import { DOWN, MAINTENANCE, PENDING, UP } from "../util";
+
+const EVENT_FILTER_KEY = "dashboardEventFilter";
+const RANGE_HOURS = { "1h": 1, "24h": 24, "7d": 24 * 7, "30d": 24 * 30 };
+
+/**
+ * The events filter this browser last used
+ * @returns {object} The filter
+ */
+function loadEventFilter() {
+    const filter = { status: "", monitorID: "", range: "" };
+    try {
+        const saved = JSON.parse(localStorage.getItem(EVENT_FILTER_KEY) || "{}");
+        for (const key of Object.keys(filter)) {
+            if (typeof saved[key] === "string") {
+                filter[key] = saved[key];
+            }
+        }
+    } catch {
+        // Storage may be blocked; start without a filter
+    }
+    return filter;
+}
 
 export default {
     components: {
@@ -137,6 +221,7 @@ export default {
             importantHeartBeatListLength: 0,
             displayedRecords: [],
             clearingAllEvents: false,
+            eventFilter: loadEventFilter(),
         };
     },
     computed: {
@@ -145,6 +230,69 @@ export default {
         },
         tableColumnCount() {
             return this.showGroupColumn ? 5 : 4;
+        },
+
+        statusOptions() {
+            return [
+                { value: String(DOWN), label: this.$t("Down") },
+                { value: String(UP), label: this.$t("Up") },
+                { value: String(PENDING), label: this.$t("Pending") },
+                { value: String(MAINTENANCE), label: this.$t("Maintenance") },
+            ];
+        },
+
+        rangeOptions() {
+            return [
+                { value: "", label: this.$t("eventFilterAllTime") },
+                { value: "1h", label: this.$t("eventFilterLastHour") },
+                { value: "24h", label: this.$t("eventFilterLast24h") },
+                { value: "7d", label: this.$t("eventFilterLast7d") },
+                { value: "30d", label: this.$t("eventFilterLast30d") },
+            ];
+        },
+
+        /**
+         * Every monitor, by its path, such as "Group / API"
+         * @returns {object[]} Options
+         */
+        monitorOptions() {
+            return Object.values(this.$root.monitorList)
+                .map((m) => ({ id: m.id, label: m.pathName || m.name }))
+                .sort((a, b) => a.label.localeCompare(b.label));
+        },
+
+        eventFilterActive() {
+            return this.eventFilter.status !== "" || this.eventFilter.monitorID !== "" || this.eventFilter.range !== "";
+        },
+
+        /**
+         * The monitors whose events are shown: the one chosen and, for a group, everything in it
+         * @returns {Set<number>|null} Monitor ids, or null for all
+         */
+        filteredMonitorIDs() {
+            const id = Number(this.eventFilter.monitorID);
+            if (!id) {
+                return null;
+            }
+            const children = new Map();
+            for (const m of Object.values(this.$root.monitorList)) {
+                if (m.parent != null) {
+                    if (!children.has(m.parent)) {
+                        children.set(m.parent, []);
+                    }
+                    children.get(m.parent).push(m.id);
+                }
+            }
+            const ids = new Set();
+            const stack = [id];
+            while (stack.length > 0) {
+                const next = stack.pop();
+                if (!ids.has(next)) {
+                    ids.add(next);
+                    stack.push(...(children.get(next) || []));
+                }
+            }
+            return ids;
         },
 
         /**
@@ -194,6 +342,19 @@ export default {
         },
     },
     watch: {
+        eventFilter: {
+            handler() {
+                try {
+                    localStorage.setItem(EVENT_FILTER_KEY, JSON.stringify(this.eventFilter));
+                } catch {
+                    // Remembering the filter is a convenience
+                }
+                this.page = 1;
+                this.getImportantHeartbeatListLength();
+            },
+            deep: true,
+        },
+
         perPage() {
             this.$nextTick(() => {
                 this.getImportantHeartbeatListPaged();
@@ -282,7 +443,7 @@ export default {
          * @returns {void}
          */
         onNewImportantHeartbeat(heartbeat) {
-            if (this.page === 1) {
+            if (this.page === 1 && this.matchesEventFilter(heartbeat)) {
                 this.displayedRecords.unshift(heartbeat);
                 if (this.displayedRecords.length > this.perPage) {
                     this.displayedRecords.pop();
@@ -296,7 +457,7 @@ export default {
          * @returns {void}
          */
         getImportantHeartbeatListLength() {
-            this.$root.getSocket().emit("monitorImportantHeartbeatListCount", null, (res) => {
+            this.$root.getSocket().emit("monitorImportantHeartbeatListCount", null, this.eventFilterArg(), (res) => {
                 if (res.ok) {
                     this.importantHeartBeatListLength = res.count;
                     this.getImportantHeartbeatListPaged();
@@ -310,11 +471,20 @@ export default {
          */
         getImportantHeartbeatListPaged() {
             const offset = (this.page - 1) * this.perPage;
-            this.$root.getSocket().emit("monitorImportantHeartbeatListPaged", null, offset, this.perPage, (res) => {
-                if (res.ok) {
-                    this.displayedRecords = res.data;
-                }
-            });
+            this.$root
+                .getSocket()
+                .emit(
+                    "monitorImportantHeartbeatListPaged",
+                    null,
+                    offset,
+                    this.perPage,
+                    this.eventFilterArg(),
+                    (res) => {
+                        if (res.ok) {
+                            this.displayedRecords = res.data;
+                        }
+                    }
+                );
         },
 
         /**
@@ -334,41 +504,59 @@ export default {
             }
         },
 
+        /**
+         * The events filter as the server takes it
+         * @returns {object|null} Filter, or null for none
+         */
+        eventFilterArg() {
+            if (!this.eventFilterActive) {
+                return null;
+            }
+            const filter = {};
+            if (this.eventFilter.status !== "") {
+                filter.statuses = [Number(this.eventFilter.status)];
+            }
+            if (this.filteredMonitorIDs) {
+                filter.monitorIDs = [...this.filteredMonitorIDs];
+            }
+            const hours = RANGE_HOURS[this.eventFilter.range];
+            if (hours) {
+                filter.since = new Date(Date.now() - hours * 3600 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+            }
+            return filter;
+        },
+
+        /**
+         * Whether a new event belongs in the list as it's filtered
+         * @param {object} beat The event
+         * @returns {boolean} Whether it does
+         */
+        matchesEventFilter(beat) {
+            if (this.eventFilter.status !== "" && beat.status !== Number(this.eventFilter.status)) {
+                return false;
+            }
+            return !this.filteredMonitorIDs || this.filteredMonitorIDs.has(beat.monitorID);
+        },
+
+        clearEventFilter() {
+            this.eventFilter = { status: "", monitorID: "", range: "" };
+        },
+
         clearAllEventsDialog() {
             this.$refs.confirmClearEvents.show();
         },
         clearAllEvents() {
             this.clearingAllEvents = true;
-            const monitorIDs = Object.keys(this.$root.monitorList);
-            let failed = 0;
-            const total = monitorIDs.length;
-
-            if (total === 0) {
+            this.$root.getSocket().emit("clearEvents", null, (res) => {
                 this.clearingAllEvents = false;
-                this.$root.toastError(this.$t("No monitors found"));
-                return;
-            }
-
-            monitorIDs.forEach((monitorID) => {
-                this.$root.getSocket().emit("clearEvents", monitorID, (res) => {
-                    if (!res || !res.ok) {
-                        failed++;
-                    }
-                });
+                if (res?.ok) {
+                    this.$root.toastSuccess(this.$t("Events cleared successfully"));
+                } else {
+                    this.$root.toastError(res?.msg || this.$t("Could not clear events", { failed: "?", total: "?" }));
+                }
+                this.page = 1;
+                this.getImportantHeartbeatListLength();
             });
-            this.clearingAllEvents = false;
-            this.page = 1;
-            this.getImportantHeartbeatListLength();
-            if (failed === 0) {
-                this.$root.toastSuccess(this.$t("Events cleared successfully"));
-            } else {
-                this.$root.toastError(
-                    this.$t("Could not clear events", {
-                        failed,
-                        total,
-                    })
-                );
-            }
         },
     },
 };
@@ -440,5 +628,21 @@ table {
 
 .table-wrapper {
     overflow-x: auto;
+}
+
+.events-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+
+    .form-select {
+        width: auto;
+        max-width: 100%;
+    }
+
+    .monitor-select {
+        max-width: 240px;
+    }
 }
 </style>

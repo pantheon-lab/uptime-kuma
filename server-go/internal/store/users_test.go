@@ -155,22 +155,29 @@ func TestUIQueries(t *testing.T) {
 		t.Fatalf("since: %v %v", since, err)
 	}
 
-	if n, err := s.CountImportantBeats(ctx, nil); err != nil || n != 3 {
+	if n, err := s.CountImportantBeats(ctx, nil, EventFilter{}); err != nil || n != 3 {
 		t.Fatalf("count all: %d %v", n, err)
 	}
-	if n, err := s.CountImportantBeats(ctx, &a.ID); err != nil || n != 2 {
+	if n, err := s.CountImportantBeats(ctx, &a.ID, EventFilter{}); err != nil || n != 2 {
 		t.Fatalf("count a: %d %v", n, err)
 	}
-	page, err := s.ImportantBeats(ctx, nil, 1, 1)
+	page, err := s.ImportantBeats(ctx, nil, EventFilter{}, 1, 1)
 	if err != nil || len(page) != 1 || page[0].MonitorID != a.ID || page[0].Status != 1 {
 		t.Fatalf("page: %+v %v", page, err)
 	}
+	testEventFilter(t, s, a.ID, b.ID, now)
 
-	if err := s.ClearEvents(ctx, a.ID); err != nil {
+	if err := s.ClearEvents(ctx, &a.ID); err != nil {
 		t.Fatal(err)
 	}
-	if n, _ := s.CountImportantBeats(ctx, nil); n != 1 {
+	if n, _ := s.CountImportantBeats(ctx, nil, EventFilter{}); n != 1 {
 		t.Fatalf("after clearing a: %d", n)
+	}
+	if err := s.ClearEvents(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := s.CountImportantBeats(ctx, nil, EventFilter{}); n != 0 {
+		t.Fatalf("after clearing all: %d", n)
 	}
 
 	n, err := s.CreateNotification(ctx, Notification{Name: "n", Type: "webhook", Config: map[string]any{}, Active: true}, false)
@@ -475,5 +482,43 @@ func TestGitHubAccounts(t *testing.T) {
 	}
 	if _, err := s.GitHubToken(ctx, adminID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("password account's token: %v", err)
+	}
+}
+
+// testEventFilter checks narrowing events, given a's important beats: down three hours ago and up
+// two minutes ago, and b's: down 30 seconds ago.
+func testEventFilter(t *testing.T, s *Store, a, b int32, now time.Time) {
+	t.Helper()
+	ctx := context.Background()
+	hourAgo := now.Add(-time.Hour)
+	cases := []struct {
+		name   string
+		id     *int32
+		filter EventFilter
+		want   int64
+	}{
+		{"down", nil, EventFilter{Statuses: []int16{0}}, 2},
+		{"down or up", nil, EventFilter{Statuses: []int16{0, 1}}, 3},
+		{"maintenance", nil, EventFilter{Statuses: []int16{3}}, 0},
+		{"monitors", nil, EventFilter{MonitorIDs: []int32{b}}, 1},
+		{"since", nil, EventFilter{Since: &hourAgo}, 2},
+		{"all three", nil, EventFilter{MonitorIDs: []int32{a, b}, Statuses: []int16{0}, Since: &hourAgo}, 1},
+		{"one monitor and a filter", &a, EventFilter{Statuses: []int16{0}}, 1},
+		{"one monitor outside the filter's", &a, EventFilter{MonitorIDs: []int32{b}}, 0},
+		{"empty lists don't narrow", nil, EventFilter{MonitorIDs: []int32{}, Statuses: []int16{}}, 3},
+	}
+	for _, c := range cases {
+		n, err := s.CountImportantBeats(ctx, c.id, c.filter)
+		if err != nil || n != c.want {
+			t.Fatalf("%s: count %d, want %d, %v", c.name, n, c.want, err)
+		}
+		beats, err := s.ImportantBeats(ctx, c.id, c.filter, 0, 10)
+		if err != nil || int64(len(beats)) != c.want {
+			t.Fatalf("%s: %d beats, want %d, %v", c.name, len(beats), c.want, err)
+		}
+	}
+	beats, _ := s.ImportantBeats(ctx, nil, EventFilter{Statuses: []int16{0}}, 0, 10)
+	if beats[0].MonitorID != b || beats[1].MonitorID != a {
+		t.Fatalf("down events out of order: %+v", beats)
 	}
 }

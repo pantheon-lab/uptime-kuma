@@ -67,9 +67,9 @@ type Store interface {
 	LatestBeats(ctx context.Context, monitorID int32, limit int) ([]store.Beat, error)
 	LatestBeatPerMonitor(ctx context.Context) ([]store.Beat, error)
 	BeatsSince(ctx context.Context, monitorID int32, since time.Time, limit int) ([]store.Beat, error)
-	ImportantBeats(ctx context.Context, monitorID *int32, offset, limit int) ([]store.Beat, error)
-	CountImportantBeats(ctx context.Context, monitorID *int32) (int64, error)
-	ClearEvents(ctx context.Context, monitorID int32) error
+	ImportantBeats(ctx context.Context, monitorID *int32, filter store.EventFilter, offset, limit int) ([]store.Beat, error)
+	CountImportantBeats(ctx context.Context, monitorID *int32, filter store.EventFilter) (int64, error)
+	ClearEvents(ctx context.Context, monitorID *int32) error
 	ClearMonitorStats(ctx context.Context, monitorID int32) error
 	ClearAllStats(ctx context.Context) error
 	DatabaseSize(ctx context.Context) (int64, error)

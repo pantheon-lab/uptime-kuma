@@ -32,8 +32,8 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | E3    | Encrypting stored secrets                                           | Done    |
 | E4    | Completing the migration from MariaDB                               | Done    |
 | U1    | Tab titles, unsaved edits, clickable stats, this fork's help links  | Done    |
-| U2    | Filtering events, and grouping alerts in the UI                     | Next    |
-| U3    | Keyboard shortcuts and a command palette                            | Planned |
+| U2    | Filtering events, and grouping alerts in the UI                     | Done    |
+| U3    | Keyboard shortcuts and a command palette                            | Next    |
 | U4    | The Edit Monitor form                                               | Planned |
 | U5    | The monitor's page                                                  | Planned |
 | U6    | Editing many monitors at once                                       | Planned |
@@ -814,12 +814,34 @@ the light and dark themes.
 
 Not tested: a monitor's save failing on the server, which keeps the form now; the nginx example, which wasn't run.
 
-### U2: Filtering events, and grouping alerts in the UI
+### U2: Filtering events, and grouping alerts in the UI (done)
 
-- The dashboard's events can be filtered by status, monitor and time range, and Clear All Events moves out of the
-  way, into a menu.
-- Up and down toasts that arrive together are grouped ("12 monitors are down"), and can be muted per monitor or
-  tag.
+- The dashboard's events filter by status, by monitor (a group with everything in it) and by the last hour, day, 7
+  or 30 days. The server does the filtering, so that pages and counts are right: `monitorImportantHeartbeatListCount`
+  and `monitorImportantHeartbeatListPaged` take an optional filter, `{monitorIDs, statuses, since}`, as their last
+  argument, and refuse a bad one. Each browser remembers its filter. New events that arrive are added only when they
+  match it.
+- Clear All Events moved into a menu beside the filters, shown only to admins. It used to send `clearEvents` for each
+  monitor without waiting for the answers, so it reported success before anything was cleared and never reported a
+  failure. `clearEvents` now takes `null` for every monitor, in one statement, and the page waits for it. Its
+  confirmation now says what it does: events leave the lists, and beats and uptime stay.
+- Pop-ups for important beats that arrive within a second of each other are grouped by status, such as "3 monitors
+  are down: alpha, bravo, charlie", listing three names and then "and N more" (`src/alert-toasts.ts`). A beat alone
+  shows the same pop-up as before.
+- Pop-ups can be muted in this browser for a monitor, with a button on its page that viewers have too, which also
+  mutes everything in a group, and for tags, under Settings > Notifications. Notifications are still sent, and events
+  still listed.
+
+Tested with the race detector: the filter's parsing, and against TimescaleDB, counting and listing events by each
+part of the filter and all together, and clearing one monitor's and then every monitor's. `src/alert-toasts.ts` with
+unit tests. In headless Chromium against the built image (`internal/e2e/browser/ui-u2.mjs`), 9 of 9 steps passed with
+no page errors: three manual monitors going down together showing one pop-up and no others; a monitor muted on its
+page left out of the next grouped pop-up; filtering events by status, by monitor and by time, the filter kept after a
+reload, and clearing it; a new event outside the filter not added, and one inside it added; Clear All Events from the
+menu emptying every monitor's events; and the server refusing a bad filter. U1's test passed again.
+
+Not tested: muting by tag in the browser, which the unit tests cover; a group chosen in the events filter, whose
+monitor ids the page sends; and that viewers don't see the menu.
 
 ### U3: Keyboard shortcuts and a command palette
 

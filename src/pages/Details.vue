@@ -115,8 +115,8 @@
                 </span>
             </p>
 
-            <div v-if="$root.canEdit" class="functions">
-                <div class="btn-group" role="group">
+            <div class="functions">
+                <div v-if="$root.canEdit" class="btn-group me-2" role="group">
                     <button v-if="monitor.active" class="btn btn-normal" @click="pauseDialog">
                         <font-awesome-icon icon="pause" />
                         {{ $t("Pause") }}
@@ -143,6 +143,17 @@
                         {{ $t("Delete") }}
                     </button>
                 </div>
+                <button
+                    type="button"
+                    class="btn btn-normal"
+                    data-testid="mute-toasts"
+                    :aria-pressed="toastsMuted"
+                    :title="$t('muteToastsHelp')"
+                    @click="$root.setToastMuted('monitors', monitor.id, !toastsMuted)"
+                >
+                    <font-awesome-icon :icon="toastsMuted ? 'bell' : 'bell-slash'" />
+                    {{ toastsMuted ? $t("unmuteToasts") : $t("muteToasts") }}
+                </button>
             </div>
 
             <div class="shadow-box">
@@ -503,6 +514,14 @@ export default {
         };
     },
     computed: {
+        /**
+         * Whether this monitor's pop-ups are muted in this browser
+         * @returns {boolean} Whether they are
+         */
+        toastsMuted() {
+            return this.$root.toastMuted.monitors.includes(this.monitor.id);
+        },
+
         monitor() {
             // The dashboard list only carries the fields the list needs, so this page
             // renders nothing until the full monitor has been fetched
