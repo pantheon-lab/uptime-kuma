@@ -110,6 +110,18 @@
                                 </a>
                             </li>
 
+                            <li>
+                                <button
+                                    type="button"
+                                    class="dropdown-item"
+                                    data-testid="menu-shortcuts"
+                                    @click="$root.emitter.emit('showShortcutsHelp')"
+                                >
+                                    <font-awesome-icon icon="keyboard" />
+                                    {{ $t("Keyboard shortcuts") }}
+                                </button>
+                            </li>
+
                             <li v-if="$root.loggedIn">
                                 <button class="dropdown-item" @click="$root.logout">
                                     <font-awesome-icon icon="sign-out-alt" />
@@ -134,6 +146,10 @@
             <router-view v-if="$root.loggedIn" />
             <Login v-if="!$root.loggedIn && $root.allowLoginDialog" />
         </main>
+
+        <!-- Kept mounted while the login is checked again, so that an open one isn't torn down -->
+        <CommandPalette />
+        <ShortcutsHelp />
 
         <!-- Mobile Only -->
         <div v-if="$root.isMobile" style="width: 100%; height: calc(60px + env(safe-area-inset-bottom))" />
@@ -172,6 +188,8 @@
 
 <script>
 import Login from "../components/Login.vue";
+import CommandPalette from "../components/CommandPalette.vue";
+import ShortcutsHelp from "../components/ShortcutsHelp.vue";
 import compareVersions from "compare-versions";
 import { useToast } from "vue-toastification";
 const toast = useToast();
@@ -179,6 +197,8 @@ const toast = useToast();
 export default {
     components: {
         Login,
+        CommandPalette,
+        ShortcutsHelp,
     },
 
     data() {

@@ -9,12 +9,14 @@
                     </a>
                     <form @submit.prevent>
                         <input
+                            ref="searchInput"
                             v-model="searchText"
                             class="form-control search-input"
                             data-testid="monitor-search"
                             :placeholder="$t('Search...')"
                             :aria-label="$t('Search monitored sites')"
                             autocomplete="off"
+                            @keydown.esc="onSearchEscape"
                         />
                     </form>
                 </div>
@@ -382,11 +384,15 @@ export default {
         window.addEventListener("resize", this.onListScroll);
         this.onListScroll();
         this.applyFilterRequest();
+        this.$root.emitter.on("focusMonitorSearch", this.focusSearch);
+        this.$root.emitter.on("monitorListMove", this.moveSelection);
     },
     updated() {
         this.measureRows();
     },
     beforeUnmount() {
+        this.$root.emitter.off("focusMonitorSearch", this.focusSearch);
+        this.$root.emitter.off("monitorListMove", this.moveSelection);
         this.$root.monitorListFilter = null;
         window.removeEventListener("scroll", this.onScroll);
         window.removeEventListener("resize", this.onListScroll);
@@ -463,6 +469,48 @@ export default {
          */
         clearSearchText() {
             this.searchText = "";
+        },
+        /**
+         * Put the cursor in the search box
+         * @returns {void}
+         */
+        focusSearch() {
+            this.$refs.searchInput?.focus();
+            this.$refs.searchInput?.select();
+        },
+        /**
+         * Esc in the search box clears it, or, when it's empty, leaves it
+         * @returns {void}
+         */
+        onSearchEscape() {
+            if (this.searchText !== "") {
+                this.searchText = "";
+            } else {
+                this.$refs.searchInput?.blur();
+            }
+        },
+        /**
+         * Open the monitor after or before the one shown, in the list's order, groups opened
+         * @param {number} delta 1 for the next, -1 for the one before
+         * @returns {void}
+         */
+        moveSelection(delta) {
+            const links = [...(this.$refs.monitorList?.querySelectorAll("a.item") ?? [])];
+            if (links.length === 0) {
+                return;
+            }
+            const current = links.findIndex((a) => a.getAttribute("href") === this.$route.path);
+            let next;
+            if (current < 0) {
+                next = delta > 0 ? 0 : links.length - 1;
+            } else {
+                next = Math.min(Math.max(current + delta, 0), links.length - 1);
+            }
+            if (next === current) {
+                return;
+            }
+            links[next].scrollIntoView({ block: "nearest" });
+            this.$router.push(links[next].getAttribute("href"));
         },
         /**
          * Update the MonitorList Filter

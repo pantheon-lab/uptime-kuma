@@ -21,7 +21,7 @@ export interface PageTitleInput {
 }
 
 // The i18n keys of the settings pages, as Settings.vue lists them
-const SETTINGS_PAGES: Record<string, string> = {
+export const SETTINGS_PAGES: Record<string, string> = {
     general: "General",
     appearance: "Appearance",
     notifications: "Notifications",

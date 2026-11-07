@@ -33,7 +33,7 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | E4    | Completing the migration from MariaDB                               | Done    |
 | U1    | Tab titles, unsaved edits, clickable stats, this fork's help links  | Done    |
 | U2    | Filtering events, and grouping alerts in the UI                     | Done    |
-| U3    | Keyboard shortcuts and a command palette                            | Next    |
+| U3    | Keyboard shortcuts and a command palette                            | Done    |
 | U4    | The Edit Monitor form                                               | Planned |
 | U5    | The monitor's page                                                  | Planned |
 | U6    | Editing many monitors at once                                       | Planned |
@@ -843,11 +843,24 @@ menu emptying every monitor's events; and the server refusing a bad filter. U1's
 Not tested: muting by tag in the browser, which the unit tests cover; a group chosen in the events filter, whose
 monitor ids the page sends; and that viewers don't see the menu.
 
-### U3: Keyboard shortcuts and a command palette
+### U3: Keyboard shortcuts and a command palette (done)
 
-- `/` searches the monitor list, `n` adds a monitor, `g d` goes to the dashboard, `j` and `k` move through the list,
-  `Esc` clears the search, and `?` lists them all.
-- `Ctrl+K` jumps to any monitor, status page, maintenance window or setting.
+- Shortcuts, while logged in, on the app's own pages, and not while typing in a field or with a dialog open
+  (`src/shortcuts.ts`, `src/mixins/keyboard.js`): `/` searches the monitor list (on phones, opening it), and in the
+  search `Esc` clears it, then leaves it; `n` adds a monitor and `e` edits the one shown, for admins; `j` and `k`
+  open the next and previous monitor in the list's order, groups opened; `g` then `d`, `s`, `m` or `,` go to the
+  dashboard, status pages, maintenance or settings; and `?`, or Keyboard shortcuts in the account menu, lists them.
+- `Ctrl+K` (`⌘K` on a Mac) opens a palette that goes to any monitor, by its path, address or tags, status page,
+  maintenance window, settings page or action, with the arrows and Enter (`src/command-search.ts`). It also works
+  while typing, and closes it again. Viewers aren't offered the actions and settings that only admins have.
+
+Tested: the shortcuts and the palette's search with unit tests. In headless Chromium against the built image
+(`internal/e2e/browser/ui-u3.mjs`), 12 of 12 steps passed with no page errors: `?`; `/`, typing and `Esc` twice;
+`j` and `k`; `e` and `g d`; `n`, `g s` and `g m`; `Ctrl+K` to a monitor, and to a settings page with the arrows;
+`Ctrl+K` and `Esc` closing it; keys typed in a field not being shortcuts; the account menu's entry; and nothing
+before logging in. The test polls for Bootstrap's dialogs, as Playwright's `waitFor` didn't see them open.
+
+Not tested: `⌘K` on a Mac, `/` on a phone, and a viewer's palette.
 
 ### U4: The Edit Monitor form
 
