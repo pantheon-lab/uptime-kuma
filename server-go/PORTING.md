@@ -35,8 +35,8 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | U2    | Filtering events, and grouping alerts in the UI                     | Done    |
 | U3    | Keyboard shortcuts and a command palette                            | Done    |
 | UA    | A prompt for an AI agent to trace a failing monitor                 | Done    |
-| U4    | The Edit Monitor form                                               | Planned |
-| U5    | The monitor's page                                                  | Planned |
+| U4    | The Edit Monitor form                                               | Done    |
+| U5    | The monitor's page                                                  | Next    |
 | U6    | Editing many monitors at once                                       | Planned |
 | U7    | Viewers, the first run and phones                                   | Planned |
 | U8    | Bootstrap 5.3 and accessibility                                     | Planned |
@@ -917,14 +917,42 @@ Then:
 
 Not tested: a prompt for several monitors given to an agent, and tracing with traces exported.
 
-### U4: The Edit Monitor form
+### U4: The Edit Monitor form (done)
 
-`EditMonitor.vue` is one form of about 4,600 lines.
+`EditMonitor.vue` was one form of about 4,600 lines.
 
-- A list of the form's sections that stays in view and jumps to each, with advanced settings folded away.
-- A summary of what the monitor will do, such as "Checks https://... every 60 seconds and alerts Slack after 3
-  failures".
-- A component per kind of monitor, so that the form is easier to change.
+- **A summary above the form** says what the monitor will do as it's filled in, such as "Requests GET
+  https://shop.example.com/health and expects “ok” in the response every 1 minute, and goes down after 3 failed
+  checks in a row, 1 minute apart. It alerts Team hook." (`src/monitor-summary.ts`). It warns when the monitor alerts
+  no one, and when upside down mode is on.
+- **Links to the form's sections** stay in view as it scrolls, mark the section being read, and follow the
+  sections the type shows (`src/components/FormSectionNav.vue`, from the form's `h2` headings).
+- **Advanced is folded** until opened, and each browser remembers whether it left it open. Monitor Group,
+  Description and Tags moved above it, as they aren't advanced. A field the browser won't submit inside the folded
+  section opens it and shows the field's message, which the browser can't on a hidden field.
+- **Components per type:** 14 of the largest per-type blocks, about 1,170 lines, moved to
+  `src/components/monitor-types/`: Kafka producer and its SASL options, RabbitMQ, Globalping, SFTP, NTP, DNS, MQTT,
+  RADIUS, system service, PM2, MongoDB, WebSocket authentication and gRPC options. Each injects the form
+  (`editMonitor`) and edits its monitor, so their templates moved unchanged. `EditMonitor.vue` is now about 3,600
+  lines. The smaller blocks stay, and can move the same way.
+- "Websocket Upgrade" was listed twice among the types, and now once. The Globalping hostname's `:pattern` was bound
+  to a name that was never defined, so it never applied; the binding was dropped, which changes nothing.
+- Scoped styles reach the components with `:deep()`, which `.stylelintrc` now allows.
+
+Tested: the summary with unit tests. `internal/e2e/browser/edit-monitor-snapshot.mjs` records, for every type, the
+visible fields (kind, id, label, value, required) and the monitor the form holds after filling each field with a
+value of its own; two runs of the same build match. Against the build before U4, every type had the same fields and
+the same filled monitor, with Monitor Group, Description and Tags moved; after the split into components, it matched
+the build before the split exactly. The type tests, which create each monitor through the form, check its first beat
+and reopen it, passed the same before and after: 4a 7 of 7, 4b 6 of 6, 4c 5 of 5, 4e 5 of 5 (with a local forward
+proxy), and Globalping in 4f. `internal/e2e/browser/ui-u4.mjs` passed 6 of 6 with no page errors: the summary
+following the form; the section links following the type, jumping and marking the section; Advanced folded, then
+remembered open; a bad value in the folded section opening it and not saving; and one Websocket Upgrade. U1 to U3's,
+the AI prompt's and the follow-up tests passed again. 4e and 4f now open Advanced before filling fields in it.
+
+Not tested: 4d (Docker, system service, PM2, real browser, SFTP and gRPC), which needs a Docker host, D-Bus, Chrome and
+a gRPC server set up as `server-go/README.md` describes, though the snapshot covers those types' fields; and
+Gamedig and Tailscale ping in 4f, which need a game server and a Tailscale peer.
 
 ### U5: The monitor's page
 
