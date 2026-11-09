@@ -28,12 +28,13 @@ import (
 
 // fakeStore keeps accounts, sessions and monitors in memory. Other methods return nothing.
 type fakeStore struct {
-	mu       sync.Mutex
-	users    []store.User
-	sessions map[string]store.Session
-	monitors map[int32]monitor.Monitor
-	nextID   int32
-	settings map[string]json.RawMessage
+	mu          sync.Mutex
+	loginConfig *store.LoginConfig
+	users       []store.User
+	sessions    map[string]store.Session
+	monitors    map[int32]monitor.Monitor
+	nextID      int32
+	settings    map[string]json.RawMessage
 	// createErr is returned by CreateMonitor, to test how a failure is shown.
 	createErr error
 	// important is what ImportantBeats returns, newest first, and chartRanges the ranges asked for.

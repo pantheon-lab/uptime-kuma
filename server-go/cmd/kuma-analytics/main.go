@@ -311,12 +311,14 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	passwordLogin := os.Getenv("KUMA_PASSWORD_LOGIN") == "" || envTrue(os.Getenv("KUMA_PASSWORD_LOGIN"))
+	loginFromEnv := os.Getenv("KUMA_PASSWORD_LOGIN") != "" || githubLogin != nil
 	if !passwordLogin && githubLogin == nil {
 		return errors.New("KUMA_PASSWORD_LOGIN=false needs GitHub login, or nobody could log in")
 	}
 	uiServer := ui.New(db, sched, notifyEnv, log, ui.Options{
 		GitHub:               githubLogin,
 		DisablePasswordLogin: !passwordLogin,
+		LoginFromEnv:         loginFromEnv,
 		Updates:              updateChecker,
 		PasswordLeaked:       passwordLeaked,
 		Version:              version,
@@ -331,6 +333,11 @@ func run(log *slog.Logger) error {
 	if err := createInitialAdmin(ctx, uiServer, log); err != nil {
 		return err
 	}
+	// Login settings saved in Settings > Single Sign-On, when no environment variable sets them.
+	if err := uiServer.LoadLoginConfig(ctx); err != nil {
+		return err
+	}
+	go uiServer.WatchLoginConfig(ctx)
 	go uiServer.Run(ctx, hub)
 	certService.OnChange(uiServer.BroadcastCertInfo)
 	domainService.OnChange(uiServer.BroadcastDomainInfo)

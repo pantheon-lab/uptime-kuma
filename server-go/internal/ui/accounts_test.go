@@ -608,3 +608,47 @@ func (f *fakeStore) EndUserSessions(_ context.Context, id int32) error {
 	}
 	return nil
 }
+
+func (f *fakeStore) LoginConfig(context.Context) (store.LoginConfig, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.loginConfig == nil {
+		return store.LoginConfig{PasswordLogin: true}, nil
+	}
+	return *f.loginConfig, nil
+}
+
+func (f *fakeStore) SaveLoginConfig(_ context.Context, c store.LoginConfig) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	c.UpdatedAt = &now
+	f.loginConfig = &c
+	return nil
+}
+
+func (f *fakeStore) AdminCanLogIn(_ context.Context, methods store.LoginMethods) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, u := range f.users {
+		if u.Role == store.RoleAdmin && ((u.GitHubID == nil && methods.Password && u.PasswordHash != "") || (u.GitHubID != nil && methods.GitHub)) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (f *fakeStore) ExpireGitHubChecks(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.users {
+		if f.users[i].GitHubID != nil {
+			f.users[i].GitHubCheckedAt = nil
+		}
+	}
+	return nil
+}
+
+func (f *fakeStore) LastGitHubLogin(context.Context) (string, *time.Time, error) {
+	return "", nil, nil
+}

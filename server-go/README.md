@@ -92,19 +92,33 @@ minutes, so it needs no new request to find out. When GitHub can't be reached, t
 checked again ten minutes later. Two-factor login is left to GitHub, where
 the organization can require it.
 
+Admins set it up under **Settings > Single Sign-On**, and changes apply at once:
+
 1. In the organization's settings, under Developer settings > OAuth Apps, register an app with the callback URL
-   `https://<this server>/api/auth/github/callback`.
-2. Set `KUMA_GITHUB_CLIENT_ID`, `KUMA_GITHUB_CLIENT_SECRET` and `KUMA_GITHUB_ORG`, and the team slugs:
-   `KUMA_GITHUB_ADMIN_TEAMS` for admins and `KUMA_GITHUB_VIEWER_TEAMS` for viewers, comma-separated. A viewer
-   team of `*` lets every member of the organization look.
-3. Once it works, `KUMA_PASSWORD_LOGIN=false` turns the password off, which then only stays as a way in when
-   GitHub is down, after it's turned back on.
+   the page shows: `https://<this server>/api/auth/github/callback`.
+2. Turn on **Allow logging in with GitHub**, and enter the app's client ID and secret, the organization, and the
+   team slugs: admin teams and viewer teams. A viewer team of `*` lets every member of the organization look.
+   For GitHub Enterprise Server, enter its web and API addresses.
+3. Log in with GitHub as an admin. Only then can **Allow logging in with a password** be turned off, and only
+   from that login, so that GitHub login is known to work first. While passwords are off, GitHub's settings
+   can't change: turn passwords back on first, so that a wrong organization or team can't lock everyone out. No
+   change may leave no admin who can log in.
+
+Changing the organization, the teams or the app makes every GitHub account's teams due for a check at its next
+request. Turning GitHub login off ends its accounts' sessions at their next request, and keeps the settings, secret
+included, to turn it on again. The client secret is stored encrypted, like other secrets, and never sent to
+browsers. Other instances of the service read the settings within 30 seconds.
+
+The settings can be set by environment variables instead, for deployments managed as code. When any of
+`KUMA_GITHUB_CLIENT_ID` or `KUMA_PASSWORD_LOGIN` is set, those win, and the page shows them read-only:
+`KUMA_GITHUB_CLIENT_ID`, `KUMA_GITHUB_CLIENT_SECRET`, `KUMA_GITHUB_ORG`, `KUMA_GITHUB_ADMIN_TEAMS` and
+`KUMA_GITHUB_VIEWER_TEAMS` (comma-separated), and `KUMA_PASSWORD_LOGIN=false`.
 
 The app asks for the `read:org` scope, to read team membership. Each GitHub user gets an account named `@login` at
 their first login, so password accounts can't start with `@`; `kuma-import` drops a leading `@` from the imported
 account's name, and says so in its report. The token is stored, as the password hashes are, to
 check the teams again; it's never sent to browsers. Setup isn't offered once someone has logged in with GitHub.
-`KUMA_GITHUB_URL` and `KUMA_GITHUB_API_URL` point at a GitHub Enterprise server instead.
+With environment variables, `KUMA_GITHUB_URL` and `KUMA_GITHUB_API_URL` point at a GitHub Enterprise server.
 
 What works in the UI: logging in and out, two-factor login, changing the password, API keys, the dashboard with live beats, uptime and
 response times, the event list, adding, editing, pausing and deleting the monitor types above, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public

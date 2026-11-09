@@ -41,6 +41,7 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | U7    | Viewers, the first run and phones                                   | Done   |
 | U8    | Bootstrap 5.3 and accessibility                                     | Done   |
 | U9    | Status page incidents and subscriptions                             | Done   |
+| S1    | Managing single sign-on in the UI                                   | Done   |
 
 ## Phase 0: Core (done)
 
@@ -1174,3 +1175,40 @@ Known limits:
 
 Not tested: a real mail provider's delivery and its one-click unsubscribe, and pages with thousands of
 subscribers.
+
+### S1: Managing single sign-on in the UI (done)
+
+- **Settings > Single Sign-On**, for admins: GitHub login (the OAuth App's client ID and secret, the organization,
+  admin and viewer teams, and GitHub Enterprise Server's addresses) and whether passwords work, saved in
+  `login_config` and applied at once, without a restart. The page shows the callback URL to register, and the last
+  GitHub login. The client secret is sealed like other secrets, and never sent to browsers: an empty field keeps it.
+  Other instances read the settings every 30 seconds.
+- **Environment variables still win:** with `KUMA_GITHUB_CLIENT_ID` or `KUMA_PASSWORD_LOGIN` set, the page shows
+  their settings read-only, without the secret, and saving is refused.
+- **No lockouts:** passwords can only be turned off by an admin logged in with GitHub, with GitHub's settings as
+  they logged in with them. While passwords are off, GitHub's settings can't change. No save may leave no admin who
+  can log in. Changing the app, organization or teams makes every GitHub account due for a check of its teams at
+  its next request; turning GitHub off ends their sessions at their next request.
+- The login code reads GitHub's settings once per login or check, so a change mid-login can't mix two settings.
+- `HiddenInput` put its `id` on its wrapper, so the labels of 15 secret fields in the monitor and notification
+  forms named nothing; the id is on the input now.
+
+Tested: the store's settings, sealed secret and admin checks against TimescaleDB; with Go tests against a fake
+GitHub, the form's checks, a save applying at once, an admin logging in with GitHub straight after, turning
+passwords off only from that login, GitHub held while they're off, teams changing making accounts due, GitHub off
+keeping its settings, no change leaving no admin, and the environment's settings shown read-only and kept; the
+team parsing with unit tests. In headless Chromium against the built image with a fake GitHub
+(`internal/e2e/browser/sso.mjs`), 7 of 7 steps passed with no page errors: a password admin unable to turn
+passwords off; setting up GitHub in the form, with the callback URL, the secret kept and teams lowercased, and the
+login page offering GitHub at once; an admin team's member logging in; that admin turning passwords off, and the
+password form and sign-in gone; GitHub's org change refused while passwords are off; a viewer team's member a
+viewer, sent from the page and refused its event; and GitHub off stopping its login, keeping its settings, and
+ending the GitHub session. With environment variables, `github-7b.mjs` (both runs) and `security-e2.mjs` passed
+again, as did `accounts-e1.mjs`, `accounts-5a.mjs`, `roles-7a.mjs` and U4, U7 and U8's tests. The Edit Monitor
+form's snapshot differed from U8's only by the secret fields' ids and labels.
+
+Known limits:
+
+- GitHub is the only provider: there's no OpenID Connect or SAML.
+- The client ID and secret aren't checked when saved: logging in with GitHub checks them.
+- The page in its read-only state, with environment variables, was only tested by Go tests, not in a browser.

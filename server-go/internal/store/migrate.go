@@ -552,6 +552,23 @@ var migrations = [][]string{
 			updated_at timestamptz NOT NULL DEFAULT now()
 		)`,
 	},
+	{
+		// Login methods set in the UI: GitHub login and whether passwords work. One row, made at the
+		// first save; environment variables, when set, are used instead. The secret is sealed.
+		`CREATE TABLE IF NOT EXISTS login_config (
+			id integer PRIMARY KEY CHECK (id = 1),
+			github_enabled boolean NOT NULL DEFAULT false,
+			github_client_id text NOT NULL DEFAULT '',
+			github_client_secret text NOT NULL DEFAULT '',
+			github_org text NOT NULL DEFAULT '',
+			github_admin_teams text[] NOT NULL DEFAULT '{}',
+			github_viewer_teams text[] NOT NULL DEFAULT '{}',
+			github_web_url text NOT NULL DEFAULT '',
+			github_api_url text NOT NULL DEFAULT '',
+			password_login boolean NOT NULL DEFAULT true,
+			updated_at timestamptz NOT NULL DEFAULT now()
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.

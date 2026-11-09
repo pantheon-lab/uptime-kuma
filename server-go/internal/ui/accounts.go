@@ -22,10 +22,6 @@ var (
 	errGitHubRole = errors.New("A GitHub account's role follows its GitHub teams, and can't be changed here.") //nolint:staticcheck // Shown to users.
 )
 
-func (s *Server) loginMethods() store.LoginMethods {
-	return store.LoginMethods{Password: !s.opts.DisablePasswordLogin, GitHub: s.opts.GitHub != nil}
-}
-
 func (s *Server) accountJSON(a store.Account, c *conn) map[string]any {
 	format := func(t *time.Time) any {
 		if t == nil {
@@ -71,8 +67,8 @@ func (s *Server) getOwnAccount(ctx context.Context, c *conn) (reply, error) {
 		return ok("method", "password", "twoFactorEnabled", user.TOTPEnabled), nil
 	}
 	org := ""
-	if s.opts.GitHub != nil {
-		org = s.opts.GitHub.Org
+	if g := s.github(); g != nil {
+		org = g.Org
 	}
 	teams := user.GitHubTeams
 	if teams == nil {

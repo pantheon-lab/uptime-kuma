@@ -154,7 +154,7 @@ func (s *Server) signIn(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &body) {
 		return
 	}
-	if s.opts.DisablePasswordLogin {
+	if !s.passwordLogin() {
 		authError(w, http.StatusForbidden, "PASSWORD_LOGIN_DISABLED", "Logging in with a password is turned off. Log in with GitHub.")
 		return
 	}

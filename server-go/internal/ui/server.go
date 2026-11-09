@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/holidays"
@@ -34,6 +35,11 @@ type Store interface {
 	GitHubToken(ctx context.Context, userID int32) (string, error)
 	SetGitHubChecked(ctx context.Context, userID int32, role string, teams []string) error
 	EndUserSessions(ctx context.Context, userID int32) error
+	LoginConfig(ctx context.Context) (store.LoginConfig, error)
+	SaveLoginConfig(ctx context.Context, c store.LoginConfig) error
+	AdminCanLogIn(ctx context.Context, methods store.LoginMethods) (bool, error)
+	ExpireGitHubChecks(ctx context.Context) error
+	LastGitHubLogin(ctx context.Context) (string, *time.Time, error)
 	EndOtherUserSessions(ctx context.Context, userID int32, keep []byte) error
 	ListAccounts(ctx context.Context) ([]store.Account, error)
 	DeleteUser(ctx context.Context, userID int32, methods store.LoginMethods) (store.User, error)
@@ -153,6 +159,9 @@ type Options struct {
 	GitHub *GitHubOptions
 	// DisablePasswordLogin refuses logging in with a password, once GitHub login works.
 	DisablePasswordLogin bool
+	// LoginFromEnv means environment variables set how people log in, so Settings > Single
+	// Sign-On only shows it. GitHub or DisablePasswordLogin being set means it too.
+	LoginFromEnv bool
 	// IndexHTML is the web UI's index.html, which status pages are rendered into. Without it,
 	// /status/ answers 404, and the data is still at /api/status-page/.
 	IndexHTML []byte
@@ -182,6 +191,8 @@ type Server struct {
 	cache *publicCache
 	// subs sends incidents to status pages' subscribers.
 	subs *deliveries
+	// login is how people log in now: see sso.go.
+	login atomic.Pointer[loginState]
 
 	setupMu sync.Mutex
 
@@ -225,6 +236,10 @@ func New(s Store, scheduler Scheduler, notifyEnv *notify.Env, log *slog.Logger, 
 		githubChecking: map[int32]bool{},
 		githubFailed:   map[int32]time.Time{},
 	}
+	server.login.Store(&loginState{
+		github: opts.GitHub, password: !opts.DisablePasswordLogin,
+		fromEnv: opts.LoginFromEnv || opts.GitHub != nil || opts.DisablePasswordLogin,
+	})
 	// A window started or ended, so open pages show its new status.
 	opts.Maintenance.OnChange(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), handlerTimeout)

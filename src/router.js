@@ -19,6 +19,7 @@ import DockerHosts from "./components/settings/Docker.vue";
 import ManageMaintenance from "./pages/ManageMaintenance.vue";
 import APIKeys from "./components/settings/APIKeys.vue";
 import Accounts from "./components/settings/Accounts.vue";
+const SingleSignOn = () => import("./components/settings/SingleSignOn.vue");
 
 // Settings - Sub Pages
 import Appearance from "./components/settings/Appearance.vue";
@@ -135,6 +136,10 @@ const routes = [
                             {
                                 path: "accounts",
                                 component: Accounts,
+                            },
+                            {
+                                path: "sso",
+                                component: SingleSignOn,
                             },
                             {
                                 path: "proxies",

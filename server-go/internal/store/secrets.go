@@ -126,6 +126,11 @@ var secretColumns = []secretColumn{
 		update: `UPDATE status_page_subscriber SET address = $2 WHERE id = $1::int AND address = $3`,
 	},
 	{
+		name: "the GitHub client secret", table: "login_config", column: "github_client_secret",
+		list:   `SELECT id::text, github_client_secret FROM login_config WHERE github_client_secret <> ''`,
+		update: `UPDATE login_config SET github_client_secret = $2 WHERE id = $1::int AND github_client_secret = $3`,
+	},
+	{
 		name: "the VAPID private key", table: "app_setting", column: "value", jsonString: true,
 		list:   `SELECT key, value::text FROM app_setting WHERE key = '` + WebpushPrivateKeySetting + `'`,
 		update: `UPDATE app_setting SET value = $2::jsonb WHERE key = $1 AND value = $3::jsonb`,

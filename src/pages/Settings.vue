@@ -125,6 +125,9 @@ export default {
                 accounts: {
                     title: this.$t("Accounts"),
                 },
+                sso: {
+                    title: this.$t("ssoTitle"),
+                },
                 proxies: {
                     title: this.$t("Proxies"),
                 },
