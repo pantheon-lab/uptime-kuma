@@ -24,6 +24,8 @@ var viewerEvents = map[string]bool{
 	"getHeartbeatHistory":                true,
 	"getMonitorBeats":                    true,
 	"getMonitorChartData":                true,
+	"getMonitorChartRange":               true,
+	"getMonitorOutages":                  true,
 	"monitorImportantHeartbeatListCount": true,
 	"monitorImportantHeartbeatListPaged": true,
 	"getTags":                            true,

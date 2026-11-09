@@ -7,7 +7,7 @@
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
             >
-                {{ chartPeriodOptions[chartPeriodHrs] }}&nbsp;
+                {{ periodLabel }}&nbsp;
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
                 <li v-for="(item, key) in chartPeriodOptions" :key="key">
@@ -15,13 +15,40 @@
                         type="button"
                         class="dropdown-item"
                         :class="{ active: chartPeriodHrs == key }"
-                        @click="chartPeriodHrs = key"
+                        :data-testid="`chart-period-${key}`"
+                        @click="showPeriod(key)"
                     >
                         {{ item }}
                     </button>
                 </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                    <button
+                        type="button"
+                        class="dropdown-item"
+                        :class="{ active: chartPeriodHrs === 'custom' }"
+                        data-testid="chart-period-custom"
+                        @click="openRangeForm"
+                    >
+                        {{ $t("chartCustomRange") }}
+                    </button>
+                </li>
             </ul>
         </div>
+        <form v-if="rangeFormOpen" class="range-form" data-testid="chart-range-form" @submit.prevent="applyRangeForm">
+            <label>
+                {{ $t("chartRangeFrom") }}
+                <input v-model="rangeFrom" type="datetime-local" class="form-control form-control-sm" required />
+            </label>
+            <label>
+                {{ $t("chartRangeTo") }}
+                <input v-model="rangeTo" type="datetime-local" class="form-control form-control-sm" required />
+            </label>
+            <button type="submit" class="btn btn-sm btn-primary">{{ $t("chartRangeShow") }}</button>
+            <button type="button" class="btn btn-sm btn-outline-normal" @click="rangeFormOpen = false">
+                {{ $t("Cancel") }}
+            </button>
+        </form>
         <div class="chart-wrapper" :class="{ loading: loading }">
             <Line :data="chartData" :options="chartOptions" />
         </div>
@@ -43,6 +70,7 @@ import {
     Legend,
 } from "chart.js";
 import "chartjs-adapter-dayjs-4";
+import dayjs from "dayjs";
 import { Line } from "vue-chartjs";
 import { UP, DOWN, PENDING, MAINTENANCE } from "../util.ts";
 
@@ -82,13 +110,33 @@ export default {
                 6: "6h",
                 24: "24h",
                 168: "1w",
+                720: "30d",
+                8760: "1y",
             },
+
+            // A chosen range, when chartPeriodHrs is "custom"
+            customRange: null,
+            rangeFormOpen: false,
+            rangeFrom: "",
+            rangeTo: "",
 
             chartRawData: null,
             chartDataFetchInterval: null,
         };
     },
     computed: {
+        /**
+         * The period's name on its button, such as "24h" or "11-01 10:00 – 11-01 14:00"
+         * @returns {string} Label
+         */
+        periodLabel() {
+            if (this.chartPeriodHrs === "custom" && this.customRange) {
+                const f = (d) => this.$root.toDayjs(d.toISOString()).format("MM-DD HH:mm");
+                return `${f(this.customRange.from)} – ${f(this.customRange.to)}`;
+            }
+            return this.chartPeriodOptions[this.chartPeriodHrs];
+        },
+
         chartOptions() {
             return {
                 responsive: true,
@@ -124,6 +172,9 @@ export default {
                 scales: {
                     x: {
                         type: "time",
+                        // A chosen range shows all of itself, even where there are no beats
+                        min: this.chartPeriodHrs === "custom" ? this.customRange?.from.getTime() : undefined,
+                        max: this.chartPeriodHrs === "custom" ? this.customRange?.to.getTime() : undefined,
                         time: {
                             minUnit: "minute",
                             round: "second",
@@ -230,8 +281,9 @@ export default {
                 this.chartDataFetchInterval = null;
             }
 
-            // eslint-disable-next-line eqeqeq
-            if (newPeriod == "0") {
+            if (newPeriod === "custom") {
+                this.loadRange();
+            } else if (String(newPeriod) === "0") {
                 this.heartbeatList = null;
                 this.$root.storage()["chart-period"] = newPeriod;
             } else {
@@ -287,6 +339,88 @@ export default {
         }
     },
     methods: {
+        /**
+         * Show one of the fixed periods
+         * @param {number|string} hours The period, in hours, or 0 for the recent beats
+         * @returns {void}
+         */
+        showPeriod(hours) {
+            this.rangeFormOpen = false;
+            this.chartPeriodHrs = String(hours);
+        },
+
+        /**
+         * Show a range of time
+         * @param {Date} from Start
+         * @param {Date} to End
+         * @returns {void}
+         */
+        showRange(from, to) {
+            this.rangeFormOpen = false;
+            this.customRange = { from, to };
+            if (this.chartPeriodHrs === "custom") {
+                this.loadRange();
+            } else {
+                this.chartPeriodHrs = "custom";
+            }
+        },
+
+        /**
+         * Open the form for a range, starting from the period shown
+         * @returns {void}
+         */
+        openRangeForm() {
+            const to = this.customRange?.to ?? new Date();
+            const hours = Number(this.chartPeriodHrs) || 24;
+            const from = this.customRange?.from ?? new Date(to.getTime() - hours * 3600 * 1000);
+            const local = (d) => this.$root.toDayjs(d.toISOString()).format("YYYY-MM-DDTHH:mm");
+            this.rangeFrom = local(from);
+            this.rangeTo = local(to);
+            this.rangeFormOpen = true;
+        },
+
+        /**
+         * Show the range the form has, in the time zone the app shows
+         * @returns {void}
+         */
+        applyRangeForm() {
+            // The inputs are in the time zone the app shows times in
+            const parse = (text) => dayjs.tz(text, this.$root.timezone).toDate();
+            const from = parse(this.rangeFrom);
+            const to = parse(this.rangeTo);
+            if (!(from < to)) {
+                this.$root.toastError(this.$t("chartRangeInvalid"));
+                return;
+            }
+            this.showRange(from, to);
+        },
+
+        /**
+         * Load the chosen range
+         * @returns {void}
+         */
+        loadRange() {
+            if (!this.customRange) {
+                this.chartPeriodHrs = "24";
+                return;
+            }
+            this.loading = true;
+            const iso = (d) => d.toISOString().replace(/\.\d+Z$/, "Z");
+            this.$root.getMonitorChartRange(
+                this.monitorId,
+                iso(this.customRange.from),
+                iso(this.customRange.to),
+                (res) => {
+                    if (!res.ok) {
+                        this.$root.toastError(res.msg);
+                    } else {
+                        this.chartRawData = res.data;
+                    }
+                    this.loading = false;
+                }
+            );
+        },
+
         // Get color of bar chart for this datapoint
         getBarColorForDatapoint(datapoint) {
             if (datapoint.maintenance != null) {
@@ -594,6 +728,22 @@ export default {
 
 <style lang="scss" scoped>
 @import "../assets/vars.scss";
+
+.range-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: 8px 30px 0 10px;
+
+    label {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        font-size: 13px;
+    }
+}
 
 .form-select {
     width: unset;

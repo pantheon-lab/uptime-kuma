@@ -1,0 +1,139 @@
+package ui
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"time"
+
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
+	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
+)
+
+const (
+	// maxOutagesShown bounds the outages one answer lists, newest first.
+	maxOutagesShown = 100
+	// maxOutageEvents bounds the status changes read to find them.
+	maxOutageEvents = 5000
+)
+
+// outage is a time a monitor was down: from a status change to DOWN until the next change to
+// UP or MAINTENANCE. An outage that hasn't ended has no end.
+type outage struct {
+	Start   time.Time
+	End     *time.Time
+	Msg     string
+	TraceID string
+}
+
+// findOutages turns a monitor's status changes, oldest first, into its outages, oldest first.
+// Changes to PENDING don't end one: a monitor that's down stays down until it's up again. An
+// UP before the first DOWN ends an outage that began before the changes, and is left out.
+func findOutages(changes []store.Beat) []outage {
+	var out []outage
+	var current *outage
+	for _, b := range changes {
+		switch b.Status {
+		case monitor.StatusDown:
+			if current == nil {
+				current = &outage{Start: b.Time, Msg: b.Msg, TraceID: b.TraceID}
+			}
+		case monitor.StatusUp, monitor.StatusMaintenance:
+			if current != nil {
+				end := b.Time
+				current.End = &end
+				out = append(out, *current)
+				current = nil
+			}
+		}
+	}
+	if current != nil {
+		out = append(out, *current)
+	}
+	return out
+}
+
+// monitorOutages answers getMonitorOutages(monitorID, days): the monitor's outages that began
+// in the last days, newest first, how many there were and how long it was down in all.
+func (s *Server) monitorOutages(ctx context.Context, args []json.RawMessage) (reply, error) {
+	id, err := idArg(args, 0)
+	if err != nil {
+		return nil, userErr(err)
+	}
+	days := flexInt{value: 30, set: true}
+	if err := arg(args, 1, &days); err != nil {
+		return nil, userErr(err)
+	}
+	if days.value < 1 || days.value > 365 {
+		return nil, userErr(errors.New("days must be from 1 to 365"))
+	}
+	now := s.now()
+	since := now.Add(-time.Duration(days.value) * 24 * time.Hour)
+	newestFirst, err := s.store.ImportantBeats(ctx, &id, store.EventFilter{Since: &since}, 0, maxOutageEvents)
+	if err != nil {
+		return nil, err
+	}
+	changes := make([]store.Beat, len(newestFirst))
+	for i, b := range newestFirst {
+		changes[len(newestFirst)-1-i] = b
+	}
+
+	outages := findOutages(changes)
+	var downtime time.Duration
+	list := make([]map[string]any, 0, min(len(outages), maxOutagesShown))
+	for i := len(outages) - 1; i >= 0; i-- {
+		o := outages[i]
+		end := now
+		if o.End != nil {
+			end = *o.End
+		}
+		downtime += end.Sub(o.Start)
+		if len(list) == maxOutagesShown {
+			continue
+		}
+		item := map[string]any{
+			"start":           o.Start.UTC().Format(beatTimeFormat),
+			"end":             nil,
+			"durationSeconds": int64(end.Sub(o.Start).Seconds()),
+			"ongoing":         o.End == nil,
+			"msg":             o.Msg,
+		}
+		if o.End != nil {
+			item["end"] = o.End.UTC().Format(beatTimeFormat)
+		}
+		if o.TraceID != "" {
+			item["traceId"] = o.TraceID
+		}
+		list = append(list, item)
+	}
+	return ok("outages", list, "count", len(outages), "downtimeSeconds", int64(downtime.Seconds()), "days", days.value), nil
+}
+
+// chartRange answers getMonitorChartRange(monitorID, from, to), with times in RFC 3339: the
+// chart between them, at the resolution getMonitorChartData uses for a window that long.
+func (s *Server) chartRange(ctx context.Context, args []json.RawMessage) (reply, error) {
+	id, err := idArg(args, 0)
+	if err != nil {
+		return nil, userErr(err)
+	}
+	var fromText, toText string
+	if err := arg(args, 1, &fromText); err != nil {
+		return nil, userErr(err)
+	}
+	if err := arg(args, 2, &toText); err != nil {
+		return nil, userErr(err)
+	}
+	from, err1 := time.Parse(time.RFC3339, fromText)
+	to, err2 := time.Parse(time.RFC3339, toText)
+	if err1 != nil || err2 != nil {
+		return nil, userErr(errors.New("from and to must be times in RFC 3339"))
+	}
+	if !from.Before(to) || to.Sub(from) > maxPeriodHours*time.Hour {
+		return nil, userErr(errors.New("the range must start before it ends, and be at most a year"))
+	}
+	points, err := s.store.ChartRange(ctx, id, from, to)
+	if err != nil {
+		return nil, err
+	}
+	return ok("data", chartJSON(points)), nil
+}

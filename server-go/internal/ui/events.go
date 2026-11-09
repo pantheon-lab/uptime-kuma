@@ -376,6 +376,10 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.monitorBeats(ctx, args)
 	case "getMonitorChartData":
 		r, err = s.chartData(ctx, args)
+	case "getMonitorChartRange":
+		r, err = s.chartRange(ctx, args)
+	case "getMonitorOutages":
+		r, err = s.monitorOutages(ctx, args)
 	case "monitorImportantHeartbeatListCount":
 		r, err = s.importantCount(ctx, args)
 	case "monitorImportantHeartbeatListPaged":

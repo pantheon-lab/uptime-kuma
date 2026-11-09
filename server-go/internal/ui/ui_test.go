@@ -36,6 +36,9 @@ type fakeStore struct {
 	settings map[string]json.RawMessage
 	// createErr is returned by CreateMonitor, to test how a failure is shown.
 	createErr error
+	// important is what ImportantBeats returns, newest first, and chartRanges the ranges asked for.
+	important   []store.Beat
+	chartRanges [][2]time.Time
 
 	windows   map[int32]maintenance.Window
 	links     map[int32][]int32
@@ -236,8 +239,14 @@ func (f *fakeStore) LatestBeatPerMonitor(context.Context) ([]store.Beat, error) 
 func (f *fakeStore) BeatsSince(context.Context, int32, time.Time, int) ([]store.Beat, error) {
 	return nil, nil
 }
-func (f *fakeStore) ImportantBeats(context.Context, *int32, store.EventFilter, int, int) ([]store.Beat, error) {
-	return nil, nil
+func (f *fakeStore) ImportantBeats(_ context.Context, _ *int32, filter store.EventFilter, _, limit int) ([]store.Beat, error) {
+	var out []store.Beat
+	for _, b := range f.important {
+		if (filter.Since == nil || !b.Time.Before(*filter.Since)) && len(out) < limit {
+			out = append(out, b)
+		}
+	}
+	return out, nil
 }
 func (f *fakeStore) CountImportantBeats(context.Context, *int32, store.EventFilter) (int64, error) {
 	return 0, nil
@@ -245,6 +254,10 @@ func (f *fakeStore) CountImportantBeats(context.Context, *int32, store.EventFilt
 func (f *fakeStore) ClearEvents(context.Context, *int32) error { return nil }
 func (f *fakeStore) Chart(context.Context, int32, int) ([]store.ChartPoint, error) {
 	return nil, nil
+}
+func (f *fakeStore) ChartRange(_ context.Context, _ int32, from, to time.Time) ([]store.ChartPoint, error) {
+	f.chartRanges = append(f.chartRanges, [2]time.Time{from, to})
+	return []store.ChartPoint{{Time: from, Up: 1}}, nil
 }
 func (f *fakeStore) Stats(context.Context) ([]store.MonitorStats, error) { return nil, nil }
 func (f *fakeStore) ListNotifications(context.Context) ([]store.Notification, error) {

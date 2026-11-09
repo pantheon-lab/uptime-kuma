@@ -725,3 +725,47 @@ func TestDownCountSurvivesARestart(t *testing.T) {
 		t.Fatalf("path: %v %v", path, err)
 	}
 }
+
+func TestChartRange(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	const minutes = 2 * 24 * 60
+	start := time.Now().UTC().Add(-minutes * time.Minute).Truncate(time.Minute)
+	seed(t, s, start, minutes)
+
+	// Two hours from raw beats, minute by minute
+	from := start.Add(24 * time.Hour)
+	points, err := s.ChartRange(ctx, 1, from, from.Add(2*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(points) < 118 || len(points) > 121 {
+		t.Fatalf("2h range: %d points, want about 120", len(points))
+	}
+	if points[0].Time.Before(from) || points[len(points)-1].Time.After(from.Add(2*time.Hour)) {
+		t.Errorf("points outside the range: %v to %v", points[0].Time, points[len(points)-1].Time)
+	}
+	up, down, maintenance := sumChart(points)
+	if up+down+maintenance < 118 {
+		t.Errorf("2h range counts %d beats", up+down+maintenance)
+	}
+
+	// The same window as Chart's
+	byHours, err := s.Chart(ctx, 1, 6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	byRange, err := s.ChartRange(ctx, 1, now.Add(-6*time.Hour), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := len(byHours) - len(byRange); d < -1 || d > 1 {
+		t.Errorf("Chart(6h) has %d points, ChartRange(6h) %d", len(byHours), len(byRange))
+	}
+
+	// A range before any beat is empty
+	if points, err := s.ChartRange(ctx, 1, start.Add(-48*time.Hour), start.Add(-47*time.Hour)); err != nil || len(points) != 0 {
+		t.Errorf("empty range: %d points, %v", len(points), err)
+	}
+}

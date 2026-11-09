@@ -744,6 +744,10 @@ export default {
         getMonitorChartData(monitorID, period, callback) {
             socket.emit("getMonitorChartData", monitorID, period, callback);
         },
+
+        getMonitorChartRange(monitorID, from, to, callback) {
+            socket.emit("getMonitorChartRange", monitorID, from, to, callback);
+        },
     },
 
     computed: {

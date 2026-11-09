@@ -75,6 +75,7 @@ type Store interface {
 	DatabaseSize(ctx context.Context) (int64, error)
 	SetRetention(ctx context.Context, days int) error
 	Chart(ctx context.Context, monitorID int32, hours int) ([]store.ChartPoint, error)
+	ChartRange(ctx context.Context, monitorID int32, from, to time.Time) ([]store.ChartPoint, error)
 	Stats(ctx context.Context) ([]store.MonitorStats, error)
 
 	ListNotifications(ctx context.Context) ([]store.Notification, error)

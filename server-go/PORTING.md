@@ -36,8 +36,8 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | U3    | Keyboard shortcuts and a command palette                            | Done    |
 | UA    | A prompt for an AI agent to trace a failing monitor                 | Done    |
 | U4    | The Edit Monitor form                                               | Done    |
-| U5    | The monitor's page                                                  | Next    |
-| U6    | Editing many monitors at once                                       | Planned |
+| U5    | The monitor's page                                                  | Done    |
+| U6    | Editing many monitors at once                                       | Next    |
 | U7    | Viewers, the first run and phones                                   | Planned |
 | U8    | Bootstrap 5.3 and accessibility                                     | Planned |
 | U9    | Status page incidents and subscriptions                             | Planned |
@@ -954,11 +954,41 @@ Not tested: 4d (Docker, system service, PM2, real browser, SFTP and gRPC), which
 a gRPC server set up as `server-go/README.md` describes, though the snapshot covers those types' fields; and
 Gamedig and Tailscale ping in 4f, which need a game server and a Tailscale peer.
 
-### U5: The monitor's page
+### U5: The monitor's page (done)
 
-- A chosen date range for the response time chart, beside the fixed periods.
-- A timeline of outages, with when each started, how long it lasted and its error.
-- The 24 hour, 30 day and 1 year uptime choose the chart's range.
+- **A chosen range on the chart**, from Custom range… in its period menu, in the time zone the app shows, and 30 day
+  and 1 year periods beside the others. The server answers `getMonitorChartRange(monitorID, from, to)`, with RFC 3339
+  times up to a year apart, at the resolution `getMonitorChartData` uses for a window that long: `Store.ChartRange`,
+  which `Store.Chart` now calls for the last hours. A chosen range shows all of itself, even where there are no beats.
+- **Outages**, a card on the page (`src/components/MonitorOutages.vue`): the monitor's outages in the last 7, 30, 90
+  or 365 days, newest first, each with when it began, how long it lasted or that it's going on, and its first error,
+  with how many there were and how long it was down in all. `getMonitorOutages(monitorID, days)` finds them in the
+  status changes the events list has, from a change to DOWN until the next to UP or MAINTENANCE; PENDING doesn't end
+  one. It lists the newest 100, and reads up to 5,000 changes. The list reloads when the monitor's status changes.
+- **An outage on the chart:** each has a button that shows it on the chart, with a quarter of its length, and at
+  least 15 minutes, either side (`src/outage-range.ts`).
+- **The uptime figures** (24 hours, 30 days, 1 year) are buttons that show their period on the chart.
+- Both events are open to viewers.
+
+Tested with the race detector: finding outages (PENDING not ending one, MAINTENANCE ending one, one going on, an UP
+before any DOWN left out); the events against the fake store, as a viewer, with the window, the totals, the newest
+first, and refusing bad windows and ranges; and against TimescaleDB, a range from raw beats minute by minute, the
+same points as `Chart` for the same window, and an empty range. The chart test that compares `Chart` with raw data
+passed unchanged, as did the REST API's. `src/outage-range.ts` with unit tests. In headless Chromium against the
+built image (`internal/e2e/browser/ui-u5.mjs`), 7 of 7 steps passed with no page errors: a manual monitor's two
+outages listed newest first, the newer going on; the list updating when it came back up; an outage shown on the
+chart; a chosen range shown and a backwards one refused; the uptime figures showing 30 days, a year and 24 hours,
+which loaded without errors; and a shorter window. U1 to U4's, the AI prompt's and the follow-up tests passed again.
+
+Known limits:
+
+- Outages come from the events list, so clearing a monitor's events, or Clear All Events, clears its outages too,
+  and an outage that began before the window starts at its first change in it, or isn't shown when it ended in it.
+- A chosen range far back has only what the retention kept: raw beats for up to 6 hours, then hourly and daily
+  statistics.
+
+Not tested: a range of more than 30 days, which reads the daily statistics; the chart test covers that window for
+`Chart`.
 
 ### U6: Editing many monitors at once
 
