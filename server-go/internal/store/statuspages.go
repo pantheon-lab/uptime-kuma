@@ -33,6 +33,9 @@ type StatusPage struct {
 	AnalyticsType         *string
 	AnalyticsID           *string
 	AnalyticsScriptURL    *string
+	// SubscribeNotificationID is the SMTP notification that sends the page's emails to
+	// subscribers, or nil when people can't subscribe by email.
+	SubscribeNotificationID *int32
 	// Domains are the custom domains that show this page.
 	Domains   []string
 	UpdatedAt time.Time
@@ -64,8 +67,10 @@ type Incident struct {
 	Style        string
 	Pin          bool
 	Active       bool
-	CreatedAt    time.Time
-	UpdatedAt    *time.Time
+	// Notified is set once the incident was sent to the page's subscribers.
+	Notified  bool
+	CreatedAt time.Time
+	UpdatedAt *time.Time
 }
 
 // IncidentCursor is where a page of incident history continues: before this incident.
@@ -76,7 +81,7 @@ type IncidentCursor struct {
 
 const statusPageColumns = `p.id, p.slug, p.title, p.description, p.icon, p.theme, p.auto_refresh_interval, p.show_tags,
 	p.footer_text, p.custom_css, p.show_powered_by, p.show_certificate_expiry, p.show_only_last_heartbeat, p.rss_title,
-	p.analytics_type, p.analytics_id, p.analytics_script_url,
+	p.analytics_type, p.analytics_id, p.analytics_script_url, p.subscribe_notification_id,
 	COALESCE((SELECT array_agg(d.domain ORDER BY d.domain) FROM status_page_domain d WHERE d.status_page_id = p.id), '{}'),
 	p.updated_at`
 
@@ -84,7 +89,7 @@ func scanStatusPage(row pgx.Row) (StatusPage, error) {
 	var p StatusPage
 	err := row.Scan(&p.ID, &p.Slug, &p.Title, &p.Description, &p.Icon, &p.Theme, &p.AutoRefreshInterval, &p.ShowTags,
 		&p.FooterText, &p.CustomCSS, &p.ShowPoweredBy, &p.ShowCertificateExpiry, &p.ShowOnlyLastHeartbeat, &p.RSSTitle,
-		&p.AnalyticsType, &p.AnalyticsID, &p.AnalyticsScriptURL, &p.Domains, &p.UpdatedAt)
+		&p.AnalyticsType, &p.AnalyticsID, &p.AnalyticsScriptURL, &p.SubscribeNotificationID, &p.Domains, &p.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return p, ErrNotFound
 	}
@@ -409,12 +414,12 @@ func (s *Store) UptimeOver(ctx context.Context, monitorID int32, unit string, n 
 	return t, nil
 }
 
-const incidentColumns = `id, status_page_id, title, content, style, pin, active, created_at, updated_at`
+const incidentColumns = `id, status_page_id, title, content, style, pin, active, notified, created_at, updated_at`
 
 func collectIncidents(rows pgx.Rows) ([]Incident, error) {
 	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (Incident, error) {
 		var i Incident
-		err := r.Scan(&i.ID, &i.StatusPageID, &i.Title, &i.Content, &i.Style, &i.Pin, &i.Active, &i.CreatedAt, &i.UpdatedAt)
+		err := r.Scan(&i.ID, &i.StatusPageID, &i.Title, &i.Content, &i.Style, &i.Pin, &i.Active, &i.Notified, &i.CreatedAt, &i.UpdatedAt)
 		return i, err
 	})
 }
@@ -512,6 +517,14 @@ func (s *Store) oneIncident(ctx context.Context, query string, args ...any) (Inc
 		return Incident{}, ErrNotFound
 	}
 	return incidents[0], nil
+}
+
+// MarkIncidentNotified records that an incident was sent to its page's subscribers.
+func (s *Store) MarkIncidentNotified(ctx context.Context, id int32) error {
+	if _, err := s.pool.Exec(ctx, `UPDATE incident SET notified = true WHERE id = $1`, id); err != nil {
+		return fmt.Errorf("mark incident notified: %w", err)
+	}
+	return nil
 }
 
 // DeleteIncident removes one of a page's incidents, or returns ErrNotFound.

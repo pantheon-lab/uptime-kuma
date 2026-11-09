@@ -40,7 +40,7 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | U6    | Editing many monitors at once                                       | Done   |
 | U7    | Viewers, the first run and phones                                   | Done   |
 | U8    | Bootstrap 5.3 and accessibility                                     | Done   |
-| U9    | Status page incidents and subscriptions                             | Next   |
+| U9    | Status page incidents and subscriptions                             | Done   |
 
 ## Phase 0: Core (done)
 
@@ -1129,7 +1129,48 @@ Known limits:
 Not tested: screen readers themselves (the names, roles and states were checked in the page), and Windows' high
 contrast mode.
 
-### U9: Status page incidents and subscriptions
+### U9: Status page incidents and subscriptions (done)
 
-- Incident templates, and banners for coming maintenance windows.
-- Subscribing to a page's updates by email or webhook. This needs the server to store subscribers and send to them.
+- **Incident templates:** the incident form's **Templates** menu fills the title, content and style from a saved
+  template or one of four starters, in the UI's language. **Save as a template** keeps the form, one template per
+  title, shared by every page (`incident_template`).
+- **Coming maintenance:** a window linked to the page shows a banner from a week before it starts, with its start
+  and end in the reader's time zone and how soon it starts (`upcomingMaintenanceList` in the page's data).
+- **Subscribers** (`status_page_subscriber`), set up in the page editor's **Manage subscribers** dialog:
+  - **Email:** the page names an SMTP notification to send through (`status_page.subscribe_notification_id`),
+    which needs the Primary Base URL for its links. Visitors subscribe on the page, and confirm from an email's
+    link, which the page posts back when it opens, so a mail scanner that follows links doesn't confirm or
+    unsubscribe anyone. Each email links to unsubscribing, which asks first, and has RFC 8058's one-click
+    unsubscribe. Subscribing answers the same whether the address is new or not, sends one confirmation per 10
+    minutes, is limited per address and overall, and unconfirmed addresses go after two days.
+  - **Webhooks**, added by admins, get `incident.created`, `incident.updated` and `incident.resolved` as JSON.
+    Their addresses are encrypted like other secrets.
+  - An incident goes to subscribers when it's posted with **Send to subscribers** ticked, which an inline edit
+    ticks only if they were told of it; its resolution goes only to those, when it was sent (`incident.notified`).
+    Messages go from a queue, in order. The dialog shows each subscriber's last send and error.
+- `notify.SendMail` sends one email through a notification's server and sender, without its recipients, headers or
+  templates, so an incident's text is never read as a template.
+
+Tested: the store's subscribers, their tokens and sealed webhooks, and templates, against TimescaleDB;
+`SendMail`'s recipient, headers and refusal of line breaks against a test mail server; and through the realtime API
+and public routes against a test mail server and webhook receiver (`internal/e2e/subscriptions_test.go`): the
+sender's checks, one confirmation however often an address subscribes, nothing to an unconfirmed address, a
+confirmed one's update and resolution with unsubscribe links, the webhooks' order, a failing webhook's error, a
+quiet incident's resolution sent to no one, one-click unsubscribe, and the coming windows within a week, soonest
+first. The link parsing, times and SMTP filter with unit tests. In headless Chromium against the built image
+(`internal/e2e/browser/ui-u9.mjs`), 10 of 10 steps passed with no page errors: the dialog choosing the sender and
+adding a webhook; a visitor subscribing, and the emailed link confirming it and leaving the address bar; asking
+again sending nothing; the coming window's banner in Hong Kong time with the later one left out; a starter filling
+the form and a saved template filling it again; posting to two subscribers by email and webhook; the resolution
+following; the emailed unsubscribe link asking, then unsubscribing; a viewer refused the subscribers and
+templates; and at 375 pixels in the dark theme, the banner and form without sideways scrolling.
+
+Known limits:
+
+- Emails are plain text, in English. Templates have no placeholders.
+- A failed send isn't tried again, and messages still queued when the service stops are lost.
+- Subscribers get incidents only: not maintenance windows, nor monitors going down.
+- Only admins add webhooks, so a visitor can't make the server call an address.
+
+Not tested: a real mail provider's delivery and its one-click unsubscribe, and pages with thousands of
+subscribers.

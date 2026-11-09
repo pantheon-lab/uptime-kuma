@@ -121,6 +121,11 @@ var secretColumns = []secretColumn{
 		update: `UPDATE proxy SET password = $2 WHERE id = $1::int AND password = $3`,
 	},
 	{
+		name: "status page webhooks", table: "status_page_subscriber", column: "address",
+		list:   `SELECT id::text, address FROM status_page_subscriber WHERE kind = 'webhook'`,
+		update: `UPDATE status_page_subscriber SET address = $2 WHERE id = $1::int AND address = $3`,
+	},
+	{
 		name: "the VAPID private key", table: "app_setting", column: "value", jsonString: true,
 		list:   `SELECT key, value::text FROM app_setting WHERE key = '` + WebpushPrivateKeySetting + `'`,
 		update: `UPDATE app_setting SET value = $2::jsonb WHERE key = $1 AND value = $3::jsonb`,

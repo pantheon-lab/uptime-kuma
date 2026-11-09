@@ -302,3 +302,39 @@ func TestSMTPRefusesPort(t *testing.T) {
 		t.Fatal("expected a connection error")
 	}
 }
+
+func TestSendMailUsesOnlyItsOwnRecipientAndText(t *testing.T) {
+	server := startMail(t, "plain")
+	config := server.config(M{"smtpIgnoreSTARTTLS": true, "smtpCC": "cc@example.com", "smtpBCC": "bcc@example.com",
+		"customSubject": "ALERT {{NAME}}", "smtpAdditionalHeaders": `{"X-Ops":"1"}`})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := SendMail(ctx, DefaultEnv(""), config, "reader@example.com", "[Status] {{NAME}} down", "Body {{STATUS}} é",
+		map[string]string{"List-Unsubscribe": "<https://kuma.example/api/status-page/main/unsubscribe?token=t>"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := server.messages[0]
+	if len(got.to) != 1 || got.to[0] != "reader@example.com" {
+		t.Fatalf("recipients: %v", got.to)
+	}
+	for _, want := range []string{"Subject: [Status] {{NAME}} down", "To: <reader@example.com>",
+		"List-Unsubscribe: <https://kuma.example/api/status-page/main/unsubscribe?token=t>"} {
+		if !strings.Contains(got.data, want) {
+			t.Errorf("missing %q: %s", want, got.data)
+		}
+	}
+	if strings.Contains(got.data, "X-Ops") || strings.Contains(got.data, "cc@example.com") {
+		t.Errorf("used the notification's headers or copies: %s", got.data)
+	}
+	if body := decoded(t, got.data); !strings.Contains(body, "Body {{STATUS}} é") {
+		t.Errorf("body: %q", body)
+	}
+
+	if err := SendMail(ctx, DefaultEnv(""), config, "a@example.com\r\nBcc: evil@example.com", "s", "b", nil); err == nil {
+		t.Error("a recipient with a line break was accepted")
+	}
+	if err := SendMail(ctx, DefaultEnv(""), config, "a@example.com", "s", "b", map[string]string{"X": "1\r\nBcc: e@example.com"}); err == nil {
+		t.Error("a header with a line break was accepted")
+	}
+}

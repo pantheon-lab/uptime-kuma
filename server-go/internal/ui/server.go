@@ -180,6 +180,8 @@ type Server struct {
 	// pages is nil when status pages aren't supported.
 	pages StatusPageStore
 	cache *publicCache
+	// subs sends incidents to status pages' subscribers.
+	subs *deliveries
 
 	setupMu sync.Mutex
 
@@ -218,6 +220,7 @@ func New(s Store, scheduler Scheduler, notifyEnv *notify.Env, log *slog.Logger, 
 		conns:       map[string]*conn{},
 		pages:       opts.StatusPages,
 		cache:       newPublicCache(),
+		subs:        newDeliveries(),
 
 		githubChecking: map[int32]bool{},
 		githubFailed:   map[int32]time.Time{},
@@ -252,6 +255,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /robots.txt", s.robots)
 	if s.pages != nil {
 		s.registerPublic(mux)
+		s.registerSubscriptions(mux)
 	} else {
 		mux.HandleFunc("GET /{$}", s.root)
 	}

@@ -521,6 +521,37 @@ var migrations = [][]string{
 			PRIMARY KEY (source_id, daily, bucket)
 		)`,
 	},
+	{
+		// Status page subscriptions: the SMTP notification a page's emails are sent through, and
+		// who gets them. A webhook's address can hold a token, so it's sealed like other secrets;
+		// address_key keeps one subscription per address (a lowercase email, or the URL's SHA-256).
+		`ALTER TABLE status_page ADD COLUMN IF NOT EXISTS subscribe_notification_id integer
+			REFERENCES notification (id) ON DELETE SET NULL`,
+		`CREATE TABLE IF NOT EXISTS status_page_subscriber (
+			id serial PRIMARY KEY,
+			status_page_id integer NOT NULL REFERENCES status_page (id) ON DELETE CASCADE,
+			kind text NOT NULL CHECK (kind IN ('email', 'webhook')),
+			address text NOT NULL,
+			address_key text NOT NULL,
+			token text NOT NULL UNIQUE,
+			confirmed boolean NOT NULL DEFAULT false,
+			created_at timestamptz NOT NULL DEFAULT now(),
+			confirm_sent_at timestamptz,
+			last_sent_at timestamptz,
+			last_error text NOT NULL DEFAULT '',
+			UNIQUE (status_page_id, kind, address_key)
+		)`,
+		// Whether an incident was sent to subscribers, so that only those get its resolution.
+		`ALTER TABLE incident ADD COLUMN IF NOT EXISTS notified boolean NOT NULL DEFAULT false`,
+		// Incident templates, shared by every page, one per title.
+		`CREATE TABLE IF NOT EXISTS incident_template (
+			id serial PRIMARY KEY,
+			title text NOT NULL UNIQUE,
+			content text NOT NULL,
+			style text NOT NULL,
+			updated_at timestamptz NOT NULL DEFAULT now()
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.

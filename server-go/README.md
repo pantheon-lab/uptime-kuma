@@ -330,6 +330,52 @@ address is shown only if **Show Clickable Link** is on, and without any user nam
 - **Caching:** public answers are kept for up to a minute, and beats for 30 seconds. Changes made in the UI
   clear them at once.
 
+### Incidents, subscribers and coming maintenance
+
+- **Incident templates:** the incident form's **Templates** menu fills it from a saved template or a starter
+  (investigating, identified, monitoring, planned maintenance). **Save as a template** keeps the form, replacing
+  the template with its title. Templates are shared by every page.
+- **Coming maintenance:** a maintenance window linked to the page shows a banner from a week before it starts,
+  with its times in the reader's own time zone.
+- **Subscribers** get a page's incidents when they're posted with **Send to subscribers** ticked, and again when
+  they're resolved. An incident posted without it isn't sent when it's resolved either. While editing the page,
+  **Manage subscribers** sets them up:
+  - **Email:** choose an Email (SMTP) notification to send through, and set **Settings > General > Primary Base
+    URL**, which the emails link to. The page then has a form where visitors subscribe; they confirm from a link
+    in an email before they get anything, and every email has an unsubscribe link and one-click unsubscribe
+    ([RFC 8058](https://www.rfc-editor.org/rfc/rfc8058)). Unconfirmed addresses go after two days. An address is
+    sent at most one confirmation every 10 minutes, and subscribing is limited per address and overall. Emails
+    are in English, and go from the notification's server and sender, without its recipients or templates.
+  - **Webhooks** are added by admins. Each gets a POST of JSON:
+
+    ```json
+    {
+      "event": "incident.created",
+      "statusPage": {
+        "slug": "main",
+        "title": "Main",
+        "url": "https://kuma.example.com/status/main"
+      },
+      "incident": {
+        "id": 7,
+        "title": "Checkout errors",
+        "content": "…",
+        "style": "warning",
+        "active": true,
+        "...": "..."
+      }
+    }
+    ```
+
+    `event` is `incident.created`, `incident.updated` or `incident.resolved`. Webhook addresses are stored
+    encrypted, like other secrets.
+
+  - Messages go out in order, one subscriber at a time, from a queue in the service. The dialog shows when each
+    subscriber was last sent to, and the last error. A message isn't tried again, and one still queued when the
+    service stops isn't sent.
+- The public routes are `POST /api/status-page/<slug>/subscribe` (`{"email": "…"}`), `…/confirm` (`{"token":
+"…"}`) and `…/unsubscribe` (the token in JSON or as `?token=`).
+
 ### Badges
 
 Badges are SVG images in the shields.io style, for READMEs and dashboards. Only monitors on a status page have

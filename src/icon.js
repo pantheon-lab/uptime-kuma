@@ -60,6 +60,9 @@ import {
     faCertificate,
     faFolder,
     faFolderOpen,
+    faCalendarAlt,
+    faEnvelope,
+    faFileAlt,
 } from "@fortawesome/free-solid-svg-icons";
 
 library.add(
@@ -117,6 +120,9 @@ library.add(
     faCertificate,
     faFolder,
     faFolderOpen,
+    faCalendarAlt,
+    faEnvelope,
+    faFileAlt,
 );
 
 export { FontAwesomeIcon };

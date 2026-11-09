@@ -363,6 +363,7 @@ func (s *Server) dispatch(c *conn, m inMessage) {
 
 // Close ends every stream, which graceful shutdown would otherwise wait for.
 func (s *Server) Close() {
+	s.stopDeliveries()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, c := range s.conns {

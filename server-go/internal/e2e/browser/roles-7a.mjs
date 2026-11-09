@@ -136,17 +136,26 @@ await step("a viewer has no buttons that change things", async () => {
             throw new Error(`${name} on ${where}`);
         }
     }
-    await page.locator(".dropdown-profile-pic, .profile-pic").first().click();
-    if ((await page.getByRole("link", { name: "Settings" }).count()) !== 0) {
-        throw new Error("Settings in the menu");
+    // Settings has only the viewer's own Security page (E2)
+    await page.goto("/settings/security");
+    await page.waitForTimeout(500);
+    const menu = await page.locator(".settings-menu a").allInnerTexts();
+    if (menu.map((t) => t.trim()).join(",") !== "Security") {
+        throw new Error(`settings menu: ${menu}`);
     }
 });
 
 await step("a viewer is sent back from editing pages", async () => {
     const landed = [];
-    for (const where of ["/settings/general", "/add", `/edit/${monitorID}`, "/add-maintenance"]) {
+    // To the nearest page that only shows (U7)
+    for (const [where, to] of [
+        ["/settings/general", /\/settings\/security$/],
+        ["/add", /\/dashboard$/],
+        [`/edit/${monitorID}`, new RegExp(`/dashboard/${monitorID}$`)],
+        ["/add-maintenance", /\/maintenance$/],
+    ]) {
         await page.goto(where);
-        await page.waitForURL(/\/dashboard$/, { timeout: 5000 });
+        await page.waitForURL(to, { timeout: 5000 });
         landed.push(where);
     }
     return landed.join(", ");

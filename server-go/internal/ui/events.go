@@ -148,7 +148,8 @@ func monitorTypeList() map[string]any {
 	return out
 }
 
-func (s *Server) info(ctx context.Context, full bool) map[string]any {
+// baseURL is the UI's public address: the one saved in Settings, or else the configured one.
+func (s *Server) baseURL(ctx context.Context) string {
 	baseURL := s.opts.BaseURL
 	if settings, err := s.store.Settings(ctx); err == nil {
 		var saved string
@@ -156,6 +157,11 @@ func (s *Server) info(ctx context.Context, full bool) map[string]any {
 			baseURL = saved
 		}
 	}
+	return baseURL
+}
+
+func (s *Server) info(ctx context.Context, full bool) map[string]any {
+	baseURL := s.baseURL(ctx)
 	_, offset := s.now().In(s.opts.Location).Zone()
 	sign := "+"
 	if offset < 0 {
