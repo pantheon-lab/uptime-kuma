@@ -1834,5 +1834,22 @@
     "importMonitorsChecked": "The monitor is valid. Import it when you're ready. | All {n} monitors are valid. Import them when you're ready.",
     "testMonitor": "Test",
     "testMonitorHelp": "Run one check of the monitor as it is in the form, without saving it",
-    "testMonitorFailed": "Can't test"
+    "testMonitorFailed": "Can't test",
+    "viewOnly": "View only",
+    "viewOnlyHelp": "Your account can only view. Ask an admin to make changes.",
+    "viewOnlyRedirect": "Your account can only view, so that page isn't open to it.",
+    "gettingStartedTitle": "Getting started",
+    "gettingStartedIntro": "Three steps to watch your services and tell people when they're down.",
+    "gettingStartedProgress": "{0} of {1} done",
+    "gettingStartedHide": "Hide",
+    "gettingStartedDone": "Done",
+    "gettingStartedToDo": "To do",
+    "gettingStarted-monitor": "Add a monitor",
+    "gettingStarted-monitor-help": "A website, an API, a server's port, a database, or one of many other kinds. Import many at once from a CSV or YAML file.",
+    "gettingStarted-notification": "Get alerted",
+    "gettingStarted-notification-help": "Email, Slack, Teams, a webhook and many more. New monitors can use it from the start.",
+    "gettingStarted-statusPage": "Share a status page",
+    "gettingStarted-statusPage-help": "A public page of your monitors' status, for your users or your team.",
+    "viewerNoMonitors": "There are no monitors yet. Your account can only view, so an admin adds them, and they'll show here.",
+    "viewerNoMonitorsShort": "No monitors yet."
 }

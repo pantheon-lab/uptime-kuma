@@ -971,6 +971,10 @@ export default {
             .getSession()
             .then((session) => {
                 this.authenticated = session.data !== null;
+                // No realtime session here, which would say the role: a viewer can't edit.
+                if (session.data) {
+                    this.$root.role = session.data.user?.role || "admin";
+                }
             })
             .catch(() => {
                 this.authenticated = false;
@@ -1141,7 +1145,7 @@ export default {
          * @returns {void}
          */
         edit() {
-            if (this.authenticated) {
+            if (this.authenticated && this.$root.canEdit) {
                 this.$root.initSocketIO(true);
                 this.enableEditMode = true;
                 this.clickedEditButton = true;

@@ -22,14 +22,16 @@ on the same port as the API. `/api/v1/` and `/healthz` are the REST API, `/api/a
 On first start, open the UI and create the account, or set `KUMA_INITIAL_ADMIN_USERNAME` and
 `KUMA_INITIAL_ADMIN_PASSWORD` to have it made at start. Setup is only offered for **10 minutes after the
 service starts**, so that a stranger can't claim a server someone forgot to set up; restart the service if
-the window has passed. The account made at setup is an admin, which can do everything.
+the window has passed. The account made at setup is an admin, which can do everything. On a new server, the
+dashboard has a **Getting started** guide to adding the first monitor, notification and status page.
 
 Accounts can also be **viewers**, which can look at monitors, beats, maintenance windows and status pages, but
 can't change anything, and aren't sent credentials. The server enforces this: a viewer's page gets monitors without
 URLs' credentials and query strings, headers, bodies, connection strings, push tokens or passwords, and empty lists
 of notifications, proxies, Docker hosts and remote browsers, and every event that would change something, or read
-settings or API keys, is refused. The UI hides those buttons, and sends a viewer back from settings and forms,
-except Settings > Security, for their own password, two-factor login and GitHub teams.
+settings or API keys, is refused. The UI hides those buttons, shows a **View only** badge, and sends a viewer from settings and forms to the
+nearest page that only shows, saying why. Settings > Security stays open to them, for their own password,
+two-factor login and GitHub teams.
 Accounts other than the setup one come from logging in with GitHub.
 
 **Settings > Accounts** lists every account, for admins: its role, whether it logs in with GitHub or a password, its

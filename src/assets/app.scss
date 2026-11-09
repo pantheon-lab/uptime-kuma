@@ -650,6 +650,15 @@ $shadow-box-padding: 20px;
     backdrop-filter: blur(2px);
     border-radius: 0 0 10px 10px;
 
+    // Above the phone's bottom navigation, which would cover Save, and solid enough that the
+    // fields scrolling behind it don't show through
+    .mobile & {
+        bottom: calc(60px + env(safe-area-inset-bottom));
+        background-color: rgba(white, 0.92);
+        border-radius: 0;
+    }
+
+    // After the phone's rule, so that the dark theme keeps its own colour
     .dark & {
         background-color: rgba($dark-header-bg, 0.9);
     }

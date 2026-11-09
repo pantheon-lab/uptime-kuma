@@ -1,12 +1,20 @@
 <template>
     <transition ref="tableContainer" name="slide-fade" appear>
         <div v-if="$route.name === 'DashboardHome'">
+            <GettingStarted />
+            <div
+                v-if="!$root.canEdit && $root.monitorListLoaded && Object.keys($root.monitorList).length === 0"
+                class="shadow-box big-padding mb-3"
+                data-testid="viewer-no-monitors"
+            >
+                {{ $t("viewerNoMonitors") }}
+            </div>
             <h1 class="mb-3">
                 {{ $t("Quick Stats") }}
             </h1>
 
-            <div class="shadow-box big-padding text-center mb-3">
-                <div class="row">
+            <div class="shadow-box big-padding text-center mb-3 quick-stats" data-testid="quick-stats">
+                <div class="row quick-stats-row">
                     <div v-for="stat in quickStats" :key="stat.key" class="col">
                         <button
                             v-if="stat.filter"
@@ -194,6 +202,7 @@ import Datetime from "../components/Datetime.vue";
 import Pagination from "v-pagination-3";
 import Confirm from "../components/Confirm.vue";
 import AIPromptDialog from "../components/AIPromptDialog.vue";
+import GettingStarted from "../components/GettingStarted.vue";
 import { DOWN, MAINTENANCE, PENDING, UP } from "../util";
 
 const EVENT_FILTER_KEY = "dashboardEventFilter";
@@ -225,6 +234,7 @@ export default {
         Pagination,
         Confirm,
         AIPromptDialog,
+        GettingStarted,
     },
     props: {
         calculatedHeight: {
@@ -610,6 +620,41 @@ export default {
     color: $primary;
     font-weight: bold;
     display: block;
+}
+
+// Phones: the five counts in two short rows, rather than most of the first screen
+@media (max-width: 576px) {
+    .quick-stats.big-padding {
+        padding: 10px;
+    }
+
+    .quick-stats-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 4px;
+        margin: 0;
+
+        > .col {
+            padding: 0;
+        }
+    }
+
+    .stat {
+        padding: 4px 0;
+
+        .h3,
+        h3 {
+            font-size: 14px;
+            margin-bottom: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
+
+    .num {
+        font-size: 22px;
+    }
 }
 
 .stat {

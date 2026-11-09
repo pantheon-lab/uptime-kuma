@@ -3634,7 +3634,9 @@ message HealthCheckResponse {
 
 .fixed-bottom-bar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    row-gap: 8px;
 }
 
 .test-result {
@@ -3647,6 +3649,12 @@ message HealthCheckResponse {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+
+    // On phones, a line of its own below the buttons
+    @media (max-width: 576px) {
+        flex: 1 1 100%;
+        margin-left: 0 !important;
     }
 }
 

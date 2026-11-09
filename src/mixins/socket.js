@@ -87,6 +87,8 @@ export default {
             monitorListFilterRequest: null,
             // Monitors and tags whose pop-ups are muted in this browser
             toastMuted: loadMuted(),
+            // The page a viewer was last sent away from, to say why once
+            viewOnlyNoted: null,
         };
     },
 
@@ -110,7 +112,12 @@ export default {
                 !viewerSettings.test(path) &&
                 (editing.test(path) || this.$route?.query?.edit !== undefined)
             ) {
-                this.$router.replace("/dashboard");
+                this.$router.replace(viewerPlaceFor(path));
+                // Once, rather than at each page the session check visits again
+                if (this.viewOnlyNoted !== path) {
+                    this.viewOnlyNoted = path;
+                    toast.info(this.$t("viewOnlyRedirect"), { timeout: getToastSuccessTimeout() });
+                }
             }
         },
 
@@ -877,6 +884,28 @@ export default {
         },
     },
 };
+
+/**
+ * Where a viewer goes instead of a page that edits: the nearest page that only shows
+ * @param {string} path The page that edits
+ * @returns {string} The page to show instead
+ */
+export function viewerPlaceFor(path) {
+    const monitor = path.match(/^\/(?:edit|clone)\/(\d+)/);
+    if (monitor) {
+        return `/dashboard/${monitor[1]}`;
+    }
+    if (path.startsWith("/settings")) {
+        return "/settings/security";
+    }
+    if (path.startsWith("/maintenance") || path.startsWith("/add-maintenance")) {
+        return "/maintenance";
+    }
+    if (path.startsWith("/add-status-page")) {
+        return "/manage-status-page";
+    }
+    return "/dashboard";
+}
 
 /**
  * Reconnect to the realtime server.

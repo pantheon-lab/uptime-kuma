@@ -38,8 +38,8 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | U4    | The Edit Monitor form                                               | Done    |
 | U5    | The monitor's page                                                  | Done    |
 | U6    | Editing many monitors at once                                       | Done    |
-| U7    | Viewers, the first run and phones                                   | Next    |
-| U8    | Bootstrap 5.3 and accessibility                                     | Planned |
+| U7    | Viewers, the first run and phones                                   | Done    |
+| U8    | Bootstrap 5.3 and accessibility                                     | Next    |
 | U9    | Status page incidents and subscriptions                             | Planned |
 
 ## Phase 0: Core (done)
@@ -1043,12 +1043,48 @@ Known limits:
 Not tested: Test on monitor types that need servers this machine doesn't run (Docker, gRPC, a real browser, and the
 others 4d lists), and the import of the types beyond HTTP, keyword and TCP port.
 
-### U7: Viewers, the first run and phones
+### U7: Viewers, the first run and phones (done)
 
-- A pass through every page as a viewer: no buttons that can only fail, and a note that the page is read-only.
-- A first run that leads through adding a monitor, a notification and a status page, instead of "No Monitors,
-  please add one".
-- The dashboard's counts and the Edit Monitor form's bottom bar on narrow screens.
+- **A pass through every page as a viewer**, with a script that lists what each page lets a viewer click and the
+  events the server refuses. What it found, now fixed:
+  - The status page showed a viewer **Edit Status Page**, and `?edit` opened the whole editor, whose Save and Delete
+    could only fail. It reads the session without the realtime connection, so it never learned the role; it now
+    takes the role from the session, and a viewer gets neither.
+  - Going to a settings page a viewer doesn't have threw errors while it was sent away (the header read the title of
+    a page the viewer's menu lacks).
+  - A viewer sent away from a page that edits went to the dashboard without a word. Now they go to the nearest page
+    that only shows (a monitor's edit page to the monitor's page, settings to Security, a maintenance window to the
+    list, a new status page to the status pages), with a note that the account can only view.
+  - The dashboard, a monitor's page, the status pages and maintenance lists had no buttons a viewer couldn't use.
+- **A "View only" badge** in the header for viewers, explaining that an admin makes changes; on phones, a line above
+  the navigation.
+- **The first run's guide** (`src/components/GettingStarted.vue`, `src/getting-started.ts`): on the dashboard, three
+  steps, ticked as they're done: add a monitor (or import), get alerted, share a status page, with the next step's
+  button standing out. It starts only in a browser that sees a server with no monitors, so existing installations
+  never get it, and stays until its steps are done or it's hidden, which this browser remembers. A viewer of a
+  server with no monitors is told that an admin adds them, and the empty list no longer offers a viewer "add one".
+- **Phones:** the dashboard's five counts take two short rows instead of most of the first screen. Every form's
+  sticky Save bar stayed under the bottom navigation while scrolling, so Save was hidden until the form's end; it now
+  sits above it, nearly opaque. The Edit Monitor form's Test result has a line of its own there.
+
+Tested: the guide's states with unit tests. In headless Chromium against the built image
+(`internal/e2e/browser/ui-u7.mjs`), 13 of 13 steps passed with no page errors: a new server's guide at its first step
+and the empty list; a viewer of an empty server told that an admin adds monitors, with no guide; each step ticked as
+it was done; hiding it lasting after a reload; the last step, done away from the dashboard, finishing it for good; no
+guide in a browser that first saw the server with monitors; the viewer's badge and its explanation, which admins
+don't get; a viewer sent from five pages that edit to the nearest one, with the note, and to Security from another
+settings page; a viewer's status page with no Edit button and `?edit` not opening the editor, while an admin's
+still does; no buttons that change things on a viewer's dashboard, monitor page, status pages and maintenance list;
+and at 375 pixels, the counts in two rows under 200 pixels high with no sideways scrolling, Save above the navigation
+mid-form, Test's result on its own line, and a viewer's note above the navigation. U1 to U6's, the AI prompt's and
+the follow-up tests passed again.
+
+Known limits:
+
+- The guide is per browser: a second admin, or another browser, of a server set up elsewhere doesn't get it.
+- The status page's editor is still in the page for a viewer who goes to it with `?edit`; it just doesn't open.
+
+Not tested: real phones (Chromium's phone emulation at 375 by 760 only), and the dark theme on phones.
 
 ### U8: Bootstrap 5.3 and accessibility
 

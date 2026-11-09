@@ -37,6 +37,12 @@
             </a>
 
             <ul class="nav nav-pills">
+                <li v-if="$root.loggedIn && !$root.canEdit" class="nav-item me-3 d-flex align-items-center">
+                    <span class="view-only-badge" data-testid="view-only-badge" :title="$t('viewOnlyHelp')">
+                        <font-awesome-icon icon="eye" class="me-1" />
+                        {{ $t("viewOnly") }}
+                    </span>
+                </li>
                 <li v-if="$root.loggedIn" class="nav-item me-2">
                     <router-link to="/manage-status-page" class="nav-link">
                         <font-awesome-icon icon="stream" />
@@ -152,7 +158,18 @@
         <ShortcutsHelp />
 
         <!-- Mobile Only -->
+        <div
+            v-if="$root.isMobile && $root.loggedIn && !$root.canEdit"
+            class="view-only-strip"
+            data-testid="view-only-badge"
+            role="note"
+        >
+            <font-awesome-icon icon="eye" class="me-1" />
+            {{ $t("viewOnlyHelp") }}
+        </div>
         <div v-if="$root.isMobile" style="width: 100%; height: calc(60px + env(safe-area-inset-bottom))" />
+        <!-- Room for the viewer's note above the navigation -->
+        <div v-if="$root.isMobile && $root.loggedIn && !$root.canEdit" style="height: 28px" />
         <nav v-if="$root.isMobile && $root.loggedIn" class="bottom-nav">
             <router-link to="/dashboard" class="nav-link">
                 <div><font-awesome-icon icon="tachometer-alt" /></div>
@@ -264,6 +281,41 @@ export default {
 
 <style lang="scss" scoped>
 @import "../assets/vars.scss";
+
+.view-only-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 50rem;
+    font-size: 13px;
+    font-weight: 600;
+    color: $dark-font-color2;
+    background-color: rgba($secondary-text, 0.12);
+    cursor: help;
+
+    .dark & {
+        color: $dark-font-color;
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+}
+
+.view-only-strip {
+    position: fixed;
+    bottom: calc(60px + env(safe-area-inset-bottom));
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    padding: 4px 12px;
+    font-size: 12px;
+    text-align: center;
+    color: $dark-font-color2;
+    background-color: #eef2f7;
+
+    .dark & {
+        color: $dark-font-color;
+        background-color: $dark-header-bg;
+    }
+}
 
 .nav-link {
     &:hover {

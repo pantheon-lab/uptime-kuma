@@ -128,8 +128,11 @@
                 <div v-for="i in 8" :key="i" class="skeleton-row"></div>
             </div>
             <div v-else-if="Object.keys($root.monitorList).length === 0" class="text-center mt-3">
-                {{ $t("No Monitors, please") }}
-                <router-link to="/add">{{ $t("add one") }}</router-link>
+                <template v-if="$root.canEdit">
+                    {{ $t("No Monitors, please") }}
+                    <router-link to="/add">{{ $t("add one") }}</router-link>
+                </template>
+                <template v-else>{{ $t("viewerNoMonitorsShort") }}</template>
             </div>
 
             <div :style="{ height: renderedRows.top + 'px' }"></div>
