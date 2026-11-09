@@ -58,6 +58,16 @@ Database,port,,30,db.internal,5432,
 YAML is a list of monitors, or has a `monitors` list. **Check** shows what's wrong with each row, and nothing is added
 until every monitor is valid. Imported monitors get the default notifications.
 
+To export monitors, list them with the REST API and an API key with `monitors:write` (with only
+`monitors:read`, passwords and tokens come redacted). The file imports again as it is:
+
+```bash
+curl -s -H "Authorization: Bearer $KEY" "http://localhost:3002/api/v1/monitors?limit=1000" > monitors.json
+```
+
+A `parentId` is the group's ID on the server it came from, and push tokens must be unique, so importing into the same
+server needs those changed or removed. Notifications and tags aren't in the file.
+
 The Edit Monitor form's **Test** runs one check of the monitor as the form has it, without saving it.
 
 ### A prompt for an AI agent

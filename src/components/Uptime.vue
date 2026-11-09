@@ -1,5 +1,12 @@
 <template>
-    <span :class="className" :title="title">{{ uptime }}</span>
+    <span :class="className" :title="title" :data-status="pill ? lastHeartBeat.status : null">
+        <!-- In a pill, the colour is the status: an icon and words say it too -->
+        <template v-if="pill && statusIcon">
+            <font-awesome-icon :icon="statusIcon" class="status-icon" aria-hidden="true" />
+        </template>
+        <span v-if="pill && statusName" class="visually-hidden">{{ statusName }}:</span>
+        {{ uptime }}
+    </span>
 </template>
 
 <script>
@@ -65,6 +72,35 @@ export default {
             return "secondary";
         },
 
+        /**
+         * The icon that says the status, beside its colour. Up needs none.
+         * @returns {string|null} Icon
+         */
+        statusIcon() {
+            return (
+                {
+                    [DOWN]: "times-circle",
+                    [PENDING]: "spinner",
+                    [MAINTENANCE]: "wrench",
+                }[this.lastHeartBeat.status] ?? null
+            );
+        },
+
+        /**
+         * The status in words, for screen readers
+         * @returns {string|null} Status
+         */
+        statusName() {
+            return (
+                {
+                    [UP]: this.$t("Up"),
+                    [DOWN]: this.$t("Down"),
+                    [PENDING]: this.$t("Pending"),
+                    [MAINTENANCE]: this.$t("statusMaintenance"),
+                }[this.lastHeartBeat.status] ?? null
+            );
+        },
+
         lastHeartBeat() {
             if (this.monitor.id in this.$root.lastHeartbeatList && this.$root.lastHeartbeatList[this.monitor.id]) {
                 return this.$root.lastHeartbeatList[this.monitor.id];
@@ -99,5 +135,9 @@ export default {
 <style>
 .badge {
     min-width: 62px;
+}
+
+.badge .status-icon {
+    margin-right: 3px;
 }
 </style>

@@ -7,40 +7,40 @@ Update this file in the same pull request as each phase. Only mark a phase done 
 wasn't. The order of the planned phases is a proposal, and should follow what's actually in use: the dry run of
 `kuma-import` lists every monitor it can't bring over, and why.
 
-| Phase | Scope                                                               | Status  |
-| ----- | ------------------------------------------------------------------- | ------- |
-| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done    |
-| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done    |
-| 2     | Push, Ping and DNS monitors                                         | Done    |
-| 3     | Status pages and badges                                             | Done    |
-| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done    |
-| 4b    | Other databases and messaging                                       | Done    |
-| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done    |
-| 4d    | Docker, system and remote browser monitors                          | Done    |
-| 4e    | HTTP options, proxies and domain expiry                             | Done    |
-| 4f    | Globalping, GameDig and Tailscale ping                              | Done    |
-| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done    |
-| 5b    | Settings that take effect, and the Monitor History page             | Done    |
-| 5c    | Importing accounts, status pages and maintenance windows            | Done    |
-| 6a    | The MCP server and the update check                                 | Done    |
-| 6b    | The `nostr` and `Webpush` notification providers                    | Done    |
-| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Done    |
-| 7a    | More than one account, with full and read-only roles                | Done    |
-| 7b    | Logging in with GitHub                                              | Done    |
-| E1    | Managing accounts in the UI                                         | Done    |
-| E2    | The Security page for GitHub accounts                               | Done    |
-| E3    | Encrypting stored secrets                                           | Done    |
-| E4    | Completing the migration from MariaDB                               | Done    |
-| U1    | Tab titles, unsaved edits, clickable stats, this fork's help links  | Done    |
-| U2    | Filtering events, and grouping alerts in the UI                     | Done    |
-| U3    | Keyboard shortcuts and a command palette                            | Done    |
-| UA    | A prompt for an AI agent to trace a failing monitor                 | Done    |
-| U4    | The Edit Monitor form                                               | Done    |
-| U5    | The monitor's page                                                  | Done    |
-| U6    | Editing many monitors at once                                       | Done    |
-| U7    | Viewers, the first run and phones                                   | Done    |
-| U8    | Bootstrap 5.3 and accessibility                                     | Next    |
-| U9    | Status page incidents and subscriptions                             | Planned |
+| Phase | Scope                                                               | Status |
+| ----- | ------------------------------------------------------------------- | ------ |
+| 0     | Core: checks, notifications, history, web UI, login, deployment     | Done   |
+| 1     | Maintenance windows and public holidays, tags, TLS certificates     | Done   |
+| 2     | Push, Ping and DNS monitors                                         | Done   |
+| 3     | Status pages and badges                                             | Done   |
+| 4a    | Conditions, JSON query, manual, WebSocket, PostgreSQL, MySQL, Redis | Done   |
+| 4b    | Other databases and messaging                                       | Done   |
+| 4c    | NTP, SNMP, SMTP, SIP, RADIUS and Steam                              | Done   |
+| 4d    | Docker, system and remote browser monitors                          | Done   |
+| 4e    | HTTP options, proxies and domain expiry                             | Done   |
+| 4f    | Globalping, GameDig and Tailscale ping                              | Done   |
+| 5a    | Two-factor login, leaked passwords, API keys in the UI              | Done   |
+| 5b    | Settings that take effect, and the Monitor History page             | Done   |
+| 5c    | Importing accounts, status pages and maintenance windows            | Done   |
+| 6a    | The MCP server and the update check                                 | Done   |
+| 6b    | The `nostr` and `Webpush` notification providers                    | Done   |
+| 6c    | `apprise` in the image, and the Cloudflare tunnel                   | Done   |
+| 7a    | More than one account, with full and read-only roles                | Done   |
+| 7b    | Logging in with GitHub                                              | Done   |
+| E1    | Managing accounts in the UI                                         | Done   |
+| E2    | The Security page for GitHub accounts                               | Done   |
+| E3    | Encrypting stored secrets                                           | Done   |
+| E4    | Completing the migration from MariaDB                               | Done   |
+| U1    | Tab titles, unsaved edits, clickable stats, this fork's help links  | Done   |
+| U2    | Filtering events, and grouping alerts in the UI                     | Done   |
+| U3    | Keyboard shortcuts and a command palette                            | Done   |
+| UA    | A prompt for an AI agent to trace a failing monitor                 | Done   |
+| U4    | The Edit Monitor form                                               | Done   |
+| U5    | The monitor's page                                                  | Done   |
+| U6    | Editing many monitors at once                                       | Done   |
+| U7    | Viewers, the first run and phones                                   | Done   |
+| U8    | Bootstrap 5.3 and accessibility                                     | Done   |
+| U9    | Status page incidents and subscriptions                             | Next   |
 
 ## Phase 0: Core (done)
 
@@ -1086,11 +1086,48 @@ Known limits:
 
 Not tested: real phones (Chromium's phone emulation at 375 by 760 only), and the dark theme on phones.
 
-### U8: Bootstrap 5.3 and accessibility
+### U8: Bootstrap 5.3 and accessibility (done)
 
-- Bootstrap 5.3, whose `data-bs-theme` replaces much of the dark theme's own CSS, and Font Awesome 6.
-- States shown by more than colour, focus in the dragged monitor list, the heartbeat bar's contrast, and menus that
-  open from the keyboard.
+- **Bootstrap 5.3.8** (from 5.1.3) and **Font Awesome 6.7** (from 5.15), with Popper 2.11. The theme sets
+  `data-bs-theme`, and `vars.scss` gives Bootstrap's dark colour mode the dark theme's colours, so Bootstrap styles
+  dark form fields, checkboxes, the close button and pagination, whose own dark rules are gone. Rules with colours of
+  their own (menus, the list filter, tables, dialogs, switches) stay. Every icon name the templates use still
+  resolves, under Font Awesome 6's old names. Before and after, screenshots of ten pages and three open menus and
+  dialogs, light and dark, differed only by a pixel's shift in text and by the beats and charts that moved between
+  them.
+- **Menus from the keyboard:** the account menu's toggle was a `div`, which the keyboard couldn't reach; it's a button
+  with a label. The status and tag filters' items answered only clicks: they're checkboxes now, which Enter and Space
+  toggle, saying whether they're chosen, and Escape closes the filter.
+- **The monitor list from the keyboard:** a group's arrow was a `span`, so groups couldn't be opened or closed from the
+  keyboard; it's a button that says whether the group is open. A monitor dragged into a group keeps focus, its group
+  opens to show it, and a message says where it went. Viewers can't start a drag, which could only fail.
+- **Statuses by more than colour:** the uptime pill in the list has an icon for down, pending and maintenance, and
+  says the status to screen readers. In the heartbeat bar, a down beat has a notch, a pending one is shorter and a
+  maintenance one is an outline (`src/beat-shape.ts`); its label counts pending and maintenance too, and is
+  translated.
+- **The heartbeat bar's contrast:** up (1.7:1) and pending (2.1:1) beats were too pale on white, and maintenance
+  (2.9:1) too dark on the dark theme, for WCAG's 3:1. On white, up and pending beats have a darker edge (3.4:1 and
+  3.3:1); on the dark theme, maintenance is a lighter blue (5.4:1).
+- **Focus that shows:** the status page's editable text and its CSS editor showed no focus ring.
+
+Tested: the beat shapes and their contrast with unit tests. In headless Chromium against the built image
+(`internal/e2e/browser/ui-u8.mjs`), 11 of 11 steps passed with no page errors: Bootstrap 5.3's colour mode following
+the theme, with a dark field in the theme's colour; Font Awesome 6's icons under old names; the account menu opened
+with Enter, its first item reached with the arrow keys and closed with Escape; the status filter's Down chosen with
+Space and unchosen with Enter, and closed with Escape; a group opened and closed with Enter, without following its
+link; a monitor dragged into a closed group, the group opened, focus on the monitor, and the message; the down pill's
+icon and words; the bar's notched down beats and the up beats' edge, read from its pixels, and its label; a viewer's
+drag refused; and the focus rings. U1 to U7's, the AI prompt's and the follow-up tests passed again, and the Edit
+Monitor form's snapshot of every type was as in U6.
+
+Known limits:
+
+- The filter menus open when their button gets focus, as before, rather than on Enter, and have no arrow keys.
+- Dragging into a group has no keyboard equivalent in the list; the form's Monitor Group field does it.
+- The heartbeat bar's empty slots stay pale: they hold no data.
+
+Not tested: screen readers themselves (the names, roles and states were checked in the page), and Windows' high
+contrast mode.
 
 ### U9: Status page incidents and subscriptions
 

@@ -249,7 +249,8 @@ optgroup {
     }
 }
 
-// Dark Theme override here
+// Dark Theme override here. Bootstrap's own dark colour mode (data-bs-theme, with the colours in
+// vars.scss) styles form fields, checkboxes, the close button and pagination.
 .dark {
     background-color: #090c10;
     color: $dark-font-color;
@@ -270,19 +271,10 @@ optgroup {
         }
     }
 
-    .form-check-input {
-        background-color: $dark-bg2;
-        border-color: $dark-border-color;
-    }
-
     .input-group-text {
         background-color: #282f39;
         border-color: $dark-border-color;
         color: $dark-font-color;
-    }
-
-    .form-check-input:checked {
-        border-color: $primary; // Re-apply bootstrap border
     }
 
     .form-switch .form-check-input {
@@ -302,30 +294,6 @@ optgroup {
     .incident a,
     .bg-maintenance a {
         color: inherit;
-    }
-
-    .form-control,
-    .form-control:focus,
-    .form-select,
-    .form-select:focus {
-        color: $dark-font-color;
-        background-color: $dark-bg2;
-    }
-
-    .form-select:disabled {
-        color: rgba($dark-font-color, 0.7);
-        background-color: $dark-bg;
-    }
-
-    .form-control,
-    .form-select {
-        border-color: $dark-border-color;
-    }
-
-    .form-control:disabled,
-    .form-control[readonly] {
-        background-color: #232f3b;
-        opacity: 1;
     }
 
     .table-hover > tbody > tr:hover > * {
@@ -371,33 +339,12 @@ optgroup {
         }
     }
 
-    .btn-close {
-        box-shadow: none;
-        filter: invert(1);
-
-        &:hover {
-            opacity: 0.6;
-        }
-    }
-
     .modal-header {
         border-color: $dark-bg;
     }
 
     .modal-footer {
         border-color: $dark-bg;
-    }
-
-    // Pagination
-    .page-item.disabled .page-link {
-        background-color: $dark-bg;
-        border-color: $dark-border-color;
-    }
-
-    .page-link {
-        background-color: $dark-bg;
-        border-color: $dark-border-color;
-        color: $dark-font-color;
     }
 
     .monitor-list {
@@ -559,7 +506,9 @@ optgroup {
     }
 
     &:focus {
-        outline: 0 solid #eee;
+        // Visible to the keyboard, not only a lighter background
+        outline: 2px solid rgba($primary, 0.7);
+        outline-offset: 2px;
         background-color: rgba(245, 245, 245, 0.9);
     }
 
@@ -600,6 +549,12 @@ optgroup {
 
 .prism-editor__textarea {
     outline: none !important;
+}
+
+// The code editor's own text area has no outline, so its box shows focus
+.css-editor:focus-within {
+    outline: 2px solid rgba($primary, 0.7);
+    outline-offset: 2px;
 }
 
 .prism-editor__container {

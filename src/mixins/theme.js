@@ -119,6 +119,8 @@ export default {
          * @returns {void}
          */
         updateThemeColorMeta() {
+            // Bootstrap's own colour mode: its components follow the theme
+            document.documentElement.setAttribute("data-bs-theme", this.theme === "dark" ? "dark" : "light");
             if (this.theme === "dark") {
                 document.querySelector("#theme-color").setAttribute("content", "#161B22");
             } else {

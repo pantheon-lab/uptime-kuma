@@ -1851,5 +1851,11 @@
     "gettingStarted-statusPage": "Share a status page",
     "gettingStarted-statusPage-help": "A public page of your monitors' status, for your users or your team.",
     "viewerNoMonitors": "There are no monitors yet. Your account can only view, so an admin adds them, and they'll show here.",
-    "viewerNoMonitorsShort": "No monitors yet."
+    "viewerNoMonitorsShort": "No monitors yet.",
+    "accountMenu": "Account menu, {0}",
+    "heartbeatBarLabel": "Heartbeat history: {checks} checks, {up} up, {down} down, {pending} pending, {maintenance} in maintenance",
+    "heartbeatBarNoData": "Heartbeat history: no data",
+    "expandGroup": "Show the monitors in {0}",
+    "collapseGroup": "Hide the monitors in {0}",
+    "movedIntoGroup": "Moved {0} into {1}."
 }

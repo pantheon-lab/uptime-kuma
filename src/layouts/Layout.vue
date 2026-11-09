@@ -57,10 +57,18 @@
                 </li>
                 <li v-if="$root.loggedIn" class="nav-item">
                     <div class="dropdown dropdown-profile-pic">
-                        <div class="nav-link" data-bs-toggle="dropdown">
-                            <div class="profile-pic">{{ $root.usernameFirstChar }}</div>
+                        <!-- A button, so that the keyboard reaches it and opens it -->
+                        <button
+                            type="button"
+                            class="nav-link"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            data-testid="account-menu"
+                            :aria-label="$t('accountMenu', [$root.username ?? ''])"
+                        >
+                            <span class="profile-pic" aria-hidden="true">{{ $root.usernameFirstChar }}</span>
                             <font-awesome-icon icon="angle-down" />
-                        </div>
+                        </button>
 
                         <!-- Header's Dropdown Menu -->
                         <ul class="dropdown-menu">
@@ -405,6 +413,7 @@ main {
         display: flex;
         gap: 6px;
         align-items: center;
+        border: 0;
         background-color: rgba(200, 200, 200, 0.2);
         padding: 0.5rem 0.8rem;
 

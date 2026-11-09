@@ -26,7 +26,11 @@
                     class="dropdown-item"
                     tabindex="0"
                     data-testid="filter-status-up"
+                    role="checkbox"
+                    :aria-checked="!!filterState.status?.includes(1)"
                     @click.stop="toggleStatusFilter(1)"
+                    @keydown.enter.prevent.stop="toggleStatusFilter(1)"
+                    @keydown.space.prevent.stop="toggleStatusFilter(1)"
                 >
                     <div class="d-flex align-items-center justify-content-between">
                         <Status :status="1" />
@@ -44,7 +48,11 @@
                     class="dropdown-item"
                     tabindex="0"
                     data-testid="filter-status-down"
+                    role="checkbox"
+                    :aria-checked="!!filterState.status?.includes(0)"
                     @click.stop="toggleStatusFilter(0)"
+                    @keydown.enter.prevent.stop="toggleStatusFilter(0)"
+                    @keydown.space.prevent.stop="toggleStatusFilter(0)"
                 >
                     <div class="d-flex align-items-center justify-content-between">
                         <Status :status="0" />
@@ -62,7 +70,11 @@
                     class="dropdown-item"
                     tabindex="0"
                     data-testid="filter-status-pending"
+                    role="checkbox"
+                    :aria-checked="!!filterState.status?.includes(2)"
                     @click.stop="toggleStatusFilter(2)"
+                    @keydown.enter.prevent.stop="toggleStatusFilter(2)"
+                    @keydown.space.prevent.stop="toggleStatusFilter(2)"
                 >
                     <div class="d-flex align-items-center justify-content-between">
                         <Status :status="2" />
@@ -80,7 +92,11 @@
                     class="dropdown-item"
                     tabindex="0"
                     data-testid="filter-status-maintenance"
+                    role="checkbox"
+                    :aria-checked="!!filterState.status?.includes(3)"
                     @click.stop="toggleStatusFilter(3)"
+                    @keydown.enter.prevent.stop="toggleStatusFilter(3)"
+                    @keydown.space.prevent.stop="toggleStatusFilter(3)"
                 >
                     <div class="d-flex align-items-center justify-content-between">
                         <Status :status="3" />
@@ -101,7 +117,11 @@
                     class="dropdown-item"
                     tabindex="0"
                     data-testid="filter-active-running"
+                    role="checkbox"
+                    :aria-checked="!!filterState.active?.includes(true)"
                     @click.stop="toggleActiveFilter(true)"
+                    @keydown.enter.prevent.stop="toggleActiveFilter(true)"
+                    @keydown.space.prevent.stop="toggleActiveFilter(true)"
                 >
                     <div class="d-flex align-items-center justify-content-between">
                         <span class="badge status-pill running">
@@ -122,7 +142,11 @@
                     class="dropdown-item"
                     tabindex="0"
                     data-testid="filter-active-paused"
+                    role="checkbox"
+                    :aria-checked="!!filterState.active?.includes(false)"
                     @click.stop="toggleActiveFilter(false)"
+                    @keydown.enter.prevent.stop="toggleActiveFilter(false)"
+                    @keydown.space.prevent.stop="toggleActiveFilter(false)"
                 >
                     <div class="d-flex align-items-center justify-content-between">
                         <span class="badge status-pill paused">
@@ -166,7 +190,11 @@
                                 class="dropdown-item"
                                 tabindex="0"
                                 :data-testid="'filter-tag-' + tag.id"
+                                role="checkbox"
+                                :aria-checked="!!filterState.tags?.includes(tag.id)"
                                 @click.stop="toggleTagFilter(tag)"
+                                @keydown.enter.prevent.stop="toggleTagFilter(tag)"
+                                @keydown.space.prevent.stop="toggleTagFilter(tag)"
                             >
                                 <div class="d-flex align-items-center justify-content-between">
                                     <span class="tag-name-wrapper" :title="tag.name">
