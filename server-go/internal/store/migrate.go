@@ -585,6 +585,27 @@ var migrations = [][]string{
 		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS google_admin_emails text[] NOT NULL DEFAULT '{}'`,
 		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS google_viewer_emails text[] NOT NULL DEFAULT '{}'`,
 	},
+	{
+		// Logging in with an OpenID Connect provider: the account's issuer and subject, email and
+		// groups as the provider last said, the sealed refresh token, and the settings.
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS oidc_sub text`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS app_user_oidc_sub_idx ON app_user (oidc_sub) WHERE oidc_sub IS NOT NULL`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS oidc_email text`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS oidc_groups text[]`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS oidc_token text`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS oidc_checked_at timestamptz`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_enabled boolean NOT NULL DEFAULT false`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_name text NOT NULL DEFAULT ''`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_issuer text NOT NULL DEFAULT ''`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_client_id text NOT NULL DEFAULT ''`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_client_secret text NOT NULL DEFAULT ''`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_scopes text[] NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_groups_claim text NOT NULL DEFAULT ''`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_admin_groups text[] NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_viewer_groups text[] NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_admin_emails text[] NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_viewer_emails text[] NOT NULL DEFAULT '{}'`,
+	},
 }
 
 // Migrate brings the schema up to date.

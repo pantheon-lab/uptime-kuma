@@ -31,6 +31,7 @@ type fakeStore struct {
 	mu           sync.Mutex
 	loginConfig  *store.LoginConfig
 	googleTokens map[int32]string
+	oidcTokens   map[int32]string
 	users        []store.User
 	sessions     map[string]store.Session
 	monitors     map[int32]monitor.Monitor
@@ -75,6 +76,7 @@ func newFakeStore() *fakeStore {
 		totpSteps: map[int32]int64{}, totpFailures: map[int32]int{}, challenges: map[string]store.TwoFactorChallenge{},
 		githubTokens: map[int32]string{},
 		googleTokens: map[int32]string{},
+		oidcTokens:   map[int32]string{},
 	}
 }
 

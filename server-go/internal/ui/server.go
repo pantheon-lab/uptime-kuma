@@ -44,6 +44,10 @@ type Store interface {
 	SaveGoogleUser(ctx context.Context, g store.GoogleUser, role, refreshToken string) (store.User, error)
 	GoogleToken(ctx context.Context, userID int32) (string, error)
 	SetGoogleChecked(ctx context.Context, userID int32, g store.GoogleUser, role string) error
+	ExpireOIDCChecks(ctx context.Context) error
+	SaveOIDCUser(ctx context.Context, o store.OIDCUser, role, refreshToken string) (store.User, error)
+	OIDCToken(ctx context.Context, userID int32) (string, error)
+	SetOIDCChecked(ctx context.Context, userID int32, o store.OIDCUser, role, refreshToken string) error
 	EndOtherUserSessions(ctx context.Context, userID int32, keep []byte) error
 	ListAccounts(ctx context.Context) ([]store.Account, error)
 	DeleteUser(ctx context.Context, userID int32, methods store.LoginMethods) (store.User, error)
@@ -168,8 +172,10 @@ type Options struct {
 	// GoogleEndpoint replaces Google's addresses, for tests: <it>/o/oauth2/v2/auth, /token and
 	// /v1/userinfo. Empty means Google's.
 	GoogleEndpoint string
+	// OIDC turns on logging in with an OpenID Connect provider.
+	OIDC *OIDCOptions
 	// LoginFromEnv means environment variables set how people log in, so Settings > Single
-	// Sign-On only shows it. GitHub, Google or DisablePasswordLogin being set means it too.
+	// Sign-On only shows it. GitHub, Google, OIDC or DisablePasswordLogin being set means it too.
 	LoginFromEnv bool
 	// IndexHTML is the web UI's index.html, which status pages are rendered into. Without it,
 	// /status/ answers 404, and the data is still at /api/status-page/.
@@ -214,6 +220,10 @@ type Server struct {
 	githubMu       sync.Mutex
 	githubChecking map[int32]bool
 	githubFailed   map[int32]time.Time
+
+	// oidcCache keeps the OpenID Connect provider's discovery document and keys.
+	oidcMu    sync.Mutex
+	oidcCache *oidcProvider
 }
 
 // New creates the server.
@@ -249,8 +259,8 @@ func New(s Store, scheduler Scheduler, notifyEnv *notify.Env, log *slog.Logger, 
 		googleEndpoints(opts.Google, opts.GoogleEndpoint)
 	}
 	server.login.Store(&loginState{
-		github: opts.GitHub, google: opts.Google, password: !opts.DisablePasswordLogin,
-		fromEnv: opts.LoginFromEnv || opts.GitHub != nil || opts.Google != nil || opts.DisablePasswordLogin,
+		github: opts.GitHub, google: opts.Google, oidc: opts.OIDC, password: !opts.DisablePasswordLogin,
+		fromEnv: opts.LoginFromEnv || opts.GitHub != nil || opts.Google != nil || opts.OIDC != nil || opts.DisablePasswordLogin,
 	})
 	// A window started or ended, so open pages show its new status.
 	opts.Maintenance.OnChange(func() {
@@ -277,6 +287,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/auth/github/callback", s.githubCallback)
 	mux.HandleFunc("GET /api/auth/google/start", s.googleStart)
 	mux.HandleFunc("GET /api/auth/google/callback", s.googleCallback)
+	mux.HandleFunc("GET /api/auth/oidc/start", s.oidcStart)
+	mux.HandleFunc("GET /api/auth/oidc/callback", s.oidcCallback)
 	mux.HandleFunc("/api/auth/", s.authNotSupported)
 	mux.HandleFunc("GET /api/realtime/stream", s.stream)
 	mux.HandleFunc("POST /api/realtime/send", s.sameOrigin(s.send))

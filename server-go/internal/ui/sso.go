@@ -28,16 +28,17 @@ const (
 )
 
 var (
-	errLoginFromEnv = errors.New("Login is set by environment variables (KUMA_GITHUB_*, KUMA_PASSWORD_LOGIN), so it can't be changed here.")                                                                                                                                   //nolint:staticcheck // Shown to users.
-	errNoLogin      = errors.New("Turn on password login or GitHub login: with neither, nobody could log in.")                                                                                                                                                                 //nolint:staticcheck // Shown to users.
-	errPasswordOff  = errors.New("Password login can only be off while you're logged in as an admin with GitHub or Google, with that provider's settings as you logged in with them. Save its settings with password login on, log in with it, then turn password login off.") //nolint:staticcheck // Shown to users.
-	errNoAdminLeft  = errors.New("No admin could log in after this change. Keep a way in for an admin: a password, or GitHub.")                                                                                                                                                //nolint:staticcheck // Shown to users.
+	errLoginFromEnv = errors.New("Login is set by environment variables (KUMA_GITHUB_*, KUMA_GOOGLE_*, KUMA_OIDC_*, KUMA_PASSWORD_LOGIN), so it can't be changed here.")                                                                                                     //nolint:staticcheck // Shown to users.
+	errNoLogin      = errors.New("Turn on password login or GitHub login: with neither, nobody could log in.")                                                                                                                                                               //nolint:staticcheck // Shown to users.
+	errPasswordOff  = errors.New("Password login can only be off while you're logged in as an admin with single sign-on, with that provider's settings as you logged in with them. Save its settings with password login on, log in with it, then turn password login off.") //nolint:staticcheck // Shown to users.
+	errNoAdminLeft  = errors.New("No admin could log in after this change. Keep a way in for an admin: a password, or GitHub.")                                                                                                                                              //nolint:staticcheck // Shown to users.
 )
 
 // loginState is how people log in now.
 type loginState struct {
 	github   *GitHubOptions
 	google   *GoogleOptions
+	oidc     *OIDCOptions
 	password bool
 	// fromEnv means environment variables set it, and the UI can't change it.
 	fromEnv bool
@@ -49,12 +50,23 @@ func (s *Server) github() *GitHubOptions { return s.login.Load().github }
 // google returns Google login's settings, or nil when it's off.
 func (s *Server) google() *GoogleOptions { return s.login.Load().google }
 
+// oidc returns the OpenID Connect provider's settings, or nil when it's off.
+func (s *Server) oidc() *OIDCOptions { return s.login.Load().oidc }
+
+// oidcName is the OpenID Connect provider's name for the login page, or "" when it's off.
+func (s *Server) oidcName() string {
+	if o := s.oidc(); o != nil {
+		return o.Name
+	}
+	return ""
+}
+
 // passwordLogin reports whether passwords log in.
 func (s *Server) passwordLogin() bool { return s.login.Load().password }
 
 func (s *Server) loginMethods() store.LoginMethods {
 	l := s.login.Load()
-	return store.LoginMethods{Password: l.password, GitHub: l.github != nil, Google: l.google != nil}
+	return store.LoginMethods{Password: l.password, GitHub: l.github != nil, Google: l.google != nil, OIDC: l.oidc != nil}
 }
 
 // githubFromConfig is GitHub login's options from saved settings, or nil when it's off.
@@ -88,6 +100,18 @@ func googleFromConfig(c store.GoogleConfig, endpoint string) *GoogleOptions {
 	return g
 }
 
+// oidcFromConfig is the OpenID Connect provider's options from saved settings, or nil when it's off.
+func oidcFromConfig(c store.OIDCConfig) *OIDCOptions {
+	if !c.Enabled {
+		return nil
+	}
+	return &OIDCOptions{
+		Name: c.Name, Issuer: c.Issuer, ClientID: c.ClientID, ClientSecret: c.ClientSecret, Scopes: c.Scopes,
+		GroupsClaim: c.GroupsClaim, AdminGroups: c.AdminGroups, ViewerGroups: c.ViewerGroups,
+		AdminEmails: c.AdminEmails, ViewerEmails: c.ViewerEmails,
+	}
+}
+
 // LoadLoginConfig takes the login settings saved in the UI, unless environment variables set them.
 func (s *Server) LoadLoginConfig(ctx context.Context) error {
 	if s.login.Load().fromEnv {
@@ -98,7 +122,7 @@ func (s *Server) LoadLoginConfig(ctx context.Context) error {
 		return err
 	}
 	s.login.Store(&loginState{github: githubFromConfig(c), google: googleFromConfig(c.Google, s.opts.GoogleEndpoint),
-		password: c.PasswordLogin})
+		oidc: oidcFromConfig(c.OIDC), password: c.PasswordLogin})
 	return nil
 }
 
@@ -144,7 +168,13 @@ func (s *Server) getLoginSettings(ctx context.Context, c *conn) (reply, error) {
 		"adminTeams": []string{}, "viewerTeams": []string{}, "webURL": "", "apiURL": "", "passwordLogin": l.password,
 	}
 	settings["google"] = googleSettingsJSON(false, "", false, nil, nil, nil)
+	settings["oidc"] = oidcSettingsJSON(store.OIDCConfig{})
 	if l.fromEnv {
+		if o := l.oidc; o != nil {
+			settings["oidc"] = oidcSettingsJSON(store.OIDCConfig{Enabled: true, Name: o.Name, Issuer: o.Issuer,
+				ClientID: o.ClientID, ClientSecret: o.ClientSecret, Scopes: o.Scopes, GroupsClaim: o.GroupsClaim,
+				AdminGroups: o.AdminGroups, ViewerGroups: o.ViewerGroups, AdminEmails: o.AdminEmails, ViewerEmails: o.ViewerEmails})
+		}
 		if g := l.google; g != nil {
 			settings["google"] = googleSettingsJSON(true, g.ClientID, g.ClientSecret != "", g.Domains, g.AdminEmails, g.ViewerEmails)
 		}
@@ -160,6 +190,7 @@ func (s *Server) getLoginSettings(ctx context.Context, c *conn) (reply, error) {
 		}
 		settings["google"] = googleSettingsJSON(saved.Google.Enabled, saved.Google.ClientID, saved.Google.ClientSecret != "",
 			saved.Google.Domains, saved.Google.AdminEmails, saved.Google.ViewerEmails)
+		settings["oidc"] = oidcSettingsJSON(saved.OIDC)
 		settings["githubEnabled"], settings["clientId"], settings["hasClientSecret"] = saved.GitHubEnabled, saved.ClientID, saved.ClientSecret != ""
 		settings["org"], settings["adminTeams"], settings["viewerTeams"] = saved.Org, nonNilList(saved.AdminTeams), nonNilList(saved.ViewerTeams)
 		settings["webURL"], settings["apiURL"], settings["passwordLogin"] = saved.WebURL, saved.APIURL, saved.PasswordLogin
@@ -169,7 +200,7 @@ func (s *Server) getLoginSettings(ctx context.Context, c *conn) (reply, error) {
 		return nil, err
 	}
 	lastLogins := map[string]any{}
-	for _, kind := range []string{"github", "google"} {
+	for _, kind := range []string{"github", "google", "oidc"} {
 		name, at, err := s.store.LastSSOLogin(ctx, kind)
 		if err != nil {
 			return nil, err
@@ -184,9 +215,21 @@ func (s *Server) getLoginSettings(ctx context.Context, c *conn) (reply, error) {
 		you = "github"
 	case user.GoogleSub != nil:
 		you = "google"
+	case user.OIDCSub != nil:
+		you = "oidc"
 	}
 	return ok("settings", settings, "managedByEnv", l.fromEnv, "callbackURL", s.callbackURL(ctx, "github"),
-		"googleCallbackURL", s.callbackURL(ctx, "google"), "youUse", you, "lastLogins", lastLogins), nil
+		"googleCallbackURL", s.callbackURL(ctx, "google"), "oidcCallbackURL", s.callbackURL(ctx, "oidc"),
+		"youUse", you, "lastLogins", lastLogins), nil
+}
+
+// oidcSettingsJSON is the form's OpenID Connect part, without the secret.
+func oidcSettingsJSON(c store.OIDCConfig) map[string]any {
+	return map[string]any{
+		"enabled": c.Enabled, "name": c.Name, "issuer": c.Issuer, "clientId": c.ClientID, "hasClientSecret": c.ClientSecret != "",
+		"scopes": nonNilList(c.Scopes), "groupsClaim": c.GroupsClaim, "adminGroups": nonNilList(c.AdminGroups),
+		"viewerGroups": nonNilList(c.ViewerGroups), "adminEmails": nonNilList(c.AdminEmails), "viewerEmails": nonNilList(c.ViewerEmails),
+	}
 }
 
 func googleSettingsJSON(enabled bool, clientID string, hasSecret bool, domains, admins, viewers []string) map[string]any {
@@ -222,6 +265,19 @@ type loginSettingsInput struct {
 		AdminEmails  []string `json:"adminEmails"`
 		ViewerEmails []string `json:"viewerEmails"`
 	} `json:"google"`
+	OIDC struct {
+		Enabled      bool     `json:"enabled"`
+		Name         string   `json:"name"`
+		Issuer       string   `json:"issuer"`
+		ClientID     string   `json:"clientId"`
+		ClientSecret string   `json:"clientSecret"`
+		Scopes       []string `json:"scopes"`
+		GroupsClaim  string   `json:"groupsClaim"`
+		AdminGroups  []string `json:"adminGroups"`
+		ViewerGroups []string `json:"viewerGroups"`
+		AdminEmails  []string `json:"adminEmails"`
+		ViewerEmails []string `json:"viewerEmails"`
+	} `json:"oidc"`
 }
 
 // teamSlugs cleans a list of team slugs: lowercase, without blanks or repeats.
@@ -298,7 +354,10 @@ func parseLoginSettings(in loginSettingsInput, saved store.LoginConfig) (store.L
 	if c.Google, err = parseGoogleSettings(in, saved.Google); err != nil {
 		return c, err
 	}
-	if !c.GitHubEnabled && !c.Google.Enabled && !c.PasswordLogin {
+	if c.OIDC, err = parseOIDCSettings(in, saved.OIDC); err != nil {
+		return c, err
+	}
+	if !c.GitHubEnabled && !c.Google.Enabled && !c.OIDC.Enabled && !c.PasswordLogin {
 		return c, errNoLogin
 	}
 	return c, nil
@@ -339,6 +398,78 @@ func parseGoogleSettings(in loginSettingsInput, saved store.GoogleConfig) (store
 		return g, errors.New("A viewer of * needs at least one Google Workspace domain, or anyone with a Google account could log in.") //nolint:staticcheck // Shown to users.
 	}
 	return g, nil
+}
+
+// parseOIDCSettings checks the form's OpenID Connect part, keeping the saved secret when it's
+// empty and the issuer and client are the same.
+func parseOIDCSettings(in loginSettingsInput, saved store.OIDCConfig) (store.OIDCConfig, error) {
+	f := in.OIDC
+	o := store.OIDCConfig{
+		Enabled: f.Enabled, Name: strings.TrimSpace(f.Name), ClientID: strings.TrimSpace(f.ClientID),
+		ClientSecret: strings.TrimSpace(f.ClientSecret), GroupsClaim: strings.TrimSpace(f.GroupsClaim),
+	}
+	var err error
+	if o.Issuer, err = oidcIssuerURL(f.Issuer); err != nil {
+		return o, err
+	}
+	if o.ClientSecret == "" && o.ClientID == saved.ClientID && o.Issuer == saved.Issuer {
+		o.ClientSecret = saved.ClientSecret
+	}
+	// Groups compare as the provider writes them: some are ids, and case can matter.
+	keep := func(list []string) []string {
+		var out []string
+		for _, v := range list {
+			if v = strings.TrimSpace(v); v != "" && !slices.Contains(out, v) {
+				out = append(out, v)
+			}
+		}
+		return out
+	}
+	o.AdminGroups, o.ViewerGroups = keep(f.AdminGroups), keep(f.ViewerGroups)
+	// Scopes keep their case too.
+	o.Scopes = keep(f.Scopes)
+	for _, scope := range o.Scopes {
+		if strings.ContainsAny(scope, " \"\\") || len(scope) > 200 {
+			return o, errors.New("A scope is one word: " + scope)
+		}
+	}
+	if o.AdminEmails, err = cleanList(f.AdminEmails, validEmailEntry(false), "Admins are email addresses."); err != nil {
+		return o, err
+	}
+	if o.ViewerEmails, err = cleanList(f.ViewerEmails, validEmailEntry(false), "Viewers are email addresses."); err != nil {
+		return o, err
+	}
+	if len(o.Name) > 40 || len(o.ClientID) > 255 || len(o.ClientSecret) > 512 || len(o.GroupsClaim) > 100 ||
+		len(o.AdminGroups)+len(o.ViewerGroups) > 1000 {
+		return o, errors.New("a field is too long")
+	}
+	if !o.Enabled {
+		return o, nil
+	}
+	switch {
+	case o.Name == "":
+		return o, errors.New("Enter the provider's name, for the login page's button.") //nolint:staticcheck // Shown to users.
+	case o.Issuer == "":
+		return o, errors.New("Enter the provider's issuer address.") //nolint:staticcheck // Shown to users.
+	case o.ClientID == "":
+		return o, errors.New("Enter the client ID the provider gave this server.") //nolint:staticcheck // Shown to users.
+	case o.ClientSecret == "":
+		return o, errors.New("Enter the client secret the provider gave this server.") //nolint:staticcheck // Shown to users.
+	case len(o.AdminGroups)+len(o.ViewerGroups)+len(o.AdminEmails)+len(o.ViewerEmails) == 0:
+		return o, errors.New("Enter at least one group or email, who may log in.") //nolint:staticcheck // Shown to users.
+	}
+	return o, nil
+}
+
+// sameOIDC reports whether two OpenID Connect settings let in the same people the same way.
+func sameOIDC(a, b *OIDCOptions) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Issuer == b.Issuer && a.ClientID == b.ClientID && a.ClientSecret == b.ClientSecret &&
+		slices.Equal(a.Scopes, b.Scopes) && a.GroupsClaim == b.GroupsClaim &&
+		slices.Equal(a.AdminGroups, b.AdminGroups) && slices.Equal(a.ViewerGroups, b.ViewerGroups) &&
+		slices.Equal(a.AdminEmails, b.AdminEmails) && slices.Equal(a.ViewerEmails, b.ViewerEmails)
 }
 
 // cleanList lowercases and trims a list, without blanks or repeats, and checks each entry.
@@ -412,7 +543,7 @@ func (s *Server) saveLoginSettings(ctx context.Context, c *conn, args []json.Raw
 		return nil, userErr(err)
 	}
 	next := &loginState{github: githubFromConfig(config), google: googleFromConfig(config.Google, s.opts.GoogleEndpoint),
-		password: config.PasswordLogin}
+		oidc: oidcFromConfig(config.OIDC), password: config.PasswordLogin}
 
 	// Turning passwords off needs proof that single sign-on works: the admin doing it is logged in
 	// with GitHub or Google, as that provider's settings are now. While they're off, that provider's
@@ -425,11 +556,12 @@ func (s *Server) saveLoginSettings(ctx context.Context, c *conn, args []json.Raw
 		}
 		viaGitHub := user.GitHubID != nil && current.github != nil && sameGitHub(current.github, next.github)
 		viaGoogle := user.GoogleSub != nil && current.google != nil && sameGoogle(current.google, next.google)
-		if !user.IsAdmin() || (!viaGitHub && !viaGoogle) {
+		viaOIDC := user.OIDCSub != nil && current.oidc != nil && sameOIDC(current.oidc, next.oidc)
+		if !user.IsAdmin() || (!viaGitHub && !viaGoogle && !viaOIDC) {
 			return nil, userErr(errPasswordOff)
 		}
 	}
-	methods := store.LoginMethods{Password: next.password, GitHub: next.github != nil, Google: next.google != nil}
+	methods := store.LoginMethods{Password: next.password, GitHub: next.github != nil, Google: next.google != nil, OIDC: next.oidc != nil}
 	if canLogIn, err := s.store.AdminCanLogIn(ctx, methods); err != nil {
 		return nil, err
 	} else if !canLogIn {
@@ -450,7 +582,12 @@ func (s *Server) saveLoginSettings(ctx context.Context, c *conn, args []json.Raw
 			return nil, err
 		}
 	}
+	if !sameOIDC(current.oidc, next.oidc) {
+		if err := s.store.ExpireOIDCChecks(ctx); err != nil {
+			return nil, err
+		}
+	}
 	s.login.Store(next)
-	s.log.Info("login settings saved", "github", next.github != nil, "google", next.google != nil, "password", next.password)
+	s.log.Info("login settings saved", "github", next.github != nil, "google", next.google != nil, "oidc", next.oidc != nil, "password", next.password)
 	return okI18n("Saved."), nil
 }

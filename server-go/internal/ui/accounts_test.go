@@ -632,7 +632,7 @@ func (f *fakeStore) AdminCanLogIn(_ context.Context, methods store.LoginMethods)
 	defer f.mu.Unlock()
 	for _, u := range f.users {
 		if u.Role == store.RoleAdmin && ((!u.SSO() && methods.Password && u.PasswordHash != "") ||
-			(u.GitHubID != nil && methods.GitHub) || (u.GoogleSub != nil && methods.Google)) {
+			(u.GitHubID != nil && methods.GitHub) || (u.GoogleSub != nil && methods.Google) || (u.OIDCSub != nil && methods.OIDC)) {
 			return true, nil
 		}
 	}
@@ -713,6 +713,73 @@ func (f *fakeStore) SetGoogleChecked(_ context.Context, id int32, g store.Google
 			email, domain := g.Email, g.Domain
 			f.users[i].Role, f.users[i].GoogleCheckedAt, f.users[i].GoogleEmail, f.users[i].GoogleDomain = role, &now, &email, &domain
 		}
+	}
+	return nil
+}
+
+func (f *fakeStore) ExpireOIDCChecks(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.users {
+		if f.users[i].OIDCSub != nil {
+			f.users[i].OIDCCheckedAt = nil
+		}
+	}
+	return nil
+}
+
+func (f *fakeStore) SaveOIDCUser(_ context.Context, o store.OIDCUser, role, token string) (store.User, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	name := strings.ToLower(o.Name)
+	for _, u := range f.users {
+		if u.OIDCSub == nil && strings.EqualFold(u.Username, name) {
+			return store.User{}, store.ErrUsernameTakenByPassword
+		}
+	}
+	email, groups := o.Email, o.Groups
+	for i, u := range f.users {
+		if u.OIDCSub != nil && *u.OIDCSub == o.Key {
+			f.users[i].Username, f.users[i].Role, f.users[i].OIDCCheckedAt, f.users[i].OIDCEmail, f.users[i].OIDCGroups = name, role, &now, &email, groups
+			if token != "" {
+				f.oidcTokens[u.ID] = token
+			}
+			return f.users[i], nil
+		}
+	}
+	id := int32(len(f.users) + 1)
+	key := o.Key
+	u := store.User{ID: id, Username: name, Role: role, OIDCSub: &key, OIDCEmail: &email, OIDCGroups: groups, OIDCCheckedAt: &now, CreatedAt: now}
+	f.users = append(f.users, u)
+	if token != "" {
+		f.oidcTokens[id] = token
+	}
+	return u, nil
+}
+
+func (f *fakeStore) OIDCToken(_ context.Context, id int32) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	token, found := f.oidcTokens[id]
+	if !found {
+		return "", store.ErrNotFound
+	}
+	return token, nil
+}
+
+func (f *fakeStore) SetOIDCChecked(_ context.Context, id int32, o store.OIDCUser, role, token string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	for i := range f.users {
+		if f.users[i].ID == id {
+			email := o.Email
+			f.users[i].Role, f.users[i].OIDCCheckedAt, f.users[i].OIDCEmail, f.users[i].OIDCGroups = role, &now, &email, o.Groups
+		}
+	}
+	if token != "" {
+		f.oidcTokens[id] = token
 	}
 	return nil
 }

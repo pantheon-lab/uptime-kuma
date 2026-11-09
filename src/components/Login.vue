@@ -71,7 +71,10 @@
                     {{ $t(res.msg) }}
                 </div>
             </form>
-            <div v-if="($root.info.githubLogin || $root.info.googleLogin) && !tokenRequired" class="pt-3">
+            <div
+                v-if="($root.info.githubLogin || $root.info.googleLogin || $root.info.oidcLogin) && !tokenRequired"
+                class="pt-3"
+            >
                 <div v-if="!passwordLogin" class="form-check mb-3 d-flex justify-content-center pe-4">
                     <div class="form-check">
                         <input id="remember-github" v-model="$root.remember" type="checkbox" class="form-check-input" />
@@ -91,6 +94,15 @@
                     :href="googleLoginURL"
                 >
                     {{ $t("loginWithGoogle") }}
+                </a>
+                <a
+                    v-if="$root.info.oidcLogin"
+                    id="oidc-login"
+                    class="w-100 btn btn-outline-normal"
+                    :class="{ 'mt-2': $root.info.githubLogin || $root.info.googleLogin }"
+                    :href="oidcLoginURL"
+                >
+                    {{ $t("loginWithOIDC", [$root.info.oidcLogin]) }}
                 </a>
             </div>
         </div>
@@ -135,6 +147,13 @@ export default {
             return "/api/auth/google/start?remember=" + (this.$root.remember ? "1" : "0");
         },
         /**
+         * Where the OpenID Connect login starts
+         * @returns {string} Path
+         */
+        oidcLoginURL() {
+            return "/api/auth/oidc/start?remember=" + (this.$root.remember ? "1" : "0");
+        },
+        /**
          * Why the last GitHub login failed, from the address it came back to
          * @returns {string} Message, or empty
          */
@@ -150,6 +169,11 @@ export default {
                 "google-expired": this.$t("googleLoginExpired"),
                 "google-failed": this.$t("googleLoginFailed"),
                 "google-name-taken": this.$t("googleLoginNameTaken"),
+                "oidc-not-allowed": this.$t("oidcLoginNotAllowed"),
+                "oidc-denied": this.$t("oidcLoginDenied"),
+                "oidc-expired": this.$t("oidcLoginExpired"),
+                "oidc-failed": this.$t("oidcLoginFailed"),
+                "oidc-name-taken": this.$t("oidcLoginNameTaken"),
             };
             return code ? messages[code] || this.$t("githubLoginFailed") : "";
         },

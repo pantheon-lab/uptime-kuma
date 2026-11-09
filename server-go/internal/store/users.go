@@ -51,10 +51,20 @@ type User struct {
 	GoogleDomain *string
 	// GoogleCheckedAt is when Google last confirmed the account.
 	GoogleCheckedAt *time.Time
+
+	// OIDCSub is set for an account that logs in with the OpenID Connect provider: its issuer and
+	// subject, as "<issuer> <sub>", which no other provider's account can have.
+	OIDCSub *string
+	// OIDCEmail and OIDCGroups are as the provider last said.
+	OIDCEmail  *string
+	OIDCGroups []string
+	// OIDCCheckedAt is when the provider last confirmed the account.
+	OIDCCheckedAt *time.Time
 }
 
-// SSO reports whether the account logs in with GitHub or Google, and so has no password here.
-func (u User) SSO() bool { return u.GitHubID != nil || u.GoogleSub != nil }
+// SSO reports whether the account logs in with GitHub, Google or OpenID Connect, and so has no
+// password here.
+func (u User) SSO() bool { return u.GitHubID != nil || u.GoogleSub != nil || u.OIDCSub != nil }
 
 // Roles. An admin can do everything. A viewer can look at monitors, beats, maintenance and status
 // pages, but changes nothing and is sent no credentials.
@@ -67,7 +77,8 @@ const (
 func (u User) IsAdmin() bool { return u.Role == RoleAdmin }
 
 const userColumns = `id, username, password_hash, created_at, totp_secret, totp_enabled, totp_locked_until, role,
-	github_id, github_checked_at, github_teams, google_sub, google_email, google_domain, google_checked_at`
+	github_id, github_checked_at, github_teams, google_sub, google_email, google_domain, google_checked_at,
+	oidc_sub, oidc_email, oidc_groups, oidc_checked_at`
 
 // userColumnsOf is userColumns, each qualified with a table's alias.
 func userColumnsOf(alias string) string {
@@ -128,7 +139,8 @@ func (s *Store) CreateFirstUser(ctx context.Context, username, passwordHash stri
 
 func (u *User) fields() []any {
 	return []any{&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPLockedUntil, &u.Role, &u.GitHubID, &u.GitHubCheckedAt, &u.GitHubTeams,
-		&u.GoogleSub, &u.GoogleEmail, &u.GoogleDomain, &u.GoogleCheckedAt}
+		&u.GoogleSub, &u.GoogleEmail, &u.GoogleDomain, &u.GoogleCheckedAt,
+		&u.OIDCSub, &u.OIDCEmail, &u.OIDCGroups, &u.OIDCCheckedAt}
 }
 
 func (s *Store) scanUser(row pgx.Row) (User, error) {

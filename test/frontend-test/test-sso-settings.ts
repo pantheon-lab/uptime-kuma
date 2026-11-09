@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert";
-import { callbackURL, parseTeams, teamsText } from "../../src/sso-settings";
+import { callbackURL, parseGroups, parseTeams, teamsText } from "../../src/sso-settings";
 
 describe("parseTeams()", () => {
     test("lowercase slugs, by commas or spaces, without repeats or blanks", () => {
@@ -34,5 +34,12 @@ describe("callbackURL()", () => {
             callbackURL("", "https://kuma.example", "google").url,
             "https://kuma.example/api/auth/google/callback"
         );
+    });
+});
+
+describe("parseGroups()", () => {
+    test("by commas only, keeping case and spaces", () => {
+        assert.deepStrictEqual(parseGroups(" Kuma Admins, 0F1E-ab ,,Kuma Admins"), ["Kuma Admins", "0F1E-ab"]);
+        assert.deepStrictEqual(parseGroups(""), []);
     });
 });

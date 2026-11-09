@@ -10,9 +10,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// ErrUsernameTakenByPassword means that a password account has the Google account's email as its
-// username, so the Google login can't take it over.
-var ErrUsernameTakenByPassword = errors.New("a password account has this email as its username")
+// ErrUsernameTakenByPassword means that another account (a password one, or another provider's)
+// has the single sign-on account's name as its username, so the login can't take it over.
+var ErrUsernameTakenByPassword = errors.New("another account has this name as its username")
 
 // GoogleUser is what Google says about someone at login or a check.
 type GoogleUser struct {

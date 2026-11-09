@@ -110,7 +110,7 @@ included, to turn it on again. The client secret is stored encrypted, like other
 browsers. Other instances of the service read the settings within 30 seconds.
 
 The settings can be set by environment variables instead, for deployments managed as code. When any of
-`KUMA_GITHUB_CLIENT_ID`, `KUMA_GOOGLE_CLIENT_ID` or `KUMA_PASSWORD_LOGIN` is set, those win, and the page shows them read-only:
+`KUMA_GITHUB_CLIENT_ID`, `KUMA_GOOGLE_CLIENT_ID`, `KUMA_OIDC_ISSUER` or `KUMA_PASSWORD_LOGIN` is set, those win, and the page shows them read-only:
 `KUMA_GITHUB_CLIENT_ID`, `KUMA_GITHUB_CLIENT_SECRET`, `KUMA_GITHUB_ORG`, `KUMA_GITHUB_ADMIN_TEAMS` and
 `KUMA_GITHUB_VIEWER_TEAMS` (comma-separated), and `KUMA_PASSWORD_LOGIN=false`.
 
@@ -146,6 +146,43 @@ lists only. Changing the lists applies at each account's next request. Two-facto
 With environment variables instead: `KUMA_GOOGLE_CLIENT_ID`, `KUMA_GOOGLE_CLIENT_SECRET`, `KUMA_GOOGLE_DOMAINS`,
 `KUMA_GOOGLE_ADMIN_EMAILS` and `KUMA_GOOGLE_VIEWER_EMAILS` (comma-separated). Setting `KUMA_GOOGLE_CLIENT_ID`
 makes the page read-only, as for GitHub.
+
+### Logging in with OpenID Connect
+
+Any OpenID Connect provider can be the login page's third way in, such as Okta, Microsoft Entra ID, Keycloak,
+Authentik or Auth0, set up under **Settings > Single Sign-On** with a name for its button.
+
+1. In the provider, register a web application (a confidential client) using the authorization code flow, with
+   the redirect URI the page shows: `https://<this server>/api/auth/oidc/callback`.
+2. Enter the provider's **issuer**, the address its `/.well-known/openid-configuration` is under, and press
+   **Check** to read it. Then the client ID and secret, and who may log in: **admin groups** and **viewer groups**,
+   **admin emails** and **viewer emails**. A viewer group of `*` lets everyone the provider logs in view, so it's
+   only for a provider that holds your organization alone.
+3. Log in with it before turning passwords off, as for GitHub and Google.
+
+How it works:
+
+- The login is the authorization code flow with PKCE, a state and a nonce. The client authenticates to the token
+  endpoint with HTTP Basic, or in the form if the provider supports only that. The ID token is verified with the
+  provider's published keys (RS256, RS384, RS512, PS256, PS384, PS512, ES256, ES384, ES512): its signature,
+  issuer, audience, authorized party, expiry and nonce. The discovery document and keys are kept 10 minutes, and
+  the keys are read again for a key id they don't have, such as after the provider rotates them.
+- **Groups** come from the `groups` claim, or another one under **Scopes and claims**, in the ID token or the
+  userinfo endpoint. They compare as the provider writes them: names in Okta or Keycloak, object ids in Entra ID.
+  Some providers send groups only when asked for a scope, such as `groups`, which goes under **Scopes**.
+- **Emails** count unless the provider says they aren't verified. Entra ID leaves `email_verified` out for its
+  own accounts, so an email without the claim counts.
+- **Accounts** are named by their email, or else the preferred username or subject, and keyed by the issuer and
+  subject. A login is refused rather than taking over another account with that name. Changing the issuer logs
+  the old issuer's accounts out.
+- **The daily check:** with a refresh token, which some providers give only for the `offline_access` scope, the
+  provider is asked again once a day while the account is used. A refused refresh token logs it out, new groups
+  apply, and a rotated refresh token is kept. Without one, the settings decide from what the provider said last.
+
+With environment variables instead: `KUMA_OIDC_ISSUER`, `KUMA_OIDC_NAME`, `KUMA_OIDC_CLIENT_ID`,
+`KUMA_OIDC_CLIENT_SECRET`, `KUMA_OIDC_SCOPES`, `KUMA_OIDC_GROUPS_CLAIM`, `KUMA_OIDC_ADMIN_GROUPS`,
+`KUMA_OIDC_VIEWER_GROUPS`, `KUMA_OIDC_ADMIN_EMAILS` and `KUMA_OIDC_VIEWER_EMAILS` (lists comma-separated).
+Setting `KUMA_OIDC_ISSUER` makes the page read-only.
 
 What works in the UI: logging in and out, two-factor login, changing the password, API keys, the dashboard with live beats, uptime and
 response times, the event list, adding, editing, pausing and deleting the monitor types above, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public

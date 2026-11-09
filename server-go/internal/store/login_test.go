@@ -160,3 +160,82 @@ func TestGoogleAccounts(t *testing.T) {
 		t.Fatalf("google secret stored as %q", stored)
 	}
 }
+
+func TestOIDCAccounts(t *testing.T) {
+	s := newTestStore(t)
+	ring, _ := secrets.New(bytes.Repeat([]byte{6}, 32))
+	s.SetKeyring(ring)
+	ctx := context.Background()
+	if _, err := s.CreateFirstUser(ctx, "admin@example.com", "salt:hash"); err != nil {
+		t.Fatal(err)
+	}
+	// A Google account's name isn't taken over either.
+	if _, err := s.SaveGoogleUser(ctx, GoogleUser{Sub: "g1", Email: "sam@example.com"}, RoleViewer, ""); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"Admin@example.com", "sam@example.com"} {
+		if _, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp x" + name, Name: name}, RoleAdmin, ""); err != ErrUsernameTakenByPassword {
+			t.Fatalf("%s taken over: %v", name, err)
+		}
+	}
+	o := OIDCUser{Key: "https://idp u1", Name: "Ops@Example.com", Email: "ops@example.com", Groups: []string{"Admins"}}
+	ops, err := s.SaveOIDCUser(ctx, o, RoleAdmin, "refresh-1")
+	if err != nil || ops.Username != "ops@example.com" || *ops.OIDCSub != "https://idp u1" || ops.OIDCGroups[0] != "Admins" || !ops.SSO() {
+		t.Fatalf("ops: %+v %v", ops, err)
+	}
+	var stored string
+	_ = s.pool.QueryRow(ctx, `SELECT oidc_token FROM app_user WHERE id = $1`, ops.ID).Scan(&stored)
+	if !secrets.IsSealed(stored) || strings.Contains(stored, "refresh-1") {
+		t.Fatalf("stored token: %q", stored)
+	}
+	// A check that rotates the token keeps the new one; one without keeps the old.
+	o.Groups = []string{"Support"}
+	if err := s.SetOIDCChecked(ctx, ops.ID, o, RoleViewer, "refresh-2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetOIDCChecked(ctx, ops.ID, o, RoleViewer, ""); err != nil {
+		t.Fatal(err)
+	}
+	if token, _ := s.OIDCToken(ctx, ops.ID); token != "refresh-2" {
+		t.Fatalf("token: %q", token)
+	}
+	if u, _ := s.UserByID(ctx, ops.ID); u.Role != RoleViewer || u.OIDCGroups[0] != "Support" || u.OIDCCheckedAt == nil {
+		t.Fatalf("checked: %+v", u)
+	}
+	if ok, _ := s.AdminCanLogIn(ctx, LoginMethods{OIDC: true}); ok {
+		t.Fatal("a viewer counted as an admin")
+	}
+	if _, err := s.SaveOIDCUser(ctx, o, RoleAdmin, ""); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := s.AdminCanLogIn(ctx, LoginMethods{OIDC: true}); !ok {
+		t.Fatal("the OpenID Connect admin didn't count")
+	}
+	if ok, _ := s.AdminCanLogIn(ctx, LoginMethods{Google: true}); ok {
+		t.Fatal("an OpenID Connect admin counted for Google")
+	}
+	if err := s.ExpireOIDCChecks(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if u, _ := s.UserByID(ctx, ops.ID); u.OIDCCheckedAt != nil {
+		t.Fatal("still checked")
+	}
+	if name, _, err := s.LastSSOLogin(ctx, "oidc"); err != nil || name != "" {
+		t.Fatalf("last login: %q %v", name, err)
+	}
+
+	c := LoginConfig{PasswordLogin: true, OIDC: OIDCConfig{Enabled: true, Name: "Okta", Issuer: "https://idp", ClientID: "kuma",
+		ClientSecret: "s3cret", Scopes: []string{"groups"}, GroupsClaim: "roles", AdminGroups: []string{"Admins"}}}
+	if err := s.SaveLoginConfig(ctx, c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.LoginConfig(ctx)
+	if err != nil || got.OIDC.Name != "Okta" || got.OIDC.ClientSecret != "s3cret" || got.OIDC.GroupsClaim != "roles" ||
+		got.OIDC.AdminGroups[0] != "Admins" || len(got.OIDC.ViewerEmails) != 0 {
+		t.Fatalf("settings: %+v %v", got.OIDC, err)
+	}
+	_ = s.pool.QueryRow(ctx, `SELECT oidc_client_secret FROM login_config`).Scan(&stored)
+	if !secrets.IsSealed(stored) {
+		t.Fatalf("secret stored as %q", stored)
+	}
+}

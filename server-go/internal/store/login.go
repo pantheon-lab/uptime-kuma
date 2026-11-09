@@ -23,6 +23,7 @@ type LoginConfig struct {
 	PasswordLogin bool
 
 	Google GoogleConfig
+	OIDC   OIDCConfig
 	// UpdatedAt is nil until the first save.
 	UpdatedAt *time.Time
 }
@@ -38,9 +39,28 @@ type GoogleConfig struct {
 	ViewerEmails []string
 }
 
+// OIDCConfig is logging in with an OpenID Connect provider.
+type OIDCConfig struct {
+	Enabled bool
+	// Name is the provider's, on the login page's button.
+	Name         string
+	Issuer       string
+	ClientID     string
+	ClientSecret string
+	// Scopes are asked for besides openid; empty means email and profile.
+	Scopes []string
+	// GroupsClaim names the ID token's or userinfo's claim with the person's groups.
+	GroupsClaim  string
+	AdminGroups  []string
+	ViewerGroups []string
+	AdminEmails  []string
+	ViewerEmails []string
+}
+
 var (
 	loginSecretAAD  = secretAAD("login_config", "github_client_secret", 1)
 	googleSecretAAD = secretAAD("login_config", "google_client_secret", 1)
+	oidcSecretAAD   = secretAAD("login_config", "oidc_client_secret", 1)
 )
 
 // LoginConfig returns the login settings saved in the UI, or the defaults: passwords only.
@@ -49,11 +69,14 @@ func (s *Store) LoginConfig(ctx context.Context) (LoginConfig, error) {
 	var updated time.Time
 	err := s.pool.QueryRow(ctx, `SELECT github_enabled, github_client_id, github_client_secret, github_org,
 		github_admin_teams, github_viewer_teams, github_web_url, github_api_url, password_login, updated_at,
-		google_enabled, google_client_id, google_client_secret, google_domains, google_admin_emails, google_viewer_emails
+		google_enabled, google_client_id, google_client_secret, google_domains, google_admin_emails, google_viewer_emails,
+		oidc_enabled, oidc_name, oidc_issuer, oidc_client_id, oidc_client_secret, oidc_scopes, oidc_groups_claim,
+		oidc_admin_groups, oidc_viewer_groups, oidc_admin_emails, oidc_viewer_emails
 		FROM login_config WHERE id = 1`).Scan(&c.GitHubEnabled, &c.ClientID, &c.ClientSecret, &c.Org,
 		&c.AdminTeams, &c.ViewerTeams, &c.WebURL, &c.APIURL, &c.PasswordLogin, &updated,
 		&c.Google.Enabled, &c.Google.ClientID, &c.Google.ClientSecret, &c.Google.Domains, &c.Google.AdminEmails,
-		&c.Google.ViewerEmails)
+		&c.Google.ViewerEmails, &c.OIDC.Enabled, &c.OIDC.Name, &c.OIDC.Issuer, &c.OIDC.ClientID, &c.OIDC.ClientSecret,
+		&c.OIDC.Scopes, &c.OIDC.GroupsClaim, &c.OIDC.AdminGroups, &c.OIDC.ViewerGroups, &c.OIDC.AdminEmails, &c.OIDC.ViewerEmails)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return LoginConfig{PasswordLogin: true}, nil
 	}
@@ -68,6 +91,11 @@ func (s *Store) LoginConfig(ctx context.Context) (LoginConfig, error) {
 	}
 	if c.Google.ClientSecret != "" {
 		if c.Google.ClientSecret, err = s.openText(c.Google.ClientSecret, googleSecretAAD); err != nil {
+			return c, fmt.Errorf("login settings: %w", err)
+		}
+	}
+	if c.OIDC.ClientSecret != "" {
+		if c.OIDC.ClientSecret, err = s.openText(c.OIDC.ClientSecret, oidcSecretAAD); err != nil {
 			return c, fmt.Errorf("login settings: %w", err)
 		}
 	}
@@ -90,6 +118,13 @@ func (s *Store) SaveLoginConfig(ctx context.Context, c LoginConfig) error {
 			return err
 		}
 	}
+	oidcSecret := c.OIDC.ClientSecret
+	if oidcSecret != "" {
+		var err error
+		if oidcSecret, err = s.sealText(oidcSecret, oidcSecretAAD); err != nil {
+			return err
+		}
+	}
 	nonNil := func(list []string) []string {
 		if list == nil {
 			return []string{}
@@ -98,8 +133,11 @@ func (s *Store) SaveLoginConfig(ctx context.Context, c LoginConfig) error {
 	}
 	_, err := s.pool.Exec(ctx, `INSERT INTO login_config (id, github_enabled, github_client_id, github_client_secret,
 			github_org, github_admin_teams, github_viewer_teams, github_web_url, github_api_url, password_login,
-			google_enabled, google_client_id, google_client_secret, google_domains, google_admin_emails, google_viewer_emails)
-		VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			google_enabled, google_client_id, google_client_secret, google_domains, google_admin_emails, google_viewer_emails,
+			oidc_enabled, oidc_name, oidc_issuer, oidc_client_id, oidc_client_secret, oidc_scopes, oidc_groups_claim,
+			oidc_admin_groups, oidc_viewer_groups, oidc_admin_emails, oidc_viewer_emails)
+		VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+			$16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
 		ON CONFLICT (id) DO UPDATE SET github_enabled = EXCLUDED.github_enabled,
 			github_client_id = EXCLUDED.github_client_id, github_client_secret = EXCLUDED.github_client_secret,
 			github_org = EXCLUDED.github_org, github_admin_teams = EXCLUDED.github_admin_teams,
@@ -108,10 +146,17 @@ func (s *Store) SaveLoginConfig(ctx context.Context, c LoginConfig) error {
 			google_enabled = EXCLUDED.google_enabled, google_client_id = EXCLUDED.google_client_id,
 			google_client_secret = EXCLUDED.google_client_secret, google_domains = EXCLUDED.google_domains,
 			google_admin_emails = EXCLUDED.google_admin_emails, google_viewer_emails = EXCLUDED.google_viewer_emails,
+			oidc_enabled = EXCLUDED.oidc_enabled, oidc_name = EXCLUDED.oidc_name, oidc_issuer = EXCLUDED.oidc_issuer,
+			oidc_client_id = EXCLUDED.oidc_client_id, oidc_client_secret = EXCLUDED.oidc_client_secret,
+			oidc_scopes = EXCLUDED.oidc_scopes, oidc_groups_claim = EXCLUDED.oidc_groups_claim,
+			oidc_admin_groups = EXCLUDED.oidc_admin_groups, oidc_viewer_groups = EXCLUDED.oidc_viewer_groups,
+			oidc_admin_emails = EXCLUDED.oidc_admin_emails, oidc_viewer_emails = EXCLUDED.oidc_viewer_emails,
 			updated_at = now()`,
 		c.GitHubEnabled, c.ClientID, secret, c.Org, nonNil(c.AdminTeams), nonNil(c.ViewerTeams), c.WebURL, c.APIURL,
 		c.PasswordLogin, c.Google.Enabled, c.Google.ClientID, googleSecret, nonNil(c.Google.Domains),
-		nonNil(c.Google.AdminEmails), nonNil(c.Google.ViewerEmails))
+		nonNil(c.Google.AdminEmails), nonNil(c.Google.ViewerEmails),
+		c.OIDC.Enabled, c.OIDC.Name, c.OIDC.Issuer, c.OIDC.ClientID, oidcSecret, nonNil(c.OIDC.Scopes), c.OIDC.GroupsClaim,
+		nonNil(c.OIDC.AdminGroups), nonNil(c.OIDC.ViewerGroups), nonNil(c.OIDC.AdminEmails), nonNil(c.OIDC.ViewerEmails))
 	if err != nil {
 		return fmt.Errorf("save login settings: %w", err)
 	}
@@ -122,9 +167,9 @@ func (s *Store) SaveLoginConfig(ctx context.Context, c LoginConfig) error {
 func (s *Store) AdminCanLogIn(ctx context.Context, methods LoginMethods) (bool, error) {
 	var exists bool
 	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM app_user WHERE role = 'admin'
-		AND ((github_id IS NULL AND google_sub IS NULL AND $1 AND password_hash <> '')
-		  OR (github_id IS NOT NULL AND $2) OR (google_sub IS NOT NULL AND $3)))`,
-		methods.Password, methods.GitHub, methods.Google).Scan(&exists)
+		AND ((github_id IS NULL AND google_sub IS NULL AND oidc_sub IS NULL AND $1 AND password_hash <> '')
+		  OR (github_id IS NOT NULL AND $2) OR (google_sub IS NOT NULL AND $3) OR (oidc_sub IS NOT NULL AND $4)))`,
+		methods.Password, methods.GitHub, methods.Google, methods.OIDC).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("check admins: %w", err)
 	}
@@ -143,8 +188,11 @@ func (s *Store) ExpireGitHubChecks(ctx context.Context) error {
 // or "" if none has.
 func (s *Store) LastSSOLogin(ctx context.Context, kind string) (string, *time.Time, error) {
 	column := "github_id"
-	if kind == "google" {
+	switch kind {
+	case "google":
 		column = "google_sub"
+	case "oidc":
+		column = "oidc_sub"
 	}
 	var name string
 	var at *time.Time
@@ -163,6 +211,14 @@ func (s *Store) LastSSOLogin(ctx context.Context, kind string) (string, *time.Ti
 func (s *Store) ExpireGoogleChecks(ctx context.Context) error {
 	if _, err := s.pool.Exec(ctx, `UPDATE app_user SET google_checked_at = NULL WHERE google_sub IS NOT NULL`); err != nil {
 		return fmt.Errorf("expire Google checks: %w", err)
+	}
+	return nil
+}
+
+// ExpireOIDCChecks makes every OpenID Connect account due for a check at its next request.
+func (s *Store) ExpireOIDCChecks(ctx context.Context) error {
+	if _, err := s.pool.Exec(ctx, `UPDATE app_user SET oidc_checked_at = NULL WHERE oidc_sub IS NOT NULL`); err != nil {
+		return fmt.Errorf("expire OpenID Connect checks: %w", err)
 	}
 	return nil
 }

@@ -131,6 +131,16 @@ var secretColumns = []secretColumn{
 		update: `UPDATE app_user SET google_token = $2 WHERE id = $1::int AND google_token = $3`,
 	},
 	{
+		name: "OpenID Connect tokens", table: "app_user", column: "oidc_token",
+		list:   `SELECT id::text, oidc_token FROM app_user WHERE oidc_token IS NOT NULL AND oidc_token <> ''`,
+		update: `UPDATE app_user SET oidc_token = $2 WHERE id = $1::int AND oidc_token = $3`,
+	},
+	{
+		name: "the OpenID Connect client secret", table: "login_config", column: "oidc_client_secret",
+		list:   `SELECT id::text, oidc_client_secret FROM login_config WHERE oidc_client_secret <> ''`,
+		update: `UPDATE login_config SET oidc_client_secret = $2 WHERE id = $1::int AND oidc_client_secret = $3`,
+	},
+	{
 		name: "the Google client secret", table: "login_config", column: "google_client_secret",
 		list:   `SELECT id::text, google_client_secret FROM login_config WHERE google_client_secret <> ''`,
 		update: `UPDATE login_config SET google_client_secret = $2 WHERE id = $1::int AND google_client_secret = $3`,

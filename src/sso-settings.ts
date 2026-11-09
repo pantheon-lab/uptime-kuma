@@ -47,3 +47,20 @@ export function callbackURL(
     }
     return { url: origin.replace(/\/+$/, "") + `/api/auth/${provider}/callback`, guessed: true };
 }
+
+/**
+ * Groups or scopes from the form's text, as the provider writes them: split by commas, trimmed,
+ * keeping their case and spaces, without repeats
+ * @param text Such as "Kuma Admins, 0f1e…"
+ * @returns Such as ["Kuma Admins", "0f1e…"]
+ */
+export function parseGroups(text: string): string[] {
+    const out: string[] = [];
+    for (const group of text.split(",")) {
+        const g = group.trim();
+        if (g !== "" && !out.includes(g)) {
+            out.push(g);
+        }
+    }
+    return out;
+}

@@ -43,6 +43,7 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | U9    | Status page incidents and subscriptions                             | Done   |
 | S1    | Managing single sign-on in the UI                                   | Done   |
 | S2    | Logging in with Google                                              | Done   |
+| S3    | Logging in with OpenID Connect                                      | Done   |
 
 ## Phase 0: Core (done)
 
@@ -1210,7 +1211,7 @@ form's snapshot differed from U8's only by the secret fields' ids and labels.
 
 Known limits:
 
-- GitHub and Google (S2) are the providers: there's no general OpenID Connect or SAML.
+- GitHub, Google (S2) and one OpenID Connect provider (S3) are the providers: there's no SAML.
 - The client ID and secret aren't checked when saved: logging in with GitHub checks them.
 - The page in its read-only state, with environment variables, was only tested by Go tests, not in a browser.
 
@@ -1256,3 +1257,49 @@ Known limits:
 - The ID token isn't verified: the userinfo endpoint, asked over TLS with the access token, says who it is.
 
 Not tested: real Google, and a Workspace account suspended for real.
+
+### S3: Logging in with OpenID Connect (done)
+
+- **One OpenID Connect provider** (`internal/ui/oidc.go`), named for the login page's button: discovery from the
+  issuer, which must match the document's; the authorization code flow with PKCE, state and nonce; the client
+  authenticated with HTTP Basic, or in the form when that's all the provider supports; and the ID token verified
+  with the provider's JSON Web Keys (RSA of 2048 bits or more, and EC on P-256, P-384 and P-521) with
+  `golang-jwt/jwt/v5`, now a direct dependency: signature (HMAC and `none` refused), issuer, audience, `azp` with
+  several audiences, expiry, issued-at and nonce. Keys are read again for an unknown key id, at most once a minute.
+- **Roles** from groups, in a configurable claim of the ID token or userinfo (which only counts for the same
+  subject), compared as written since some providers' are ids; and from emails, unless the provider says they
+  aren't verified. A viewer group of `*` lets in everyone the provider logs in.
+- **Accounts** keyed by "issuer subject" (`oidc_sub`), named by email, preferred username or subject, never taking
+  over another account's name. A daily check with the refresh token, when there is one: refused logs out,
+  unreachable keeps the role for 10 minutes, new groups apply, a rotated token is kept. Another issuer logs the
+  old one's accounts out.
+- **Settings > Single Sign-On**'s OpenID Connect section, with a **Check** of the issuer's discovery document, and
+  scopes and the groups claim under **Scopes and claims**. The issuer must be https, or http on this machine for
+  trying a provider. Security, Accounts and the login page show the provider by its name. `KUMA_OIDC_*`
+  environment variables set it instead.
+
+Tested: the store's accounts (no takeover of a password or Google account's name, the sealed token rotated and
+kept) and settings against TimescaleDB. With Go tests against a fake provider with RSA and EC keys: the settings'
+checks and the issuer check; the authorize request's scope, nonce, PKCE and redirect; an admin by group, a viewer
+by group with the email and groups from userinfo, a viewer by email with an EC-signed token; refusals of an
+unverified listed email, someone in no group, another account's name and a wrong state; the Security page and no
+password changes; passwords turned off only from the provider's admin and its settings then held; at the daily
+check, a revoked account logged out, a role changed by new groups and a rotated refresh token kept; and another
+issuer logging the old one's accounts out. ID token verification refused another key's signature, HS256 with the
+client secret, no signature, an unknown key id, another issuer, another audience, an expired token, one without
+expiry, another nonce, no subject, and another authorized party; and a discovery document for another issuer. In
+headless Chromium against the built image (`sso.mjs`, with a fake provider that signs RS256 tokens), 17 of 17
+steps passed with no page errors, five of them this provider's: the issuer check failing on a wrong address and
+finding the right one, saving, and the login page's button by name; an admin group's member logging in with
+groups from userinfo, and the Security page; a viewer group's member a viewer, and someone in neither refused;
+the provider's admin turning passwords off and on; and the account in Settings > Accounts under the provider's
+name.
+
+Known limits:
+
+- One OpenID Connect provider at a time.
+- Logging out doesn't log out of the provider (no RP-initiated logout).
+- An email without `email_verified` counts, for Entra ID's sake: with a provider whose users can set any email,
+  use groups rather than emails.
+
+Not tested: real providers (Okta, Entra ID, Keycloak and the others).

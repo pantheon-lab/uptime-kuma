@@ -170,6 +170,7 @@ func (s *Server) info(ctx context.Context, full bool) map[string]any {
 	info := map[string]any{
 		"githubLogin":          s.github() != nil,
 		"googleLogin":          s.google() != nil,
+		"oidcLogin":            s.oidcName(),
 		"passwordLogin":        s.passwordLogin(),
 		"primaryBaseURL":       baseURL,
 		"serverTimezone":       s.opts.Location.String(),
@@ -515,6 +516,8 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.getLoginSettings(ctx, c)
 	case "saveLoginSettings":
 		r, err = s.saveLoginSettings(ctx, c, args)
+	case "checkOIDCIssuer":
+		r, err = s.checkOIDCIssuer(ctx, args)
 	case "getAccountList":
 		r, err = s.getAccountList(ctx, c)
 	case "deleteAccount":

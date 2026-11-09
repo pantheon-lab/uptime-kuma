@@ -306,6 +306,8 @@ func (s *Server) checkSSOAccount(ctx context.Context, user store.User) (store.Us
 		role = s.recheckGitHub(ctx, user)
 	case user.GoogleSub != nil:
 		role = s.recheckGoogle(ctx, user)
+	case user.OIDCSub != nil:
+		role = s.recheckOIDC(ctx, user)
 	default:
 		return user, true, nil
 	}
@@ -437,6 +439,11 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 // refuseGitHubAccount answers a password or two-factor change for an account that logs in with
 // GitHub, which has neither, and returns whether it did.
 func refuseGitHubAccount(w http.ResponseWriter, user store.User) bool {
+	if user.OIDCSub != nil {
+		authError(w, http.StatusBadRequest, "OIDC_ACCOUNT",
+			"This account logs in with single sign-on, so it has no password or two-factor login here.")
+		return true
+	}
 	if user.GoogleSub != nil {
 		authError(w, http.StatusBadRequest, "GOOGLE_ACCOUNT",
 			"This account logs in with Google, so it has no password or two-factor login here. Manage them in your Google account.")
