@@ -158,19 +158,8 @@ export default {
 
             this.socket.initedSocketIO = true;
 
-            let protocol = location.protocol + "//";
-
-            let url;
-            // The Vite dev frontend runs on :3000 and the backend on :3001. Anywhere else,
-            // connect to the origin that served this page (do not rely on build-time NODE_ENV)
-            if (location.port === "3000" || localStorage.dev === "dev") {
-                url = protocol + location.hostname + ":3001";
-            } else {
-                // Connect to the current url
-                url = "";
-            }
-
-            socket = connectRealtime(url);
+            // The origin that served this page. `npm run dev` proxies the backend's paths to it.
+            socket = connectRealtime("");
 
             socket.on("info", (info) => {
                 // Sent without `runtime` before login (hideVersion), so keep a safe default

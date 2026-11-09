@@ -1,9 +1,6 @@
 import axios from "axios";
 import { baseURL } from "../auth-client";
 
-const env = process.env.NODE_ENV || "production";
-
-// change the axios base url for development
 axios.defaults.baseURL = baseURL;
 
 export default {
@@ -41,11 +38,7 @@ export default {
                 return this.$root.info.primaryBaseURL;
             }
 
-            if (env === "development" || localStorage.dev === "dev") {
-                return axios.defaults.baseURL;
-            } else {
-                return location.protocol + "//" + location.host;
-            }
+            return location.protocol + "//" + location.host;
         },
     },
 };

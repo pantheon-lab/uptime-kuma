@@ -11,6 +11,14 @@ const viteCompressionFilter = /\.(js|mjs|json|css|html|svg)$/i;
 export default defineConfig({
     server: {
         port: 3000,
+        // The Go backend (server-go), for `npm run dev`. Proxied, so that the page and the backend
+        // share an origin: the backend checks the Origin of sign-ins and sends no CORS headers.
+        proxy: Object.fromEntries(
+            ["/api", "/upload", "/screenshots", "/healthz", "/mcp", "/status/.*/rss"].map((path) => [
+                path.includes("*") ? `^${path}` : path,
+                { target: process.env.KUMA_BACKEND ?? "http://127.0.0.1:3001", changeOrigin: false },
+            ])
+        ),
     },
     define: {
         FRONTEND_VERSION: JSON.stringify(process.env.npm_package_version),
