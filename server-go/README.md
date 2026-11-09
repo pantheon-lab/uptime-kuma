@@ -38,6 +38,26 @@ role; a GitHub account's role follows its teams. Removing a GitHub account lasts
 still in the teams. No change may leave no admin who can log in, and admins can't remove or demote themselves. Each
 change is logged with who made it.
 
+### Editing and importing many monitors
+
+To change several monitors at once, tick the box above the monitor list, choose the monitors, then **Actions >
+Edit…**: the interval, retry interval and retries, notifications to add or remove, and tags to add with a value or
+remove. Only what's changed there changes, and a value that one monitor refuses changes none of them.
+
+**Import**, beside Add New Monitor, adds monitors from a CSV or YAML file with the [REST API's fields](#managing-monitors).
+CSV has a header row of field names, and an empty cell leaves the default:
+
+```csv
+name,type,url,interval,hostname,port,acceptedStatusCodes
+Shop,http,https://shop.example.com,60,,,200-299;301
+Database,port,,30,db.internal,5432,
+```
+
+YAML is a list of monitors, or has a `monitors` list. **Check** shows what's wrong with each row, and nothing is added
+until every monitor is valid. Imported monitors get the default notifications.
+
+The Edit Monitor form's **Test** runs one check of the monitor as the form has it, without saving it.
+
 ### A prompt for an AI agent
 
 When a monitor is down or pending, its page has **Prompt for an AI agent**, and when any are down the dashboard has
@@ -820,6 +840,22 @@ Every trace is recorded, and the service decides which to export when each one e
 failures, and a sample of the rest. That way a trace ID on a failed beat always has a trace,
 as long as the backend has kept it (30 days here). Spans never contain URLs, query strings,
 headers or request bodies, and the `kuma_grafana` database role can't read those columns.
+
+## Developing the web UI
+
+`npm run dev`, from the repository's root, serves the web UI with Vite on port 3000 and sends the backend's paths
+(`/api`, `/upload` and the rest) to a backend on `http://127.0.0.1:3001`, or to `KUMA_BACKEND`. Page and backend share
+an origin that way, which the sign-in needs. The backend can be the image, built from the repository's root:
+
+```bash
+docker build -t kuma-dev .
+docker run -d --name kuma-dev --network host -e LISTEN_ADDR=127.0.0.1:3001 \
+  -e DATABASE_URL='postgres://postgres:test@127.0.0.1:55433/kuma_dev?sslmode=disable' \
+  -e ANALYTICS_API_TOKEN="$(openssl rand -hex 24)" kuma-dev
+npm run dev
+```
+
+Vite reloads changes to the web UI; changes to the backend need the image built again.
 
 ## Test
 

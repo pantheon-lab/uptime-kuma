@@ -58,9 +58,13 @@ type fakeStore struct {
 	challenges   map[string]store.TwoFactorChallenge
 	apiKeys      []store.APIKey
 
-	cleared      []int32
-	githubTokens map[int32]string
-	retention    []int
+	cleared []int32
+	// notifications, and each monitor's, for the bulk edit. defaultLinked is who got the defaults.
+	notifications        []store.Notification
+	monitorNotifications map[int32][]int32
+	defaultLinked        []int32
+	githubTokens         map[int32]string
+	retention            []int
 }
 
 func newFakeStore() *fakeStore {
@@ -261,7 +265,9 @@ func (f *fakeStore) ChartRange(_ context.Context, _ int32, from, to time.Time) (
 }
 func (f *fakeStore) Stats(context.Context) ([]store.MonitorStats, error) { return nil, nil }
 func (f *fakeStore) ListNotifications(context.Context) ([]store.Notification, error) {
-	return nil, nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.notifications), nil
 }
 func (f *fakeStore) GetNotification(context.Context, int32) (store.Notification, error) {
 	return store.Notification{}, store.ErrNotFound
@@ -273,10 +279,30 @@ func (f *fakeStore) CreateNotification(_ context.Context, n store.Notification, 
 func (f *fakeStore) UpdateNotification(_ context.Context, n store.Notification, _ bool) (store.Notification, error) {
 	return n, nil
 }
-func (f *fakeStore) DeleteNotification(context.Context, int32) error               { return nil }
-func (f *fakeStore) SetMonitorNotifications(context.Context, int32, []int32) error { return nil }
+func (f *fakeStore) DeleteNotification(context.Context, int32) error { return nil }
+func (f *fakeStore) SetMonitorNotifications(_ context.Context, monitorID int32, ids []int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.monitorNotifications == nil {
+		f.monitorNotifications = map[int32][]int32{}
+	}
+	f.monitorNotifications[monitorID] = slices.Clone(ids)
+	return nil
+}
 func (f *fakeStore) AllMonitorNotificationIDs(context.Context) (map[int32][]int32, error) {
-	return map[int32][]int32{}, nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := map[int32][]int32{}
+	for id, list := range f.monitorNotifications {
+		out[id] = slices.Clone(list)
+	}
+	return out, nil
+}
+func (f *fakeStore) LinkDefaultNotifications(_ context.Context, monitorID int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.defaultLinked = append(f.defaultLinked, monitorID)
+	return nil
 }
 
 func (f *fakeStore) ListTags(context.Context) ([]store.Tag, error) {

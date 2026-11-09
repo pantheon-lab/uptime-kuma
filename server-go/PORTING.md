@@ -37,8 +37,8 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | UA    | A prompt for an AI agent to trace a failing monitor                 | Done    |
 | U4    | The Edit Monitor form                                               | Done    |
 | U5    | The monitor's page                                                  | Done    |
-| U6    | Editing many monitors at once                                       | Next    |
-| U7    | Viewers, the first run and phones                                   | Planned |
+| U6    | Editing many monitors at once                                       | Done    |
+| U7    | Viewers, the first run and phones                                   | Next    |
 | U8    | Bootstrap 5.3 and accessibility                                     | Planned |
 | U9    | Status page incidents and subscriptions                             | Planned |
 
@@ -990,12 +990,58 @@ Known limits:
 Not tested: a range of more than 30 days, which reads the daily statistics; the chart test covers that window for
 `Chart`.
 
-### U6: Editing many monitors at once
+### U6: Editing many monitors at once (done)
 
-- Changing the interval, notifications or tags of the selected monitors. Only pausing, resuming and deleting them
-  work today.
-- Importing monitors from CSV or YAML, through the REST API's monitor endpoints.
-- Running a check from the Edit Monitor form and showing its result before saving.
+- **Editing the selected monitors together:** Edit… in the list's Actions menu, beside pause, resume and delete
+  (`src/components/BulkEditDialog.vue`). It sets the interval, retry interval or retries, adds or removes
+  notifications, and adds a tag with a value or removes a tag with all its values, showing how many of the selected
+  monitors have each one and, before saving, what will change. Only what's changed there changes.
+  `bulkEditMonitors(ids, changes)` checks every monitor first, so a value one refuses changes none of them, and
+  refuses notifications and tags that don't exist, and asking to add and remove the same one. Up to 1,000 monitors.
+- **Importing monitors from CSV or YAML** (`src/components/ImportMonitorsDialog.vue`), from Import beside Add New
+  Monitor, on the Add page, or the command palette (`/add?import=1`). The fields are the REST API's, read the way it
+  reads them, so a misspelled field is an error rather than a default. CSV has a header row, empty cells leave the
+  default, lists take values separated by `;` and `headers` takes JSON (`src/monitor-import.ts`); YAML or JSON is a
+  list, or a map with a `monitors` list. Check runs `importMonitors(monitors, true)`, which shows each row as ready or
+  what's wrong with it; Import adds them, only once all are valid. They get the default notifications, as from the
+  REST API, and `parentId` puts one in a group. Up to 1,000 at once. The web UI reads js-yaml, now a direct
+  dependency.
+- **Test in the Edit Monitor form** runs one check of the monitor as the form has it, saved or not, and shows the
+  status, the time it took and the message beside Save. `testMonitor(monitor)` runs the server's checker as the
+  first check of a new monitor, so a failure is DOWN whatever the retries, and upside-down mode applies. It's cut to
+  25 seconds, and stores nothing: `check.DryRun` keeps a DNS monitor's last result and a browser monitor's screenshot
+  from being saved. Push monitors have nothing to test, so they have no button.
+- **`npm run dev`** works with the Go backend: Vite sends the backend's paths to it, at `http://127.0.0.1:3001` or
+  `KUMA_BACKEND`. The web UI had sent them to port 3001 itself, which the backend refused, as it sends no CORS
+  headers. The README says how to run it.
+- The three events are for admins only.
+
+Tested with the race detector, against the fake store: the bulk edit (interval and retries, notifications and tags
+added and removed, other notifications and tags kept, repeated IDs, an invalid interval changing none, missing
+monitors, notifications and tags, both adding and removing, nothing to change, and a viewer refused); the import (a
+dry run writing nothing, a misspelled field, a missing URL and a parent that isn't a group each named on its row and
+nothing imported, then the import with defaults, the group and the default notifications, an empty file, and a viewer
+refused); and the test (up, down whatever the retries, upside-down, the timeout cut to 25 seconds, nothing saved, push
+and an invalid form refused, a viewer refused, and a server without a checker). `src/monitor-import.ts` with unit
+tests. In headless Chromium against the built image (`internal/e2e/browser/ui-u6.mjs`), 8 of 8 steps passed with no
+page errors: a CSV with a bad number refused before sending, and one with a keyword monitor that has no keyword
+refused by the server on its row, with nothing added; a valid CSV checked, needing another check after an edit, then
+imported with its intervals, keyword, status codes and default notification; YAML from a file into a group; three of
+four monitors given an interval, a notification and a tag, and an old notification taken off, the fourth and their
+other settings unchanged; an invalid interval changing none, and a tag taken off one monitor; Test showing up with the
+time and message, then down with the error, an invalid form not tested, nothing saved, and no button for push; and the
+command palette opening the import. U1 to U5's, the AI prompt's and the follow-up tests passed again, and the Edit
+Monitor form's snapshot of every type was as in U4.
+
+Known limits:
+
+- A bulk edit or import that fails while writing, such as on a database error, leaves the monitors before it
+  changed or added. Each monitor is checked first, so a value can't cause that.
+- The import takes the REST API's fields: not notifications or tags by name, nor a group by name.
+- A browser monitor's Test takes a screenshot that isn't kept.
+
+Not tested: Test on monitor types that need servers this machine doesn't run (Docker, gRPC, a real browser, and the
+others 4d lists), and the import of the types beyond HTTP, keyword and TCP port.
 
 ### U7: Viewers, the first run and phones
 

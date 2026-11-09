@@ -326,6 +326,7 @@ func run(log *slog.Logger) error {
 		StatusPages:          db,
 		IndexHTML:            webui.IndexHTML(),
 		Domains:              domainService,
+		Checker:              checker,
 	})
 	if err := createInitialAdmin(ctx, uiServer, log); err != nil {
 		return err

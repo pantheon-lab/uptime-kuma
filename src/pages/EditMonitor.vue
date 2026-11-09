@@ -1,7 +1,19 @@
 <template>
     <transition name="slide-fade" appear>
         <div>
-            <h1 class="mb-3">{{ pageName }}</h1>
+            <div class="page-heading mb-3">
+                <h1 class="mb-0">{{ pageName }}</h1>
+                <button
+                    v-if="isAdd"
+                    type="button"
+                    class="btn btn-outline-normal btn-sm"
+                    data-testid="import-monitors-button"
+                    @click="$refs.importDialog.show()"
+                >
+                    <font-awesome-icon icon="upload" class="me-1" />
+                    {{ $t("importMonitorsButton") }}
+                </button>
+            </div>
             <p class="monitor-summary mb-3" data-testid="monitor-summary" aria-live="polite">
                 <font-awesome-icon icon="info-circle" class="me-2" />
                 {{ summary.text }}.
@@ -2064,6 +2076,18 @@
 
                     <div class="fixed-bottom-bar p-3">
                         <button
+                            v-if="monitor.type !== 'push'"
+                            type="button"
+                            class="btn btn-outline-normal me-2"
+                            :disabled="testing || processing"
+                            data-testid="test-button"
+                            :title="$t('testMonitorHelp')"
+                            @click="testNow"
+                        >
+                            <span v-if="testing" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            {{ $t("testMonitor") }}
+                        </button>
+                        <button
                             id="monitor-submit-btn"
                             class="btn btn-primary"
                             type="submit"
@@ -2072,6 +2096,17 @@
                         >
                             {{ $t("Save") }}
                         </button>
+                        <span
+                            v-if="testResult"
+                            class="test-result ms-3"
+                            role="status"
+                            data-testid="test-result"
+                            :title="testResult.msg"
+                        >
+                            <span class="badge" :class="testResult.badge">{{ testResult.label }}</span>
+                            <span v-if="testResult.ping !== undefined" class="ms-1">{{ testResult.ping }} ms</span>
+                            <span class="test-msg ms-1">{{ testResult.msg }}</span>
+                        </span>
                     </div>
                 </div>
             </form>
@@ -2081,6 +2116,7 @@
             <ProxyDialog ref="proxyDialog" @added="addedProxy" />
             <CreateGroupDialog ref="createGroupDialog" @added="addedDraftGroup" />
             <RemoteBrowserDialog ref="remoteBrowserDialog" />
+            <ImportMonitorsDialog v-if="isAdd" ref="importDialog" />
             <Confirm
                 ref="confirmLowIntervalValue"
                 btn-style="btn-danger"
@@ -2111,9 +2147,11 @@ import {
     genSecret,
     MIN_INTERVAL_SECOND,
     PING_GLOBAL_TIMEOUT_MAX,
+    PENDING,
     PING_PER_REQUEST_TIMEOUT_MAX,
     sleep,
     TYPES_WITH_DOMAIN_EXPIRY_SUPPORT_VIA_FIELD,
+    UP,
 } from "../util.ts";
 import { timeDurationFormatter } from "../util-frontend";
 import isFQDN from "validator/lib/isFQDN";
@@ -2122,6 +2160,7 @@ import HiddenInput from "../components/HiddenInput.vue";
 import EditMonitorConditions from "../components/EditMonitorConditions.vue";
 import unsavedChanges from "../mixins/unsaved-changes";
 import FormSectionNav from "../components/FormSectionNav.vue";
+import ImportMonitorsDialog from "../components/ImportMonitorsDialog.vue";
 import KafkaProducerFields from "../components/monitor-types/KafkaProducerFields.vue";
 import RabbitmqFields from "../components/monitor-types/RabbitmqFields.vue";
 import GlobalpingFields from "../components/monitor-types/GlobalpingFields.vue";
@@ -2247,6 +2286,7 @@ export default {
         VueMultiselect,
         EditMonitorConditions,
         FormSectionNav,
+        ImportMonitorsDialog,
         KafkaProducerFields,
         RabbitmqFields,
         GlobalpingFields,
@@ -2275,6 +2315,9 @@ export default {
             minInterval: MIN_INTERVAL_SECOND,
             pingPerRequestTimeoutMax: PING_PER_REQUEST_TIMEOUT_MAX,
             processing: false,
+            // The Test button's check, and what it found
+            testing: false,
+            testResult: null,
             monitor: {
                 notificationIDList: {},
                 // Do not add default value here, please check init() method
@@ -2885,6 +2928,10 @@ message HealthCheckResponse {
     mounted() {
         this.formElement = this.$refs.form;
         this.init();
+        // From the dashboard's Import button and the command palette
+        if (this.isAdd && this.$route.query.import) {
+            this.$nextTick(() => this.$refs.importDialog?.show());
+        }
 
         let acceptedStatusCodeOptions = ["100-199", "200-299", "300-399", "400-499", "500-599"];
 
@@ -3405,6 +3452,39 @@ message HealthCheckResponse {
             }
         },
 
+        /**
+         * Run one check of the monitor as the form has it, without saving it
+         * @returns {void}
+         */
+        testNow() {
+            if (this.testing || !this.$refs.form.reportValidity() || !this.isInputValid()) {
+                return;
+            }
+            const monitor = JSON.parse(JSON.stringify(this.monitor));
+            monitor.name ||= this.defaultFriendlyName || "test";
+            // A group that will be made when saving doesn't exist yet
+            if (monitor.parent === -1) {
+                monitor.parent = null;
+            }
+            this.testing = true;
+            this.testResult = null;
+            this.$root.getSocket().emit("testMonitor", monitor, (res) => {
+                this.testing = false;
+                if (!res.ok) {
+                    this.testResult = { label: this.$t("testMonitorFailed"), badge: "bg-secondary", msg: res.msg };
+                    return;
+                }
+                const up = res.status === UP;
+                const pending = res.status === PENDING;
+                this.testResult = {
+                    label: up ? this.$t("Up") : pending ? this.$t("Pending") : this.$t("Down"),
+                    badge: up ? "bg-primary" : pending ? "bg-warning" : "bg-danger",
+                    ping: res.ping !== undefined ? Math.round(res.ping) : undefined,
+                    msg: res.msg || "",
+                };
+            });
+        },
+
         async startParentGroupMonitor() {
             await sleep(2000);
             await this.$root.getSocket().emit("resumeMonitor", this.monitor.parent, () => {});
@@ -3543,6 +3623,32 @@ message HealthCheckResponse {
 
 <style lang="scss" scoped>
 @import "../assets/vars.scss";
+
+.page-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.fixed-bottom-bar {
+    display: flex;
+    align-items: center;
+}
+
+.test-result {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    font-size: 14px;
+
+    .test-msg {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
 
 // Also in the monitor types' components, which scoped styles don't reach otherwise
 form :deep(textarea) {

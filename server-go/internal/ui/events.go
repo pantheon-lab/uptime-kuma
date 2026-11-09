@@ -364,6 +364,12 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.addMonitor(ctx, args)
 	case "editMonitor":
 		r, err = s.editMonitor(ctx, args)
+	case "bulkEditMonitors":
+		r, err = s.bulkEditMonitors(ctx, args)
+	case "importMonitors":
+		r, err = s.importMonitors(ctx, args)
+	case "testMonitor":
+		r, err = s.testMonitor(ctx, args)
 	case "pauseMonitor":
 		r, err = s.setActive(ctx, args, false)
 	case "resumeMonitor":

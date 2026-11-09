@@ -286,7 +286,7 @@ func (c *Checker) globalpingDNSResult(ctx context.Context, m monitor.Monitor, pr
 		values[i] = answer.Value
 	}
 	message := strings.Join(values, " | ")
-	if message != "" && c.dnsResults != nil {
+	if message != "" && c.dnsResults != nil && !isDryRun(ctx) {
 		if err := c.dnsResults.SetDNSLastResult(ctx, m.ID, monitor.SanitizeMsg(message)); err != nil {
 			slog.Warn("store DNS result", "monitor", m.ID, "error", err)
 		}

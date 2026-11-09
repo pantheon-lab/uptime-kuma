@@ -77,6 +77,7 @@ export default {
             const action = (id, label, to) => commands.push({ id, label, group: this.$t("commandGroupAction"), to });
             if (root.canEdit) {
                 action("add-monitor", this.$t("Add New Monitor"), "/add");
+                action("import-monitors", this.$t("importMonitorsTitle"), "/add?import=1");
                 action("add-status-page", this.$t("Add New Status Page"), "/add-status-page");
                 action("add-maintenance", this.$t("Schedule Maintenance"), "/add-maintenance");
             }

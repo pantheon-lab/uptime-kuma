@@ -85,6 +85,7 @@ type Store interface {
 	DeleteNotification(ctx context.Context, id int32) error
 	SetMonitorNotifications(ctx context.Context, monitorID int32, ids []int32) error
 	AllMonitorNotificationIDs(ctx context.Context) (map[int32][]int32, error)
+	LinkDefaultNotifications(ctx context.Context, monitorID int32) error
 
 	ListTags(ctx context.Context) ([]store.Tag, error)
 	CreateTag(ctx context.Context, name, color string) (store.Tag, error)
@@ -155,6 +156,13 @@ type Options struct {
 	// IndexHTML is the web UI's index.html, which status pages are rendered into. Without it,
 	// /status/ answers 404, and the data is still at /api/status-page/.
 	IndexHTML []byte
+	// Checker runs the Edit Monitor form's test. Without it, the test isn't supported.
+	Checker Checker
+}
+
+// Checker runs one check.
+type Checker interface {
+	Run(ctx context.Context, m monitor.Monitor) monitor.Result
 }
 
 // Server serves the UI's API.

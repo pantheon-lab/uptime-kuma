@@ -70,6 +70,17 @@
                         </button>
                         <ul class="dropdown-menu">
                             <li>
+                                <a
+                                    class="dropdown-item"
+                                    href="#"
+                                    data-testid="bulk-edit"
+                                    @click.prevent="$refs.bulkEditDialog.show(Object.keys(selectedMonitors))"
+                                >
+                                    <font-awesome-icon icon="edit" class="me-2" />
+                                    {{ $t("bulkEditAction") }}
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item" href="#" data-testid="bulk-pause" @click.prevent="pauseDialog">
                                     <font-awesome-icon icon="pause" class="me-2" />
                                     {{ $t("Pause") }}
@@ -139,6 +150,8 @@
         </div>
     </div>
 
+    <BulkEditDialog ref="bulkEditDialog" @saved="cancelSelectMode" />
+
     <Confirm ref="confirmPause" :yes-text="$t('Yes')" :no-text="$t('No')" @yes="pauseSelected">
         {{ $t("pauseMonitorMsg") }}
     </Confirm>
@@ -149,6 +162,7 @@
 </template>
 
 <script>
+import BulkEditDialog from "../components/BulkEditDialog.vue";
 import Confirm from "../components/Confirm.vue";
 import MonitorListItem from "../components/MonitorListItem.vue";
 import MonitorListFilter from "./MonitorListFilter.vue";
@@ -157,6 +171,7 @@ import { computeListWindow, computeRowMetrics } from "../monitor-list-window";
 
 export default {
     components: {
+        BulkEditDialog,
         Confirm,
         MonitorListItem,
         MonitorListFilter,
