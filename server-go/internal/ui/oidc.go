@@ -348,7 +348,8 @@ func (s *Server) oidcToken(ctx context.Context, o *OIDCOptions, d *oidcDiscovery
 }
 
 // oidcIdentity is who the provider says someone is: from the ID token's claims, and the userinfo
-// endpoint's for an email or groups the ID token doesn't have.
+// endpoint's for an email or groups the ID token doesn't have. emailSaid reports whether the
+// provider sent an email at all, verified or not.
 func (s *Server) oidcIdentity(ctx context.Context, o *OIDCOptions, d *oidcDiscovery, claims jwt.MapClaims, accessToken string) (store.OIDCUser, bool) {
 	sub, _ := claims["sub"].(string)
 	_, hasEmail := claims["email"]
@@ -376,9 +377,11 @@ func (s *Server) oidcIdentity(ctx context.Context, o *OIDCOptions, d *oidcDiscov
 		}
 	}
 	email, _ := claims["email"].(string)
-	// An email the provider says isn't verified doesn't count; one it says nothing about does,
-	// since some providers (Microsoft Entra ID) leave the claim out for their own accounts.
-	verified := true
+	_, emailSaid := claims["email"]
+	// Only an email the provider says is verified counts, for the email lists and as the account's
+	// name: with some providers (Microsoft Entra ID among them) a user or tenant can set any email,
+	// and leave email_verified out, so that one address could be anyone's.
+	verified := false
 	switch v := claims["email_verified"].(type) {
 	case bool:
 		verified = v
@@ -400,7 +403,7 @@ func (s *Server) oidcIdentity(ctx context.Context, o *OIDCOptions, d *oidcDiscov
 		Name:   name,
 		Email:  strings.ToLower(email),
 		Groups: claimStrings(claims[o.groupsClaim()]),
-	}, true
+	}, emailSaid
 }
 
 // claimStrings reads a claim that's a list of strings, or one string.
@@ -610,6 +613,10 @@ func (s *Server) recheckOIDC(ctx context.Context, user store.User) string {
 	}
 	failed := false
 	defer func() { s.endGitHubCheck(user.ID, failed) }()
+	l := s.currentLogin(ctx)
+	if o = l.oidc; o == nil || !strings.HasPrefix(*user.OIDCSub, strings.TrimRight(o.Issuer, "/")+" ") {
+		return ""
+	}
 	who := store.OIDCUser{Key: *user.OIDCSub, Name: user.Username, Email: deref(user.OIDCEmail), Groups: user.OIDCGroups}
 	newRefresh := ""
 	token, err := s.store.OIDCToken(ctx, user.ID)
@@ -641,9 +648,10 @@ func (s *Server) recheckOIDC(ctx context.Context, user store.User) string {
 			failed = true
 			return user.Role
 		}
-		if fresh, _ := s.oidcIdentity(ctx, o, d, claims, tokens.AccessToken); fresh.Key == *user.OIDCSub {
-			// Keep what the provider left out of the answer.
-			if fresh.Email == "" {
+		if fresh, emailSaid := s.oidcIdentity(ctx, o, d, claims, tokens.AccessToken); fresh.Key == *user.OIDCSub {
+			// Keep what the provider left out of the answer. An email it sent but no longer says
+			// is verified is dropped, so that a role from the email lists ends with it.
+			if !emailSaid {
 				fresh.Email = who.Email
 			}
 			if _, has := claims[o.groupsClaim()]; !has {
@@ -655,10 +663,17 @@ func (s *Server) recheckOIDC(ctx context.Context, user store.User) string {
 	}
 	role := oidcRole(o, who.Email, who.Groups)
 	if role == "" {
+		if s.loginStale(ctx, l) {
+			return user.Role
+		}
 		s.log.Info("OpenID Connect account logged out: no longer allowed", "username", user.Username)
 		return ""
 	}
-	if err := s.store.SetOIDCChecked(ctx, user.ID, who, role, newRefresh); err != nil {
+	if err := s.store.SetOIDCChecked(ctx, user.ID, who, role, newRefresh, l.version); err != nil {
+		if errors.Is(err, store.ErrLoginChanged) {
+			s.loginStale(ctx, l)
+			return user.Role
+		}
 		s.log.Warn("check OpenID Connect account", "error", err)
 		failed = true
 		return user.Role

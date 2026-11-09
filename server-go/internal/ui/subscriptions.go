@@ -568,7 +568,7 @@ func (s *Server) publicConfirm(w http.ResponseWriter, r *http.Request) {
 		publicFail(w, http.StatusBadRequest, "invalid request")
 		return
 	}
-	_, err := s.pages.ConfirmSubscriber(r.Context(), page.ID, in.Token)
+	_, err := s.pages.ConfirmSubscriber(r.Context(), page.ID, in.Token, unconfirmedFor)
 	if errors.Is(err, store.ErrNotFound) {
 		publicFail(w, http.StatusNotFound, "This link has expired. Subscribe again to get a new one.")
 		return

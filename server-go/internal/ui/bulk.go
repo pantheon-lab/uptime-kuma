@@ -114,47 +114,28 @@ func (s *Server) bulkEditMonitors(ctx context.Context, args []json.RawMessage) (
 		monitors = append(monitors, m)
 	}
 
-	linked, err := s.store.AllMonitorNotificationIDs(ctx)
+	edit := store.BulkEdit{
+		MonitorIDs: ids, AddNotifications: changes.AddNotifications,
+		RemoveNotifications: changes.RemoveNotifications, RemoveTags: changes.RemoveTags,
+	}
+	if changes.changesSettings() {
+		for _, m := range monitors {
+			edit.Settings = append(edit.Settings, store.BulkSettings{ID: m.ID, Interval: m.Interval, RetryInterval: m.RetryInterval, MaxRetries: m.MaxRetries})
+		}
+	}
+	for _, t := range changes.AddTags {
+		edit.AddTags = append(edit.AddTags, store.TagValue{TagID: t.TagID, Value: t.Value})
+	}
+	// All of them or none: a monitor, notification or tag deleted meanwhile changes nothing.
+	updated, err := s.store.BulkEditMonitors(ctx, edit)
+	if errors.Is(err, store.ErrNotFound) || errors.Is(err, store.ErrInvalidNotification) {
+		return nil, userErr(errors.New("A monitor, notification or tag was deleted meanwhile, so nothing was changed. Try again.")) //nolint:staticcheck // Shown to users.
+	}
 	if err != nil {
 		return nil, err
 	}
-	tags, err := s.store.AllMonitorTags(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, m := range monitors {
-		if changes.changesSettings() {
-			updated, err := s.store.UpdateMonitor(ctx, m)
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", m.Name, err)
-			}
-			s.scheduler.Upsert(updated)
-		}
-		if len(changes.AddNotifications) > 0 || len(changes.RemoveNotifications) > 0 {
-			next := slices.DeleteFunc(slices.Clone(linked[m.ID]), func(id int32) bool {
-				return slices.Contains(changes.RemoveNotifications, id)
-			})
-			for _, id := range changes.AddNotifications {
-				if !slices.Contains(next, id) {
-					next = append(next, id)
-				}
-			}
-			if err := s.store.SetMonitorNotifications(ctx, m.ID, next); err != nil {
-				return nil, fmt.Errorf("%s: %w", m.Name, err)
-			}
-		}
-		for _, tag := range tags[m.ID] {
-			if slices.Contains(changes.RemoveTags, tag.TagID) {
-				if err := s.store.DeleteMonitorTag(ctx, tag.TagID, m.ID, tag.Value); err != nil {
-					return nil, fmt.Errorf("%s: %w", m.Name, err)
-				}
-			}
-		}
-		for _, tag := range changes.AddTags {
-			if err := s.store.AddMonitorTag(ctx, tag.TagID, m.ID, tag.Value); err != nil {
-				return nil, fmt.Errorf("%s: %w", m.Name, err)
-			}
-		}
+	for _, m := range updated {
+		s.scheduler.Upsert(m)
 	}
 	s.broadcastMonitors(ctx, ids...)
 	s.log.Info("monitors changed together from the web UI", "monitors", len(ids))

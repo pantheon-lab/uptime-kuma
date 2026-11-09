@@ -606,6 +606,14 @@ var migrations = [][]string{
 		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_admin_emails text[] NOT NULL DEFAULT '{}'`,
 		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_viewer_emails text[] NOT NULL DEFAULT '{}'`,
 	},
+	{
+		// When each monitor's events were last cleared. The event list starts after it; the beats
+		// keep their important flag, which outages are found from.
+		`CREATE TABLE IF NOT EXISTS event_clear (
+			monitor_id integer PRIMARY KEY REFERENCES monitor (id) ON DELETE CASCADE,
+			cleared_at timestamptz NOT NULL
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.

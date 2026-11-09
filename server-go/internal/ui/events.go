@@ -862,10 +862,19 @@ func (s *Server) importantPage(ctx context.Context, args []json.RawMessage) (rep
 }
 
 // clearEvents empties a monitor's event list or, given null, every monitor's.
+// clearEvents empties one monitor's event list, or every monitor's for "all". A missing or null
+// monitor is refused, so that a page that hasn't loaded its monitor can't clear them all.
 func (s *Server) clearEvents(ctx context.Context, args []json.RawMessage) (reply, error) {
-	id, err := optionalMonitorID(args, 0)
-	if err != nil {
-		return nil, userErr(err)
+	var all string
+	var id *int32
+	if len(args) > 0 && json.Unmarshal(args[0], &all) == nil && all == "all" {
+		id = nil
+	} else {
+		monitorID, err := idArg(args, 0)
+		if err != nil {
+			return nil, userErr(err)
+		}
+		id = &monitorID
 	}
 	if err := s.store.ClearEvents(ctx, id); err != nil {
 		return nil, err

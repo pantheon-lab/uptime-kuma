@@ -33,7 +33,8 @@ type Store interface {
 	UpgradePasswordHash(ctx context.Context, userID int32, old, hash string) error
 	SaveGitHubUser(ctx context.Context, githubID int64, login, role, token string, teams []string) (store.User, error)
 	GitHubToken(ctx context.Context, userID int32) (string, error)
-	SetGitHubChecked(ctx context.Context, userID int32, role string, teams []string) error
+	SetGitHubChecked(ctx context.Context, userID int32, role string, teams []string, v store.LoginVersion) error
+	LoginChanged(ctx context.Context, v store.LoginVersion) (bool, error)
 	EndUserSessions(ctx context.Context, userID int32) error
 	LoginConfig(ctx context.Context) (store.LoginConfig, error)
 	SaveLoginConfig(ctx context.Context, c store.LoginConfig) error
@@ -43,11 +44,11 @@ type Store interface {
 	ExpireGoogleChecks(ctx context.Context) error
 	SaveGoogleUser(ctx context.Context, g store.GoogleUser, role, refreshToken string) (store.User, error)
 	GoogleToken(ctx context.Context, userID int32) (string, error)
-	SetGoogleChecked(ctx context.Context, userID int32, g store.GoogleUser, role string) error
+	SetGoogleChecked(ctx context.Context, userID int32, g store.GoogleUser, role string, v store.LoginVersion) error
 	ExpireOIDCChecks(ctx context.Context) error
 	SaveOIDCUser(ctx context.Context, o store.OIDCUser, role, refreshToken string) (store.User, error)
 	OIDCToken(ctx context.Context, userID int32) (string, error)
-	SetOIDCChecked(ctx context.Context, userID int32, o store.OIDCUser, role, refreshToken string) error
+	SetOIDCChecked(ctx context.Context, userID int32, o store.OIDCUser, role, refreshToken string, v store.LoginVersion) error
 	EndOtherUserSessions(ctx context.Context, userID int32, keep []byte) error
 	ListAccounts(ctx context.Context) ([]store.Account, error)
 	DeleteUser(ctx context.Context, userID int32, methods store.LoginMethods) (store.User, error)
@@ -84,6 +85,7 @@ type Store interface {
 	ImportantBeats(ctx context.Context, monitorID *int32, filter store.EventFilter, offset, limit int) ([]store.Beat, error)
 	CountImportantBeats(ctx context.Context, monitorID *int32, filter store.EventFilter) (int64, error)
 	ClearEvents(ctx context.Context, monitorID *int32) error
+	BulkEditMonitors(ctx context.Context, e store.BulkEdit) ([]monitor.Monitor, error)
 	ClearMonitorStats(ctx context.Context, monitorID int32) error
 	ClearAllStats(ctx context.Context) error
 	DatabaseSize(ctx context.Context) (int64, error)
@@ -258,9 +260,10 @@ func New(s Store, scheduler Scheduler, notifyEnv *notify.Env, log *slog.Logger, 
 	if opts.Google != nil && opts.Google.TokenURL == "" {
 		googleEndpoints(opts.Google, opts.GoogleEndpoint)
 	}
+	fromEnv := opts.LoginFromEnv || opts.GitHub != nil || opts.Google != nil || opts.OIDC != nil || opts.DisablePasswordLogin
 	server.login.Store(&loginState{
 		github: opts.GitHub, google: opts.Google, oidc: opts.OIDC, password: !opts.DisablePasswordLogin,
-		fromEnv: opts.LoginFromEnv || opts.GitHub != nil || opts.Google != nil || opts.OIDC != nil || opts.DisablePasswordLogin,
+		fromEnv: fromEnv, version: store.LoginVersion{Env: fromEnv},
 	})
 	// A window started or ended, so open pages show its new status.
 	opts.Maintenance.OnChange(func() {

@@ -222,3 +222,31 @@ func (s *Store) ExpireOIDCChecks(ctx context.Context) error {
 	}
 	return nil
 }
+
+// ErrLoginChanged means that the login settings changed since the instance read the ones it
+// checked an account with, so the check wasn't recorded.
+var ErrLoginChanged = errors.New("the login settings changed")
+
+// LoginVersion is the login settings an instance uses: environment variables, which don't change
+// while it runs, or the saved settings of a time (nil before the first save).
+type LoginVersion struct {
+	Env     bool
+	SavedAt *time.Time
+}
+
+// loginCurrent is SQL that's true while the settings of version $n, $n+1 are still the saved ones.
+func loginCurrent(n int) string {
+	return fmt.Sprintf(`($%d::boolean OR NOT EXISTS (SELECT 1 FROM login_config WHERE $%d::timestamptz IS NULL OR updated_at > $%d))`, n, n+1, n+1)
+}
+
+// LoginChanged reports whether the saved login settings changed since the version.
+func (s *Store) LoginChanged(ctx context.Context, v LoginVersion) (bool, error) {
+	if v.Env {
+		return false, nil
+	}
+	var changed bool
+	if err := s.pool.QueryRow(ctx, `SELECT NOT `+loginCurrent(1), false, v.SavedAt).Scan(&changed); err != nil {
+		return false, fmt.Errorf("check login settings: %w", err)
+	}
+	return changed, nil
+}

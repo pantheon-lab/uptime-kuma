@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // OIDCUser is what an OpenID Connect provider says about someone at login or a check.
@@ -51,6 +52,11 @@ func (s *Store) SaveOIDCUser(ctx context.Context, o OIDCUser, role, refreshToken
 		SET username = excluded.username, role = excluded.role, oidc_email = excluded.oidc_email,
 			oidc_groups = excluded.oidc_groups, oidc_checked_at = now()
 		RETURNING `+userColumns, name, role, o.Key, strings.ToLower(o.Email), groups).Scan(user.fields()...)
+		// Another account took the name meanwhile, or differs from it only in case.
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
+			return ErrUsernameTakenByPassword
+		}
 		if err != nil {
 			return err
 		}
@@ -94,16 +100,22 @@ func (s *Store) OIDCToken(ctx context.Context, userID int32) (string, error) {
 }
 
 // SetOIDCChecked records a check of an account, with what the provider said, the role now, and a
-// refresh token that replaces the kept one when it isn't empty, as providers that rotate them send.
-func (s *Store) SetOIDCChecked(ctx context.Context, userID int32, o OIDCUser, role, refreshToken string) error {
+// refresh token that replaces the kept one when it isn't empty, as providers that rotate them send,
+// made with the login settings of the version. It returns ErrLoginChanged, recording nothing, when
+// the settings changed since.
+func (s *Store) SetOIDCChecked(ctx context.Context, userID int32, o OIDCUser, role, refreshToken string, v LoginVersion) error {
 	groups := o.Groups
 	if groups == nil {
 		groups = []string{}
 	}
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `UPDATE app_user SET role = $2, oidc_email = $3, oidc_groups = $4, oidc_checked_at = now()
-			WHERE id = $1`, userID, role, strings.ToLower(o.Email), groups); err != nil {
+		tag, err := tx.Exec(ctx, `UPDATE app_user SET role = $2, oidc_email = $3, oidc_groups = $4, oidc_checked_at = now()
+			WHERE id = $1 AND `+loginCurrent(5), userID, role, strings.ToLower(o.Email), groups, v.Env, v.SavedAt)
+		if err != nil {
 			return fmt.Errorf("record OpenID Connect check: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrLoginChanged
 		}
 		if refreshToken == "" {
 			return nil

@@ -98,11 +98,17 @@ func (s *Store) GoogleToken(ctx context.Context, userID int32) (string, error) {
 	return plain, nil
 }
 
-// SetGoogleChecked records a check of a Google account, with what Google said and the role now.
-func (s *Store) SetGoogleChecked(ctx context.Context, userID int32, g GoogleUser, role string) error {
-	if _, err := s.pool.Exec(ctx, `UPDATE app_user SET role = $2, google_email = $3, google_domain = $4,
-		google_checked_at = now() WHERE id = $1`, userID, role, strings.ToLower(g.Email), g.Domain); err != nil {
+// SetGoogleChecked records a check of a Google account, with what Google said and the role now,
+// made with the login settings of the version. It returns ErrLoginChanged, recording nothing, when
+// the settings changed since.
+func (s *Store) SetGoogleChecked(ctx context.Context, userID int32, g GoogleUser, role string, v LoginVersion) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE app_user SET role = $2, google_email = $3, google_domain = $4,
+		google_checked_at = now() WHERE id = $1 AND `+loginCurrent(5), userID, role, strings.ToLower(g.Email), g.Domain, v.Env, v.SavedAt)
+	if err != nil {
 		return fmt.Errorf("record Google check: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrLoginChanged
 	}
 	return nil
 }

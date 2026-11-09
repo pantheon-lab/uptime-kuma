@@ -251,7 +251,7 @@ func (f *fakeStore) BeatsSince(context.Context, int32, time.Time, int) ([]store.
 func (f *fakeStore) ImportantBeats(_ context.Context, _ *int32, filter store.EventFilter, _, limit int) ([]store.Beat, error) {
 	var out []store.Beat
 	for _, b := range f.important {
-		if (filter.Since == nil || !b.Time.Before(*filter.Since)) && len(out) < limit {
+		if (filter.Since == nil || !b.Time.Before(*filter.Since)) && (filter.Before == nil || b.Time.Before(*filter.Before)) && len(out) < limit {
 			out = append(out, b)
 		}
 	}

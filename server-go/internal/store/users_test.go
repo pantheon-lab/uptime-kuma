@@ -179,6 +179,14 @@ func TestUIQueries(t *testing.T) {
 	if n, _ := s.CountImportantBeats(ctx, nil, EventFilter{}); n != 0 {
 		t.Fatalf("after clearing all: %d", n)
 	}
+	// Clearing hides the events but keeps the beats, which outages are found from.
+	if n, _ := s.CountImportantBeats(ctx, nil, EventFilter{IncludeCleared: true}); n != 3 {
+		t.Fatalf("beats after clearing: %d", n)
+	}
+	cut := now.Add(-time.Minute)
+	if before, _ := s.ImportantBeats(ctx, &a.ID, EventFilter{Before: &cut, IncludeCleared: true}, 0, 10); len(before) == 0 {
+		t.Fatal("no beats before the cut")
+	}
 
 	n, err := s.CreateNotification(ctx, Notification{Name: "n", Type: "webhook", Config: map[string]any{}, Active: true}, false)
 	if err != nil {
@@ -460,7 +468,7 @@ func TestGitHubAccounts(t *testing.T) {
 	if err := s.CreateSession(ctx, []byte("t"), Session{UserID: alice.ID, ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SetGitHubChecked(ctx, alice.ID, RoleViewer, []string{"support"}); err != nil {
+	if err := s.SetGitHubChecked(ctx, alice.ID, RoleViewer, []string{"support"}, LoginVersion{Env: true}); err != nil {
 		t.Fatal(err)
 	}
 	if _, user, err := s.FindSession(ctx, []byte("t")); err != nil || user.Role != RoleViewer || user.GitHubCheckedAt == nil {

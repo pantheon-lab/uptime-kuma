@@ -42,6 +42,9 @@ type loginState struct {
 	password bool
 	// fromEnv means environment variables set it, and the UI can't change it.
 	fromEnv bool
+	// version is which settings these are, so that a check of an account made with them isn't
+	// recorded once another instance saved others.
+	version store.LoginVersion
 }
 
 // github returns GitHub login's settings, or nil when it's off.
@@ -122,8 +125,32 @@ func (s *Server) LoadLoginConfig(ctx context.Context) error {
 		return err
 	}
 	s.login.Store(&loginState{github: githubFromConfig(c), google: googleFromConfig(c.Google, s.opts.GoogleEndpoint),
-		oidc: oidcFromConfig(c.OIDC), password: c.PasswordLogin})
+		oidc: oidcFromConfig(c.OIDC), password: c.PasswordLogin, version: store.LoginVersion{SavedAt: c.UpdatedAt}})
 	return nil
+}
+
+// currentLogin returns the login settings, read again first if another instance saved others
+// since: a check of an account mustn't use settings that were replaced.
+func (s *Server) currentLogin(ctx context.Context) *loginState {
+	l := s.login.Load()
+	s.loginStale(ctx, l)
+	return s.login.Load()
+}
+
+// loginStale reports whether the login settings changed since l, and reads them again if they did,
+// so that a check of an account made with l is redone rather than counted.
+func (s *Server) loginStale(ctx context.Context, l *loginState) bool {
+	changed, err := s.store.LoginChanged(ctx, l.version)
+	if err != nil {
+		s.log.Warn("check login settings", "error", err)
+		return false
+	}
+	if changed {
+		if err := s.LoadLoginConfig(ctx); err != nil {
+			s.log.Warn("read login settings", "error", err)
+		}
+	}
+	return changed
 }
 
 // WatchLoginConfig reads the login settings again now and then, for changes made on another
@@ -587,7 +614,10 @@ func (s *Server) saveLoginSettings(ctx context.Context, c *conn, args []json.Raw
 			return nil, err
 		}
 	}
-	s.login.Store(next)
+	// Read back, for the saved settings' time, which other instances compare theirs with.
+	if err := s.LoadLoginConfig(ctx); err != nil {
+		return nil, err
+	}
 	s.log.Info("login settings saved", "github", next.github != nil, "google", next.google != nil, "oidc", next.oidc != nil, "password", next.password)
 	return okI18n("Saved."), nil
 }

@@ -388,3 +388,48 @@ func selfSigned(t *testing.T, name string) (string, string) {
 	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})),
 		string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}))
 }
+
+func TestTrialTransportsAreNotKept(t *testing.T) {
+	testCert, testKey := selfSigned(t, "client")
+	withSettings := func(settings monitor.Settings) monitor.Monitor {
+		return monitor.Monitor{Type: "http", Settings: settings}
+	}
+	checker := New(nil)
+	ctx := context.Background()
+	kept := func() int {
+		checker.extra.mu.Lock()
+		defer checker.extra.mu.Unlock()
+		return len(checker.extra.byID)
+	}
+	// Settings that need a transport of their own: a trial's isn't kept, and holds no connections.
+	for i := range 20 {
+		m := withSettings(monitor.Settings{IPFamily: "ipv4", AuthMethod: "mtls", TLSCert: testCert, TLSKey: testKey, TLSCA: strings.Repeat(" ", i)})
+		tr, err := checker.transportFor(DryRun(ctx), m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !tr.DisableKeepAlives {
+			t.Fatal("a trial's transport keeps connections")
+		}
+	}
+	if n := kept(); n != 0 {
+		t.Fatalf("trial transports kept: %d", n)
+	}
+	// A saved monitor's is kept and reused.
+	m := withSettings(monitor.Settings{IPFamily: "ipv4"})
+	first, _ := checker.transportFor(ctx, m)
+	second, _ := checker.transportFor(ctx, m)
+	if first != second || kept() != 1 || first.DisableKeepAlives {
+		t.Fatalf("saved monitor's transport: kept %d, same %v", kept(), first == second)
+	}
+	// Settings that keep changing don't grow the cache past its bound.
+	for i := range maxTransports + 10 {
+		m := withSettings(monitor.Settings{IPFamily: "ipv4", AuthMethod: "mtls", TLSCert: testCert, TLSKey: testKey, TLSCA: strings.Repeat(" ", i)})
+		if _, err := checker.transportFor(ctx, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := kept(); n > maxTransports {
+		t.Fatalf("transports kept: %d", n)
+	}
+}

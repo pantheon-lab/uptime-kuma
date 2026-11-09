@@ -178,10 +178,12 @@ func (s *Store) ClaimConfirmation(ctx context.Context, id int32, interval time.D
 	return tag.RowsAffected() == 1, nil
 }
 
-// ConfirmSubscriber confirms the page's subscriber with the token, or returns ErrNotFound.
-func (s *Store) ConfirmSubscriber(ctx context.Context, pageID int32, token string) (Subscriber, error) {
+// ConfirmSubscriber confirms the page's subscriber with the token, or returns ErrNotFound, also
+// for an unconfirmed one older than maxAge, whose link has expired whether or not it was deleted.
+func (s *Store) ConfirmSubscriber(ctx context.Context, pageID int32, token string, maxAge time.Duration) (Subscriber, error) {
 	return s.oneSubscriber(ctx, `UPDATE status_page_subscriber SET confirmed = true
-		WHERE status_page_id = $1 AND token = $2 RETURNING `+subscriberColumns, pageID, token)
+		WHERE status_page_id = $1 AND token = $2 AND (confirmed OR created_at > now() - $3::interval)
+		RETURNING `+subscriberColumns, pageID, token, maxAge.String())
 }
 
 // RemoveSubscriberByToken removes the page's subscriber with the token, or returns ErrNotFound.

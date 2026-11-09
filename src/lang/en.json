@@ -1975,7 +1975,7 @@
     "ssoOIDCAdminGroups": "Admin groups",
     "ssoOIDCViewerGroups": "Viewer groups",
     "ssoOIDCGroupsHelp": "As the provider writes them, separated by commas: names, or ids such as Entra ID's. A viewer group of * lets everyone the provider logs in view, so use it only with a provider of your organization alone.",
-    "ssoOIDCEmailsHelp": "Separated by commas. An email the provider says isn't verified doesn't count.",
+    "ssoOIDCEmailsHelp": "Separated by commas. Only emails the provider says are verified count: Entra ID doesn't say, so use groups with it.",
     "ssoOIDCAdvanced": "Scopes and claims",
     "ssoOIDCScopes": "Scopes",
     "ssoOIDCScopesHelp": "Besides openid. Empty asks for email and profile. Add the provider's groups scope if it needs one, and offline_access for the daily check if it needs that.",
@@ -1996,5 +1996,6 @@
     "accountOIDCChecked": "Confirmed by the provider",
     "accountMethodOIDC": "Single sign-on",
     "accountsOIDCHint": "{0} accounts are made at their first login, and their role follows their groups and emails in Settings > Single Sign-On.",
-    "removeOIDCAccountMsg": "While they're still in an allowed group or list, they can log in again, which makes the account again."
+    "removeOIDCAccountMsg": "While they're still in an allowed group or list, they can log in again, which makes the account again.",
+    "outageBeganBefore": "Began before the last {n} days"
 }

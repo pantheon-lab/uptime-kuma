@@ -314,6 +314,10 @@ func (s *Server) recheckGitHub(ctx context.Context, user store.User) string {
 	}
 	failed := false
 	defer func() { s.endGitHubCheck(user.ID, failed) }()
+	l := s.currentLogin(ctx)
+	if l.github == nil {
+		return ""
+	}
 	token, err := s.store.GitHubToken(ctx, user.ID)
 	if errors.Is(err, store.ErrNotFound) {
 		return ""
@@ -332,10 +336,18 @@ func (s *Server) recheckGitHub(ctx context.Context, user store.User) string {
 		return user.Role
 	}
 	if role == "" {
+		if s.loginStale(ctx, l) {
+			return user.Role
+		}
 		s.log.Info("GitHub account logged out: no longer in the teams", "username", user.Username)
 		return ""
 	}
-	if err := s.store.SetGitHubChecked(ctx, user.ID, role, teams); err != nil {
+	if err := s.store.SetGitHubChecked(ctx, user.ID, role, teams, l.version); err != nil {
+		if errors.Is(err, store.ErrLoginChanged) {
+			// Checked with settings another instance replaced: read them, and check again next time.
+			s.loginStale(ctx, l)
+			return user.Role
+		}
 		// The stored role stays as it was, so keep it until the next try: returning the new
 		// one would look like a change on every request, and close the user's streams each time.
 		s.log.Warn("check GitHub teams", "error", err)

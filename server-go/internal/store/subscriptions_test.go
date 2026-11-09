@@ -50,10 +50,14 @@ func TestSubscribers(t *testing.T) {
 	}
 
 	// Tokens only work on their page.
-	if _, err := s.ConfirmSubscriber(ctx, other.ID, "token-a"); !errors.Is(err, ErrNotFound) {
+	if _, err := s.ConfirmSubscriber(ctx, other.ID, "token-a", time.Hour); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("confirmed on another page: %v", err)
 	}
-	confirmed, err := s.ConfirmSubscriber(ctx, page.ID, "token-a")
+	// An expired link doesn't confirm, even before the subscriber is deleted.
+	if _, err := s.ConfirmSubscriber(ctx, page.ID, "token-a", 0); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("confirmed with an expired link: %v", err)
+	}
+	confirmed, err := s.ConfirmSubscriber(ctx, page.ID, "token-a", time.Hour)
 	if err != nil || !confirmed.Confirmed {
 		t.Fatalf("confirm: %+v %v", confirmed, err)
 	}

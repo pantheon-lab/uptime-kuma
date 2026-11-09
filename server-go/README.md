@@ -170,8 +170,9 @@ How it works:
 - **Groups** come from the `groups` claim, or another one under **Scopes and claims**, in the ID token or the
   userinfo endpoint. They compare as the provider writes them: names in Okta or Keycloak, object ids in Entra ID.
   Some providers send groups only when asked for a scope, such as `groups`, which goes under **Scopes**.
-- **Emails** count unless the provider says they aren't verified. Entra ID leaves `email_verified` out for its
-  own accounts, so an email without the claim counts.
+- **Emails** count only when the provider says they're verified (`email_verified`), both for the email lists
+  and as the account's name: with some providers a user or tenant can set any email. Entra ID doesn't send the
+  claim, so with it, decide roles by groups.
 - **Accounts** are named by their email, or else the preferred username or subject, and keyed by the issuer and
   subject. A login is refused rather than taking over another account with that name. Changing the issuer logs
   the old issuer's accounts out.

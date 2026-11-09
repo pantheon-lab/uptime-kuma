@@ -172,14 +172,16 @@ func (f *fakeIdP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func TestOIDCLogin(t *testing.T) {
 	idp := newFakeIdP(t)
-	no := false
+	no, yes := false, true
 	people := map[string]*fakeOIDCPerson{
-		"ops":     {sub: "u1", email: "Ops@Example.com", name: "ops", groups: []string{"Kuma-Admins"}},
-		"support": {sub: "u2", email: "sup@example.com", name: "sup", groups: []string{"Support"}, emailInUserinfo: true},
-		"listed":  {sub: "u3", email: "listed@example.com", name: "listed"},
+		"ops":     {sub: "u1", email: "Ops@Example.com", name: "ops", groups: []string{"Kuma-Admins"}, verified: &yes},
+		"support": {sub: "u2", email: "sup@example.com", name: "sup", groups: []string{"Support"}, emailInUserinfo: true, verified: &yes},
+		"listed":  {sub: "u3", email: "listed@example.com", name: "listed", verified: &yes},
 		"spoof":   {sub: "u4", email: "listed2@example.com", name: "spoof", verified: &no},
-		"nobody":  {sub: "u5", email: "nobody@example.com", name: "nobody", groups: []string{"Sales"}},
-		"taken":   {sub: "u6", email: "admin@example.com", name: "taken", groups: []string{"Kuma-Admins"}},
+		// A listed email the provider says nothing about: some let users set any (finding 1)
+		"unsaid": {sub: "u7", email: "listed2@example.com", name: "unsaid"},
+		"nobody": {sub: "u5", email: "nobody@example.com", name: "nobody", groups: []string{"Sales"}, verified: &yes},
+		"taken":  {sub: "u6", email: "admin@example.com", name: "taken", groups: []string{"Kuma-Admins"}, verified: &yes},
 	}
 	s, fs, ts := newTestServer(t)
 	s.limiter = &loginLimiter{global: rate.NewLimiter(rate.Inf, 0), users: map[string]*rate.Limiter{}, perUser: rate.Inf}
@@ -297,6 +299,7 @@ func TestOIDCLogin(t *testing.T) {
 	idp.mu.Unlock()
 	for who, want := range map[string]string{
 		"spoof":  "oidc-not-allowed", // email_verified false: the listed email doesn't count
+		"unsaid": "oidc-not-allowed", // no email_verified: nor does this one
 		"nobody": "oidc-not-allowed",
 		"taken":  "oidc-name-taken",
 	} {
@@ -351,6 +354,14 @@ func TestOIDCLogin(t *testing.T) {
 	if user := session(ops); user["role"] != "viewer" {
 		t.Fatalf("ops after leaving the admin group: %v", user)
 	}
+	// An email the provider now says isn't verified ends the role it gave, rather than the old
+	// one being kept (finding 4).
+	idp.mu.Lock()
+	people["listed"].verified = &no
+	idp.mu.Unlock()
+	if user := session(listed); user != nil {
+		t.Fatalf("a viewer by an email no longer verified stayed: %v", user)
+	}
 	if token, _ := fs.OIDCToken(context.Background(), opsID); token != "r2-u1" {
 		t.Fatalf("rotated refresh token: %q", token)
 	}
@@ -360,7 +371,7 @@ func TestOIDCLogin(t *testing.T) {
 	if r := admin("saveLoginSettings", with(map[string]any{"issuer": idp2.srv.URL, "clientSecret": "s3cret"})); r["ok"] != true {
 		t.Fatalf("new issuer: %v", r)
 	}
-	if user := session(listed); user != nil {
+	if user := session(ops); user != nil {
 		t.Fatalf("an account of the old issuer stayed: %v", user)
 	}
 }

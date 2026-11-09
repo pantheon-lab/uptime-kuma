@@ -211,3 +211,49 @@ func TestTestMonitor(t *testing.T) {
 		t.Errorf("no checker: %v", r)
 	}
 }
+
+// BulkEditMonitors applies a bulk edit to the fake store's monitors, notifications and tags, all
+// or nothing: a missing monitor changes nothing.
+func (f *fakeStore) BulkEditMonitors(_ context.Context, e store.BulkEdit) ([]monitor.Monitor, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, id := range e.MonitorIDs {
+		if _, found := f.monitors[id]; !found {
+			return nil, store.ErrNotFound
+		}
+	}
+	var updated []monitor.Monitor
+	for _, set := range e.Settings {
+		m := f.monitors[set.ID]
+		m.Interval, m.RetryInterval, m.MaxRetries = set.Interval, set.RetryInterval, set.MaxRetries
+		f.monitors[set.ID] = m
+		updated = append(updated, m)
+	}
+	if f.monitorNotifications == nil {
+		f.monitorNotifications = map[int32][]int32{}
+	}
+	if f.monitorTags == nil {
+		f.monitorTags = map[int32][]store.MonitorTag{}
+	}
+	for _, id := range e.MonitorIDs {
+		next := slices.DeleteFunc(slices.Clone(f.monitorNotifications[id]), func(n int32) bool {
+			return slices.Contains(e.RemoveNotifications, n)
+		})
+		for _, n := range e.AddNotifications {
+			if !slices.Contains(next, n) {
+				next = append(next, n)
+			}
+		}
+		f.monitorNotifications[id] = next
+		tags := slices.DeleteFunc(slices.Clone(f.monitorTags[id]), func(t store.MonitorTag) bool {
+			return slices.Contains(e.RemoveTags, t.TagID)
+		})
+		for _, t := range e.AddTags {
+			if !slices.ContainsFunc(tags, func(x store.MonitorTag) bool { return x.TagID == t.TagID && x.Value == t.Value }) {
+				tags = append(tags, store.MonitorTag{TagID: t.TagID, MonitorID: id, Value: t.Value})
+			}
+		}
+		f.monitorTags[id] = tags
+	}
+	return updated, nil
+}

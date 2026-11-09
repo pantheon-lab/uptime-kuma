@@ -586,7 +586,7 @@ func (f *fakeStore) GitHubToken(_ context.Context, id int32) (string, error) {
 	return token, nil
 }
 
-func (f *fakeStore) SetGitHubChecked(_ context.Context, id int32, role string, teams []string) error {
+func (f *fakeStore) SetGitHubChecked(_ context.Context, id int32, role string, teams []string, _ store.LoginVersion) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	now := time.Now()
@@ -704,7 +704,7 @@ func (f *fakeStore) GoogleToken(_ context.Context, id int32) (string, error) {
 	return token, nil
 }
 
-func (f *fakeStore) SetGoogleChecked(_ context.Context, id int32, g store.GoogleUser, role string) error {
+func (f *fakeStore) SetGoogleChecked(_ context.Context, id int32, g store.GoogleUser, role string, _ store.LoginVersion) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	now := time.Now()
@@ -768,7 +768,7 @@ func (f *fakeStore) OIDCToken(_ context.Context, id int32) (string, error) {
 	return token, nil
 }
 
-func (f *fakeStore) SetOIDCChecked(_ context.Context, id int32, o store.OIDCUser, role, token string) error {
+func (f *fakeStore) SetOIDCChecked(_ context.Context, id int32, o store.OIDCUser, role, token string, _ store.LoginVersion) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	now := time.Now()
@@ -782,4 +782,8 @@ func (f *fakeStore) SetOIDCChecked(_ context.Context, id int32, o store.OIDCUser
 		f.oidcTokens[id] = token
 	}
 	return nil
+}
+
+func (f *fakeStore) LoginChanged(context.Context, store.LoginVersion) (bool, error) {
+	return false, nil
 }

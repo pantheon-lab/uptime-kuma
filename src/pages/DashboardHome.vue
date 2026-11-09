@@ -597,7 +597,7 @@ export default {
         },
         clearAllEvents() {
             this.clearingAllEvents = true;
-            this.$root.getSocket().emit("clearEvents", null, (res) => {
+            this.$root.getSocket().emit("clearEvents", "all", (res) => {
                 this.clearingAllEvents = false;
                 if (res?.ok) {
                     this.$root.toastSuccess(this.$t("Events cleared successfully"));

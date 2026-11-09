@@ -53,8 +53,9 @@ func findOutages(changes []store.Beat) []outage {
 	return out
 }
 
-// monitorOutages answers getMonitorOutages(monitorID, days): the monitor's outages that began
-// in the last days, newest first, how many there were and how long it was down in all.
+// monitorOutages answers getMonitorOutages(monitorID, days): the monitor's outages in the last
+// days, newest first, including one that began before them and lasted into them, how many there
+// were and how long it was down within the days. Clearing the monitor's events doesn't hide them.
 func (s *Server) monitorOutages(ctx context.Context, args []json.RawMessage) (reply, error) {
 	id, err := idArg(args, 0)
 	if err != nil {
@@ -69,13 +70,21 @@ func (s *Server) monitorOutages(ctx context.Context, args []json.RawMessage) (re
 	}
 	now := s.now()
 	since := now.Add(-time.Duration(days.value) * 24 * time.Hour)
-	newestFirst, err := s.store.ImportantBeats(ctx, &id, store.EventFilter{Since: &since}, 0, maxOutageEvents)
+	newestFirst, err := s.store.ImportantBeats(ctx, &id, store.EventFilter{Since: &since, IncludeCleared: true}, 0, maxOutageEvents)
 	if err != nil {
 		return nil, err
 	}
-	changes := make([]store.Beat, len(newestFirst))
-	for i, b := range newestFirst {
-		changes[len(newestFirst)-1-i] = b
+	// The status the monitor had as the days began: down then means an outage that began before.
+	before, err := s.store.ImportantBeats(ctx, &id, store.EventFilter{Before: &since, IncludeCleared: true}, 0, 1)
+	if err != nil {
+		return nil, err
+	}
+	var changes []store.Beat
+	if len(before) == 1 && before[0].Status == monitor.StatusDown {
+		changes = append(changes, before[0])
+	}
+	for i := len(newestFirst) - 1; i >= 0; i-- {
+		changes = append(changes, newestFirst[i])
 	}
 
 	outages := findOutages(changes)
@@ -87,7 +96,12 @@ func (s *Server) monitorOutages(ctx context.Context, args []json.RawMessage) (re
 		if o.End != nil {
 			end = *o.End
 		}
-		downtime += end.Sub(o.Start)
+		// Only the part within the days counts toward their downtime.
+		from := o.Start
+		if from.Before(since) {
+			from = since
+		}
+		downtime += end.Sub(from)
 		if len(list) == maxOutagesShown {
 			continue
 		}
@@ -96,6 +110,7 @@ func (s *Server) monitorOutages(ctx context.Context, args []json.RawMessage) (re
 			"end":             nil,
 			"durationSeconds": int64(end.Sub(o.Start).Seconds()),
 			"ongoing":         o.End == nil,
+			"beganBefore":     o.Start.Before(since),
 			"msg":             o.Msg,
 		}
 		if o.End != nil {

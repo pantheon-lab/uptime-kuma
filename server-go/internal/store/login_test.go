@@ -3,8 +3,10 @@ package store
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/secrets"
 )
@@ -118,7 +120,7 @@ func TestGoogleAccounts(t *testing.T) {
 	if _, err := s.SetUserRole(ctx, bob.ID, RoleViewer, LoginMethods{Password: true, Google: true}); err != ErrRoleFromGitHub {
 		t.Fatalf("set a Google account's role: %v", err)
 	}
-	if err := s.SetGoogleChecked(ctx, bob.ID, GoogleUser{Sub: "s-bob", Email: "bob@example.com"}, RoleViewer); err != nil {
+	if err := s.SetGoogleChecked(ctx, bob.ID, GoogleUser{Sub: "s-bob", Email: "bob@example.com"}, RoleViewer, LoginVersion{Env: true}); err != nil {
 		t.Fatal(err)
 	}
 	if u, _ := s.UserByID(ctx, bob.ID); u.Role != RoleViewer || u.GoogleCheckedAt == nil || *u.GoogleDomain != "" {
@@ -190,10 +192,10 @@ func TestOIDCAccounts(t *testing.T) {
 	}
 	// A check that rotates the token keeps the new one; one without keeps the old.
 	o.Groups = []string{"Support"}
-	if err := s.SetOIDCChecked(ctx, ops.ID, o, RoleViewer, "refresh-2"); err != nil {
+	if err := s.SetOIDCChecked(ctx, ops.ID, o, RoleViewer, "refresh-2", LoginVersion{Env: true}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SetOIDCChecked(ctx, ops.ID, o, RoleViewer, ""); err != nil {
+	if err := s.SetOIDCChecked(ctx, ops.ID, o, RoleViewer, "", LoginVersion{Env: true}); err != nil {
 		t.Fatal(err)
 	}
 	if token, _ := s.OIDCToken(ctx, ops.ID); token != "refresh-2" {
@@ -237,5 +239,48 @@ func TestOIDCAccounts(t *testing.T) {
 	_ = s.pool.QueryRow(ctx, `SELECT oidc_client_secret FROM login_config`).Scan(&stored)
 	if !secrets.IsSealed(stored) {
 		t.Fatalf("secret stored as %q", stored)
+	}
+}
+
+func TestLoginVersion(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	gh, err := s.SaveGitHubUser(ctx, 9, "alice", RoleAdmin, "token", []string{"sre"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Before any save, the version without a time is current, and environment settings always are.
+	none := LoginVersion{}
+	if changed, err := s.LoginChanged(ctx, none); err != nil || changed {
+		t.Fatalf("before a save: %v %v", changed, err)
+	}
+	if err := s.SaveLoginConfig(ctx, LoginConfig{PasswordLogin: true}); err != nil {
+		t.Fatal(err)
+	}
+	saved, _ := s.LoginConfig(ctx)
+	v1 := LoginVersion{SavedAt: saved.UpdatedAt}
+	for name, v := range map[string]LoginVersion{"no save": none, "env": {Env: true}, "v1": v1} {
+		changed, err := s.LoginChanged(ctx, v)
+		if err != nil || changed != (name == "no save") {
+			t.Fatalf("%s: changed %v %v", name, changed, err)
+		}
+	}
+	// A check made with replaced settings isn't recorded; one with the current settings is.
+	time.Sleep(10 * time.Millisecond)
+	if err := s.SaveLoginConfig(ctx, LoginConfig{PasswordLogin: true, GitHubEnabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetGitHubChecked(ctx, gh.ID, RoleViewer, nil, v1); !errors.Is(err, ErrLoginChanged) {
+		t.Fatalf("a stale check was recorded: %v", err)
+	}
+	if u, _ := s.UserByID(ctx, gh.ID); u.Role != RoleAdmin {
+		t.Fatalf("role after a stale check: %s", u.Role)
+	}
+	saved, _ = s.LoginConfig(ctx)
+	if err := s.SetGitHubChecked(ctx, gh.ID, RoleViewer, nil, LoginVersion{SavedAt: saved.UpdatedAt}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetGitHubChecked(ctx, gh.ID, RoleViewer, nil, LoginVersion{Env: true}); err != nil {
+		t.Fatal(err)
 	}
 }

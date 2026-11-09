@@ -117,3 +117,54 @@ func TestOutageAndChartRangeEvents(t *testing.T) {
 		}
 	})
 }
+
+func TestOutagesThatBeganBeforeTheDays(t *testing.T) {
+	s, fs, _ := newTestServer(t)
+	now := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
+	s.now = func() time.Time { return now }
+	call := eventCaller(t, s, 1)
+	day := 24 * time.Hour
+	outages := func(beats ...store.Beat) reply {
+		t.Helper()
+		fs.important = beats // newest first
+		r := call("getMonitorOutages", 1, 30)
+		if r["ok"] != true {
+			t.Fatalf("outages: %v", r)
+		}
+		return r
+	}
+
+	// Down 40 days ago and still down: one outage, ongoing, all 30 days of downtime.
+	r := outages(store.Beat{Time: now.Add(-40 * day), Status: 0, Msg: "refused"})
+	list := r["outages"].([]map[string]any)
+	if r["count"] != 1 || len(list) != 1 || list[0]["ongoing"] != true || list[0]["beganBefore"] != true ||
+		r["downtimeSeconds"] != int64((30*day).Seconds()) {
+		t.Fatalf("still down: %v", r)
+	}
+	// Down 40 days ago, up 20 days ago: 10 days of downtime within the 30.
+	r = outages(store.Beat{Time: now.Add(-20 * day), Status: 1}, store.Beat{Time: now.Add(-40 * day), Status: 0})
+	if r["count"] != 1 || r["downtimeSeconds"] != int64((10*day).Seconds()) {
+		t.Fatalf("ended within: %v", r)
+	}
+	// Up before the days: nothing from before counts.
+	r = outages(store.Beat{Time: now.Add(-5 * day), Status: 1}, store.Beat{Time: now.Add(-6 * day), Status: 0},
+		store.Beat{Time: now.Add(-40 * day), Status: 1})
+	if list := r["outages"].([]map[string]any); r["count"] != 1 || list[0]["beganBefore"] != false {
+		t.Fatalf("up before: %v", r)
+	}
+}
+
+func TestClearEventsNeedsAMonitorOrAll(t *testing.T) {
+	s, _, _ := newTestServer(t)
+	call := eventCaller(t, s, 1)
+	for name, args := range map[string][]any{"missing": {}, "null": {nil}, "zero": {0}, "another word": {"every"}} {
+		if r := call("clearEvents", args...); r["ok"] != false {
+			t.Errorf("%s: cleared: %v", name, r)
+		}
+	}
+	for _, arg := range []any{"all", 1} {
+		if r := call("clearEvents", arg); r["ok"] != true {
+			t.Errorf("%v: %v", arg, r)
+		}
+	}
+}

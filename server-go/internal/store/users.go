@@ -431,14 +431,20 @@ func (s *Store) GitHubToken(ctx context.Context, userID int32) (string, error) {
 	return plain, nil
 }
 
-// SetGitHubChecked records a check of a GitHub account's teams, and the role they give now.
-func (s *Store) SetGitHubChecked(ctx context.Context, userID int32, role string, teams []string) error {
+// SetGitHubChecked records a check of a GitHub account's teams, and the role they give now, made
+// with the login settings of the version. It returns ErrLoginChanged, recording nothing, when the
+// settings changed since.
+func (s *Store) SetGitHubChecked(ctx context.Context, userID int32, role string, teams []string, v LoginVersion) error {
 	if teams == nil {
 		teams = []string{}
 	}
-	if _, err := s.pool.Exec(ctx, `UPDATE app_user SET role = $2, github_checked_at = now(), github_teams = $3 WHERE id = $1`,
-		userID, role, teams); err != nil {
+	tag, err := s.pool.Exec(ctx, `UPDATE app_user SET role = $2, github_checked_at = now(), github_teams = $3
+		WHERE id = $1 AND `+loginCurrent(4), userID, role, teams, v.Env, v.SavedAt)
+	if err != nil {
 		return fmt.Errorf("record GitHub check: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrLoginChanged
 	}
 	return nil
 }

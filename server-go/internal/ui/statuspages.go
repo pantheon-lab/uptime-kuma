@@ -47,7 +47,7 @@ type StatusPageStore interface {
 	AddEmailSubscriber(ctx context.Context, pageID int32, email, token string) (store.Subscriber, bool, error)
 	AddWebhookSubscriber(ctx context.Context, pageID int32, url, token string) (store.Subscriber, error)
 	ClaimConfirmation(ctx context.Context, id int32, interval time.Duration) (bool, error)
-	ConfirmSubscriber(ctx context.Context, pageID int32, token string) (store.Subscriber, error)
+	ConfirmSubscriber(ctx context.Context, pageID int32, token string, maxAge time.Duration) (store.Subscriber, error)
 	RemoveSubscriberByToken(ctx context.Context, pageID int32, token string) (store.Subscriber, error)
 	RemoveSubscriber(ctx context.Context, pageID, id int32) error
 	DeleteUnconfirmedSubscribers(ctx context.Context, before time.Time) error

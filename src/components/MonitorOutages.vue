@@ -33,6 +33,9 @@
                 </span>
                 <span class="duration">
                     <span v-if="o.ongoing" class="badge bg-danger">{{ $t("outageOngoing") }}</span>
+                    <span v-if="o.beganBefore" class="badge bg-secondary" data-testid="outage-began-before">
+                        {{ $t("outageBeganBefore", { n: days }) }}
+                    </span>
                     {{ formatDuration(o.durationSeconds) }}
                 </span>
                 <span class="msg" :title="o.msg">{{ o.msg }}</span>

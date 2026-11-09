@@ -1267,8 +1267,8 @@ Not tested: real Google, and a Workspace account suspended for real.
   `golang-jwt/jwt/v5`, now a direct dependency: signature (HMAC and `none` refused), issuer, audience, `azp` with
   several audiences, expiry, issued-at and nonce. Keys are read again for an unknown key id, at most once a minute.
 - **Roles** from groups, in a configurable claim of the ID token or userinfo (which only counts for the same
-  subject), compared as written since some providers' are ids; and from emails, unless the provider says they
-  aren't verified. A viewer group of `*` lets in everyone the provider logs in.
+  subject), compared as written since some providers' are ids; and from emails, only those the provider says are
+  verified. A viewer group of `*` lets in everyone the provider logs in.
 - **Accounts** keyed by "issuer subject" (`oidc_sub`), named by email, preferred username or subject, never taking
   over another account's name. A daily check with the refresh token, when there is one: refused logs out,
   unreachable keeps the role for 10 minutes, new groups apply, a rotated token is kept. Another issuer logs the
@@ -1299,7 +1299,31 @@ Known limits:
 
 - One OpenID Connect provider at a time.
 - Logging out doesn't log out of the provider (no RP-initiated logout).
-- An email without `email_verified` counts, for Entra ID's sake: with a provider whose users can set any email,
-  use groups rather than emails.
+- Only an email the provider says is verified counts, so with Entra ID, which doesn't send `email_verified`, roles
+  come from groups, and accounts are named by their preferred username.
 
 Not tested: real providers (Okta, Entra ID, Keycloak and the others).
+
+### Fixes from a code review
+
+A review of the branch found ten faults, all fixed, each with a test:
+
+- **OpenID Connect emails:** an email without `email_verified` gave the role its email list granted, so with a
+  provider that lets users set any email, anyone could be an admin. Only verified emails count now. The daily
+  check kept the old email when the provider said the new one wasn't verified; it drops it now.
+- **Events and outages:** clearing events erased the important flag outages are found from, so it emptied every
+  monitor's outages. Clearing now records when (`event_clear`), and the event list starts there. `clearEvents`
+  with a missing or null monitor cleared every monitor's: clearing all now takes `"all"`. Outages now include one
+  that began before the days and lasted into them, with only the part within counted as downtime.
+- **Subscriptions:** a confirmation link worked after the two days its email promises, until someone else
+  subscribed. It expires when confirmed now.
+- **Single sign-on with several instances:** an instance still on replaced login settings could check an account
+  with them and record it for a day. Checks now read the settings again if another instance saved others, and are
+  only recorded while the settings they used are still the saved ones.
+- **Editing many monitors:** each monitor was written on its own, so a failure partway left some changed. It's one
+  transaction now, which writes only the fields it changes.
+- **OpenID Connect names:** two logins taking one name at once gave a generic failure instead of "name taken".
+- **Testing a monitor:** each test with new client certificate or proxy settings kept a transport for good. A
+  test's isn't kept now, and the kept ones are bounded.
+
+Not tested: several instances against one database, for the login settings fix (the store's part is tested).

@@ -309,6 +309,10 @@ func (s *Server) recheckGoogle(ctx context.Context, user store.User) string {
 	}
 	failed := false
 	defer func() { s.endGitHubCheck(user.ID, failed) }()
+	l := s.currentLogin(ctx)
+	if g = l.google; g == nil {
+		return ""
+	}
 	who := store.GoogleUser{Sub: *user.GoogleSub, Email: deref(user.GoogleEmail), Domain: deref(user.GoogleDomain)}
 	token, err := s.store.GoogleToken(ctx, user.ID)
 	switch {
@@ -341,10 +345,17 @@ func (s *Server) recheckGoogle(ctx context.Context, user store.User) string {
 	}
 	role := googleRole(g, who.Email, who.Email != "", who.Domain)
 	if role == "" {
+		if s.loginStale(ctx, l) {
+			return user.Role
+		}
 		s.log.Info("Google account logged out: no longer allowed", "username", user.Username)
 		return ""
 	}
-	if err := s.store.SetGoogleChecked(ctx, user.ID, who, role); err != nil {
+	if err := s.store.SetGoogleChecked(ctx, user.ID, who, role, l.version); err != nil {
+		if errors.Is(err, store.ErrLoginChanged) {
+			s.loginStale(ctx, l)
+			return user.Role
+		}
 		s.log.Warn("check Google account", "error", err)
 		failed = true
 		return user.Role
