@@ -110,7 +110,7 @@ included, to turn it on again. The client secret is stored encrypted, like other
 browsers. Other instances of the service read the settings within 30 seconds.
 
 The settings can be set by environment variables instead, for deployments managed as code. When any of
-`KUMA_GITHUB_CLIENT_ID` or `KUMA_PASSWORD_LOGIN` is set, those win, and the page shows them read-only:
+`KUMA_GITHUB_CLIENT_ID`, `KUMA_GOOGLE_CLIENT_ID` or `KUMA_PASSWORD_LOGIN` is set, those win, and the page shows them read-only:
 `KUMA_GITHUB_CLIENT_ID`, `KUMA_GITHUB_CLIENT_SECRET`, `KUMA_GITHUB_ORG`, `KUMA_GITHUB_ADMIN_TEAMS` and
 `KUMA_GITHUB_VIEWER_TEAMS` (comma-separated), and `KUMA_PASSWORD_LOGIN=false`.
 
@@ -119,6 +119,33 @@ their first login, so password accounts can't start with `@`; `kuma-import` drop
 account's name, and says so in its report. The token is stored, as the password hashes are, to
 check the teams again; it's never sent to browsers. Setup isn't offered once someone has logged in with GitHub.
 With environment variables, `KUMA_GITHUB_URL` and `KUMA_GITHUB_API_URL` point at a GitHub Enterprise server.
+
+### Logging in with Google
+
+With a Google OAuth client, the login page offers "Log in with Google" too, set up under **Settings > Single
+Sign-On**. Google says who someone is: their verified email and, for a Google Workspace account, its domain. That
+domain comes from Google's `hd` claim, not the email's suffix, so a personal Google account using the same email
+domain doesn't count.
+
+1. In the Google Cloud console, under APIs & Services > Credentials, create an OAuth client ID of type "Web
+   application", with the authorized redirect URI the page shows: `https://<this server>/api/auth/google/callback`.
+   For a Workspace organization, an "Internal" OAuth consent screen keeps everyone else out at Google's end too.
+2. Turn on **Allow logging in with Google**, and enter the client ID and secret, the **admin emails** and
+   **viewer emails**. A viewer email of `*` lets everyone in the listed **Google Workspace domains** view; it needs
+   at least one domain, or anyone with a Google account could log in.
+3. Log in with Google before turning passwords off, as for GitHub. An admin logged in with either GitHub or Google
+   can turn them off, and that provider's settings then can't change until passwords are back on.
+
+Each account is named by its email. If a password account already has that name, the Google login is refused
+rather than taking it over. Google sends a refresh token at the first consent, which is kept encrypted, and once a
+day while the account is used, Google is asked about it again: an account that was suspended or deleted in
+Workspace, or that revoked access, is logged out, and its role follows the lists as they are then. An account
+whose refresh token Google didn't send (because the person had already consented before) is checked against the
+lists only. Changing the lists applies at each account's next request. Two-factor login is left to Google.
+
+With environment variables instead: `KUMA_GOOGLE_CLIENT_ID`, `KUMA_GOOGLE_CLIENT_SECRET`, `KUMA_GOOGLE_DOMAINS`,
+`KUMA_GOOGLE_ADMIN_EMAILS` and `KUMA_GOOGLE_VIEWER_EMAILS` (comma-separated). Setting `KUMA_GOOGLE_CLIENT_ID`
+makes the page read-only, as for GitHub.
 
 What works in the UI: logging in and out, two-factor login, changing the password, API keys, the dashboard with live beats, uptime and
 response times, the event list, adding, editing, pausing and deleting the monitor types above, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public

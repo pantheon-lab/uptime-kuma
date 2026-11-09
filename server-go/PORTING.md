@@ -42,6 +42,7 @@ wasn't. The order of the planned phases is a proposal, and should follow what's 
 | U8    | Bootstrap 5.3 and accessibility                                     | Done   |
 | U9    | Status page incidents and subscriptions                             | Done   |
 | S1    | Managing single sign-on in the UI                                   | Done   |
+| S2    | Logging in with Google                                              | Done   |
 
 ## Phase 0: Core (done)
 
@@ -1209,6 +1210,49 @@ form's snapshot differed from U8's only by the secret fields' ids and labels.
 
 Known limits:
 
-- GitHub is the only provider: there's no OpenID Connect or SAML.
+- GitHub and Google (S2) are the providers: there's no general OpenID Connect or SAML.
 - The client ID and secret aren't checked when saved: logging in with GitHub checks them.
 - The page in its read-only state, with environment variables, was only tested by Go tests, not in a browser.
+
+### S2: Logging in with Google (done)
+
+- **Google login** (`internal/ui/google.go`) by OpenID Connect with PKCE and a redirect URI under the Primary Base
+  URL, or else the address the browser used. Who may log in comes from Google's userinfo: a verified email, and
+  the Workspace domain from the `hd` claim, which Google sets. Admin emails and viewer emails decide the role, and
+  a viewer of `*` lets in everyone of the listed Workspace domains, which `*` requires, so that it can't mean any
+  Google account.
+- **Accounts** are named by their email (`google_sub`, `google_email`, `google_domain` on `app_user`), and a login
+  is refused rather than taking over a password account with that name, whatever its case. An email that moves to
+  another person renames the old account, as GitHub logins do.
+- **A daily check** with the refresh token Google sends at the first consent, sealed like other secrets: Google
+  refusing it (`invalid_grant`, as after a Workspace suspension, deletion or revoked access) logs the account out;
+  Google being unreachable keeps its role and tries again in 10 minutes. Without a refresh token, the lists decide.
+  Changing the lists or client makes every Google account due at its next request; turning Google off ends their
+  sessions there.
+- **Settings > Single Sign-On** has a Google section beside GitHub's, with the redirect URI to register. Passwords
+  can be turned off from an admin's GitHub or Google login, and that provider's settings are held while they're
+  off. Settings > Security shows a Google account's email, domain, role and last check, and Settings > Accounts its
+  method. `KUMA_GOOGLE_*` environment variables set it instead, read-only in the page. `KUMA_GOOGLE_ENDPOINT`
+  replaces Google's addresses, for tests.
+
+Tested: the store's Google accounts (the password account's name kept, the sealed refresh token kept when a login
+brings none, renaming, roles not settable here) and settings against TimescaleDB; with Go tests against a fake
+Google that checks PKCE, the client and the redirect URI as Google does, the settings' checks, the authorize
+request, an admin and a viewer by email and a domain's viewer by `*`, refusals of a personal account with the
+domain's address, another domain, an unverified email and a password account's name, a wrong state, no password
+or two-factor changes for a Google account, passwords turned off only from a Google admin's login and Google held
+then, a revoked account logged out at the daily check while others stay, no call to Google within the day, a
+list change applying at the next request, and Google off ending its sessions. In headless Chromium against the
+built image (`sso.mjs`, now with a fake Google too), 12 of 12 steps passed with no page errors, five of them
+Google's: setting it up in the form, with `*` refused until a domain is entered and the login page then offering
+Google; an admin email logging in, with Security saying how; a Workspace member a viewer by `*`, and a personal
+account with the domain's address refused with its message; a Google admin turning passwords off and back on; and
+the account in Settings > Accounts.
+
+Known limits:
+
+- An account whose person had already consented to the client before has no refresh token, so only the lists
+  check it daily, not Google.
+- The ID token isn't verified: the userinfo endpoint, asked over TLS with the access token, says who it is.
+
+Not tested: real Google, and a Workspace account suspended for real.

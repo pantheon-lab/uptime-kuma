@@ -42,7 +42,19 @@ type User struct {
 	GitHubCheckedAt *time.Time
 	// GitHubTeams are the organization's teams the account was in then.
 	GitHubTeams []string
+
+	// GoogleSub is set for an account that logs in with Google, which has no password: Google's
+	// unchanging id for the person.
+	GoogleSub *string
+	// GoogleEmail and GoogleDomain (the Workspace domain, or "") are as Google last said.
+	GoogleEmail  *string
+	GoogleDomain *string
+	// GoogleCheckedAt is when Google last confirmed the account.
+	GoogleCheckedAt *time.Time
 }
+
+// SSO reports whether the account logs in with GitHub or Google, and so has no password here.
+func (u User) SSO() bool { return u.GitHubID != nil || u.GoogleSub != nil }
 
 // Roles. An admin can do everything. A viewer can look at monitors, beats, maintenance and status
 // pages, but changes nothing and is sent no credentials.
@@ -55,7 +67,7 @@ const (
 func (u User) IsAdmin() bool { return u.Role == RoleAdmin }
 
 const userColumns = `id, username, password_hash, created_at, totp_secret, totp_enabled, totp_locked_until, role,
-	github_id, github_checked_at, github_teams`
+	github_id, github_checked_at, github_teams, google_sub, google_email, google_domain, google_checked_at`
 
 // userColumnsOf is userColumns, each qualified with a table's alias.
 func userColumnsOf(alias string) string {
@@ -115,7 +127,8 @@ func (s *Store) CreateFirstUser(ctx context.Context, username, passwordHash stri
 }
 
 func (u *User) fields() []any {
-	return []any{&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPLockedUntil, &u.Role, &u.GitHubID, &u.GitHubCheckedAt, &u.GitHubTeams}
+	return []any{&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPLockedUntil, &u.Role, &u.GitHubID, &u.GitHubCheckedAt, &u.GitHubTeams,
+		&u.GoogleSub, &u.GoogleEmail, &u.GoogleDomain, &u.GoogleCheckedAt}
 }
 
 func (s *Store) scanUser(row pgx.Row) (User, error) {

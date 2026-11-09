@@ -71,7 +71,7 @@
                     {{ $t(res.msg) }}
                 </div>
             </form>
-            <div v-if="$root.info.githubLogin && !tokenRequired" class="pt-3">
+            <div v-if="($root.info.githubLogin || $root.info.googleLogin) && !tokenRequired" class="pt-3">
                 <div v-if="!passwordLogin" class="form-check mb-3 d-flex justify-content-center pe-4">
                     <div class="form-check">
                         <input id="remember-github" v-model="$root.remember" type="checkbox" class="form-check-input" />
@@ -80,8 +80,17 @@
                         </label>
                     </div>
                 </div>
-                <a id="github-login" class="w-100 btn btn-dark" :href="githubLoginURL">
+                <a v-if="$root.info.githubLogin" id="github-login" class="w-100 btn btn-dark" :href="githubLoginURL">
                     {{ $t("loginWithGitHub") }}
+                </a>
+                <a
+                    v-if="$root.info.googleLogin"
+                    id="google-login"
+                    class="w-100 btn btn-outline-normal"
+                    :class="{ 'mt-2': $root.info.githubLogin }"
+                    :href="googleLoginURL"
+                >
+                    {{ $t("loginWithGoogle") }}
                 </a>
             </div>
         </div>
@@ -119,6 +128,13 @@ export default {
             return "/api/auth/github/start?remember=" + (this.$root.remember ? "1" : "0");
         },
         /**
+         * Where "Log in with Google" starts
+         * @returns {string} Path
+         */
+        googleLoginURL() {
+            return "/api/auth/google/start?remember=" + (this.$root.remember ? "1" : "0");
+        },
+        /**
          * Why the last GitHub login failed, from the address it came back to
          * @returns {string} Message, or empty
          */
@@ -129,6 +145,11 @@ export default {
                 "github-denied": this.$t("githubLoginDenied"),
                 "github-expired": this.$t("githubLoginExpired"),
                 "github-failed": this.$t("githubLoginFailed"),
+                "google-not-allowed": this.$t("googleLoginNotAllowed"),
+                "google-denied": this.$t("googleLoginDenied"),
+                "google-expired": this.$t("googleLoginExpired"),
+                "google-failed": this.$t("googleLoginFailed"),
+                "google-name-taken": this.$t("googleLoginNameTaken"),
             };
             return code ? messages[code] || this.$t("githubLoginFailed") : "";
         },

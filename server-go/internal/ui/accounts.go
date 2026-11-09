@@ -39,8 +39,11 @@ func (s *Server) accountJSON(a store.Account, c *conn) map[string]any {
 		})
 	}
 	method := "password"
-	if a.GitHubID != nil {
+	switch {
+	case a.GitHubID != nil:
 		method = "github"
+	case a.GoogleSub != nil:
+		method = "google"
 	}
 	return map[string]any{
 		"id":               a.ID,
@@ -51,6 +54,7 @@ func (s *Server) accountJSON(a store.Account, c *conn) map[string]any {
 		"createdAt":        format(&a.CreatedAt),
 		"lastLoginAt":      format(a.LastLoginAt),
 		"githubCheckedAt":  format(a.GitHubCheckedAt),
+		"googleCheckedAt":  format(a.GoogleCheckedAt),
 		"sessions":         sessions,
 		"you":              a.ID == c.userID,
 	}
@@ -62,6 +66,14 @@ func (s *Server) getOwnAccount(ctx context.Context, c *conn) (reply, error) {
 	user, err := s.store.UserByID(ctx, c.userID)
 	if err != nil {
 		return nil, err
+	}
+	if user.GoogleSub != nil {
+		var checked any
+		if user.GoogleCheckedAt != nil {
+			checked = user.GoogleCheckedAt.In(s.opts.Location).Format(uiTimeFormat)
+		}
+		return ok("method", "google", "role", user.Role, "email", deref(user.GoogleEmail), "domain", deref(user.GoogleDomain),
+			"checkedAt", checked, "recheckHours", int(githubRecheckEvery.Hours())), nil
 	}
 	if user.GitHubID == nil {
 		return ok("method", "password", "twoFactorEnabled", user.TOTPEnabled), nil
@@ -92,7 +104,7 @@ func (s *Server) getAccountList(ctx context.Context, c *conn) (reply, error) {
 		list = append(list, s.accountJSON(a, c))
 	}
 	methods := s.loginMethods()
-	return ok("accounts", list, "passwordLogin", methods.Password, "githubLogin", methods.GitHub), nil
+	return ok("accounts", list, "passwordLogin", methods.Password, "githubLogin", methods.GitHub, "googleLogin", methods.Google), nil
 }
 
 func accountErr(err error) error {

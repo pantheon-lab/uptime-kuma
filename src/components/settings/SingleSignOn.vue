@@ -127,10 +127,113 @@
                 </details>
 
                 <p class="form-text" data-testid="sso-last-login">
-                    <template v-if="lastGitHubLogin">
-                        {{ $t("ssoLastLogin", [lastGitHubLogin.username, lastGitHubLogin.at]) }}
+                    <template v-if="lastLogins.github">
+                        {{ $t("ssoLastLogin", [lastLogins.github.username, lastLogins.github.at]) }}
                     </template>
                     <template v-else>{{ $t("ssoNoLoginYet") }}</template>
+                </p>
+            </fieldset>
+
+            <!-- Google -->
+            <h5 class="mt-4 settings-subheading">{{ $t("ssoGoogle") }}</h5>
+            <div class="form-check form-switch mb-3">
+                <input
+                    id="sso-google-enabled"
+                    v-model="google.enabled"
+                    class="form-check-input"
+                    type="checkbox"
+                    role="switch"
+                    :disabled="locked"
+                    data-testid="sso-google-enabled"
+                />
+                <label class="form-check-label" for="sso-google-enabled">{{ $t("ssoGoogleEnabled") }}</label>
+                <div class="form-text">{{ $t("ssoGoogleHelp") }}</div>
+            </div>
+
+            <fieldset v-if="google.enabled" :disabled="locked" class="ms-md-4 mb-4" data-testid="sso-google">
+                <ol class="setup-steps form-text">
+                    <li>{{ $t("ssoGoogleStepRegister") }}</li>
+                    <li>{{ $t("ssoGoogleStepFill") }}</li>
+                    <li>{{ $t("ssoGoogleStepTry") }}</li>
+                </ol>
+
+                <div class="mb-3">
+                    <label for="sso-google-callback" class="form-label">{{ $t("ssoRedirectURI") }}</label>
+                    <CopyableInput
+                        id="sso-google-callback"
+                        :model-value="googleCallback.url"
+                        data-testid="sso-google-callback"
+                    />
+                    <div v-if="googleCallback.guessed" class="form-text text-warning-emphasis">
+                        {{ $t("ssoCallbackGuessed") }}
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label for="sso-google-client-id" class="form-label">{{ $t("ssoClientID") }}</label>
+                        <input
+                            id="sso-google-client-id"
+                            v-model.trim="google.clientId"
+                            type="text"
+                            class="form-control"
+                            autocomplete="off"
+                            required
+                            placeholder="…apps.googleusercontent.com"
+                            data-testid="sso-google-client-id"
+                        />
+                    </div>
+                    <div class="col-md-6">
+                        <label for="sso-google-client-secret" class="form-label">{{ $t("ssoClientSecret") }}</label>
+                        <HiddenInput
+                            id="sso-google-client-secret"
+                            v-model="google.clientSecret"
+                            :placeholder="saved?.google?.hasClientSecret ? $t('ssoSecretKept') : ''"
+                        />
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="sso-google-admins" class="form-label">{{ $t("ssoGoogleAdmins") }}</label>
+                    <input
+                        id="sso-google-admins"
+                        v-model="googleAdmins"
+                        type="text"
+                        class="form-control"
+                        placeholder="ann@example.com, bob@example.com"
+                        data-testid="sso-google-admins"
+                    />
+                </div>
+                <div class="mb-3">
+                    <label for="sso-google-viewers" class="form-label">{{ $t("ssoGoogleViewers") }}</label>
+                    <input
+                        id="sso-google-viewers"
+                        v-model="googleViewers"
+                        type="text"
+                        class="form-control"
+                        placeholder="*, support@example.com"
+                        data-testid="sso-google-viewers"
+                    />
+                    <div class="form-text">{{ $t("ssoGoogleViewersHelp") }}</div>
+                </div>
+                <div class="mb-3">
+                    <label for="sso-google-domains" class="form-label">{{ $t("ssoGoogleDomains") }}</label>
+                    <input
+                        id="sso-google-domains"
+                        v-model="googleDomains"
+                        type="text"
+                        class="form-control"
+                        placeholder="example.com"
+                        data-testid="sso-google-domains"
+                    />
+                    <div class="form-text">{{ $t("ssoGoogleDomainsHelp") }}</div>
+                </div>
+
+                <p class="form-text" data-testid="sso-google-last-login">
+                    <template v-if="lastLogins.google">
+                        {{ $t("ssoLastGoogleLogin", [lastLogins.google.username, lastLogins.google.at]) }}
+                    </template>
+                    <template v-else>{{ $t("ssoNoGoogleLoginYet") }}</template>
                 </p>
             </fieldset>
 
@@ -151,7 +254,7 @@
             <div class="form-text mb-4" data-testid="sso-password-help">
                 <template v-if="!form.passwordLogin">{{ $t("ssoPasswordsOffHelp") }}</template>
                 <template v-else-if="canTurnOffPasswords">{{ $t("ssoPasswordsCanTurnOff") }}</template>
-                <template v-else>{{ $t("ssoPasswordsNeedGitHub") }}</template>
+                <template v-else>{{ $t("ssoPasswordsNeedSSO") }}</template>
             </div>
 
             <button v-if="!locked" type="submit" class="btn btn-primary" :disabled="saving" data-testid="sso-save">
@@ -164,10 +267,10 @@
 <script>
 import CopyableInput from "../CopyableInput.vue";
 import HiddenInput from "../HiddenInput.vue";
-import { callbackURL, parseTeams, teamsText } from "../../sso-settings";
+import { callbackURL, parseList, parseTeams, teamsText } from "../../sso-settings";
 
 /**
- * Settings > Single Sign-On: logging in with GitHub, and whether passwords work.
+ * Settings > Single Sign-On: logging in with GitHub or Google, and whether passwords work.
  */
 export default {
     components: { CopyableInput, HiddenInput },
@@ -177,14 +280,20 @@ export default {
             saving: false,
             managedByEnv: false,
             hasClientSecret: false,
-            youUseGitHub: false,
+            // How this admin logged in: "password", "github" or "google"
+            youUse: "password",
             serverCallbackURL: "",
-            lastGitHubLogin: null,
+            serverGoogleCallbackURL: "",
+            lastLogins: {},
             // The settings as saved, to tell what the form changes
             saved: null,
             form: {},
             adminTeams: "",
             viewerTeams: "",
+            google: {},
+            googleAdmins: "",
+            googleViewers: "",
+            googleDomains: "",
         };
     },
     computed: {
@@ -194,16 +303,31 @@ export default {
         callback() {
             return callbackURL(this.serverCallbackURL, location.origin);
         },
+        googleCallback() {
+            return callbackURL(this.serverGoogleCallbackURL, location.origin, "google");
+        },
 
         /**
-         * Whether this admin can turn passwords off: logged in with GitHub, with GitHub's settings
-         * as saved, which the server checks again
+         * Whether this admin can turn passwords off: logged in with GitHub or Google, with that
+         * provider's settings as saved, which the server checks again
          * @returns {boolean} Whether they can
          */
         canTurnOffPasswords() {
+            if (this.youUse === "google") {
+                const g = this.saved?.google;
+                return (
+                    !!g?.enabled &&
+                    this.google.enabled &&
+                    this.google.clientId === g.clientId &&
+                    this.google.clientSecret === "" &&
+                    teamsText(parseList(this.googleAdmins)) === teamsText(g.adminEmails) &&
+                    teamsText(parseList(this.googleViewers)) === teamsText(g.viewerEmails) &&
+                    teamsText(parseList(this.googleDomains)) === teamsText(g.domains)
+                );
+            }
             const s = this.saved;
             return (
-                this.youUseGitHub &&
+                this.youUse === "github" &&
                 s?.githubEnabled &&
                 this.form.githubEnabled &&
                 this.form.clientId === s.clientId &&
@@ -234,9 +358,18 @@ export default {
                 this.saved = s;
                 this.managedByEnv = res.managedByEnv;
                 this.hasClientSecret = s.hasClientSecret;
-                this.youUseGitHub = res.youUseGitHub;
+                this.youUse = res.youUse;
                 this.serverCallbackURL = res.callbackURL;
-                this.lastGitHubLogin = res.lastGitHubLogin;
+                this.serverGoogleCallbackURL = res.googleCallbackURL;
+                this.lastLogins = res.lastLogins || {};
+                this.google = {
+                    enabled: s.google.enabled,
+                    clientId: s.google.clientId,
+                    clientSecret: "",
+                };
+                this.googleAdmins = teamsText(s.google.adminEmails);
+                this.googleViewers = teamsText(s.google.viewerEmails);
+                this.googleDomains = teamsText(s.google.domains);
                 this.form = {
                     githubEnabled: s.githubEnabled,
                     clientId: s.clientId,
@@ -262,6 +395,12 @@ export default {
                 ...this.form,
                 adminTeams: parseTeams(this.adminTeams),
                 viewerTeams: parseTeams(this.viewerTeams),
+                google: {
+                    ...this.google,
+                    adminEmails: parseList(this.googleAdmins),
+                    viewerEmails: parseList(this.googleViewers),
+                    domains: parseList(this.googleDomains),
+                },
             };
             this.$root.getSocket().emit("saveLoginSettings", settings, (res) => {
                 this.saving = false;

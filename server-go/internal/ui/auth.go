@@ -274,7 +274,7 @@ func (s *Server) currentSession(ctx context.Context, w http.ResponseWriter, r *h
 	if err != nil {
 		return store.Session{}, store.User{}, false, err
 	}
-	user, allowed, err := s.checkGitHubAccount(ctx, user)
+	user, allowed, err := s.checkSSOAccount(ctx, user)
 	if err != nil {
 		return store.Session{}, store.User{}, false, err
 	}
@@ -294,16 +294,21 @@ func (s *Server) currentSession(ctx context.Context, w http.ResponseWriter, r *h
 	return session, user, true, nil
 }
 
-// checkGitHubAccount rechecks a GitHub account's teams when they are due, and returns the
-// user with its role now. allowed is false when the account may no longer log in: its
+// checkSSOAccount rechecks a GitHub account's teams, or has Google confirm a Google account, when
+// due, and returns the user with its role now. allowed is false when the account may no longer log in: its
 // sessions are then ended. When the role changed, the user's streams are closed, so that
 // open pages reconnect and get what the new role allows. Other accounts are returned as
 // they are.
-func (s *Server) checkGitHubAccount(ctx context.Context, user store.User) (store.User, bool, error) {
-	if user.GitHubID == nil {
+func (s *Server) checkSSOAccount(ctx context.Context, user store.User) (store.User, bool, error) {
+	var role string
+	switch {
+	case user.GitHubID != nil:
+		role = s.recheckGitHub(ctx, user)
+	case user.GoogleSub != nil:
+		role = s.recheckGoogle(ctx, user)
+	default:
 		return user, true, nil
 	}
-	role := s.recheckGitHub(ctx, user)
 	if role == "" {
 		if err := s.store.EndUserSessions(ctx, user.ID); err != nil {
 			return store.User{}, false, err
@@ -432,6 +437,11 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 // refuseGitHubAccount answers a password or two-factor change for an account that logs in with
 // GitHub, which has neither, and returns whether it did.
 func refuseGitHubAccount(w http.ResponseWriter, user store.User) bool {
+	if user.GoogleSub != nil {
+		authError(w, http.StatusBadRequest, "GOOGLE_ACCOUNT",
+			"This account logs in with Google, so it has no password or two-factor login here. Manage them in your Google account.")
+		return true
+	}
 	if user.GitHubID == nil {
 		return false
 	}

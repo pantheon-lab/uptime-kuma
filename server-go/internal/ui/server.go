@@ -39,7 +39,11 @@ type Store interface {
 	SaveLoginConfig(ctx context.Context, c store.LoginConfig) error
 	AdminCanLogIn(ctx context.Context, methods store.LoginMethods) (bool, error)
 	ExpireGitHubChecks(ctx context.Context) error
-	LastGitHubLogin(ctx context.Context) (string, *time.Time, error)
+	LastSSOLogin(ctx context.Context, kind string) (string, *time.Time, error)
+	ExpireGoogleChecks(ctx context.Context) error
+	SaveGoogleUser(ctx context.Context, g store.GoogleUser, role, refreshToken string) (store.User, error)
+	GoogleToken(ctx context.Context, userID int32) (string, error)
+	SetGoogleChecked(ctx context.Context, userID int32, g store.GoogleUser, role string) error
 	EndOtherUserSessions(ctx context.Context, userID int32, keep []byte) error
 	ListAccounts(ctx context.Context) ([]store.Account, error)
 	DeleteUser(ctx context.Context, userID int32, methods store.LoginMethods) (store.User, error)
@@ -159,8 +163,13 @@ type Options struct {
 	GitHub *GitHubOptions
 	// DisablePasswordLogin refuses logging in with a password, once GitHub login works.
 	DisablePasswordLogin bool
+	// Google turns on logging in with Google. Its endpoints are set from GoogleEndpoint.
+	Google *GoogleOptions
+	// GoogleEndpoint replaces Google's addresses, for tests: <it>/o/oauth2/v2/auth, /token and
+	// /v1/userinfo. Empty means Google's.
+	GoogleEndpoint string
 	// LoginFromEnv means environment variables set how people log in, so Settings > Single
-	// Sign-On only shows it. GitHub or DisablePasswordLogin being set means it too.
+	// Sign-On only shows it. GitHub, Google or DisablePasswordLogin being set means it too.
 	LoginFromEnv bool
 	// IndexHTML is the web UI's index.html, which status pages are rendered into. Without it,
 	// /status/ answers 404, and the data is still at /api/status-page/.
@@ -236,9 +245,12 @@ func New(s Store, scheduler Scheduler, notifyEnv *notify.Env, log *slog.Logger, 
 		githubChecking: map[int32]bool{},
 		githubFailed:   map[int32]time.Time{},
 	}
+	if opts.Google != nil && opts.Google.TokenURL == "" {
+		googleEndpoints(opts.Google, opts.GoogleEndpoint)
+	}
 	server.login.Store(&loginState{
-		github: opts.GitHub, password: !opts.DisablePasswordLogin,
-		fromEnv: opts.LoginFromEnv || opts.GitHub != nil || opts.DisablePasswordLogin,
+		github: opts.GitHub, google: opts.Google, password: !opts.DisablePasswordLogin,
+		fromEnv: opts.LoginFromEnv || opts.GitHub != nil || opts.Google != nil || opts.DisablePasswordLogin,
 	})
 	// A window started or ended, so open pages show its new status.
 	opts.Maintenance.OnChange(func() {
@@ -263,6 +275,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/two-factor/verify-totp", s.sameOrigin(s.verifyTOTP))
 	mux.HandleFunc("GET /api/auth/github/start", s.githubStart)
 	mux.HandleFunc("GET /api/auth/github/callback", s.githubCallback)
+	mux.HandleFunc("GET /api/auth/google/start", s.googleStart)
+	mux.HandleFunc("GET /api/auth/google/callback", s.googleCallback)
 	mux.HandleFunc("/api/auth/", s.authNotSupported)
 	mux.HandleFunc("GET /api/realtime/stream", s.stream)
 	mux.HandleFunc("POST /api/realtime/send", s.sameOrigin(s.send))

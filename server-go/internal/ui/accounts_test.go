@@ -631,7 +631,8 @@ func (f *fakeStore) AdminCanLogIn(_ context.Context, methods store.LoginMethods)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for _, u := range f.users {
-		if u.Role == store.RoleAdmin && ((u.GitHubID == nil && methods.Password && u.PasswordHash != "") || (u.GitHubID != nil && methods.GitHub)) {
+		if u.Role == store.RoleAdmin && ((!u.SSO() && methods.Password && u.PasswordHash != "") ||
+			(u.GitHubID != nil && methods.GitHub) || (u.GoogleSub != nil && methods.Google)) {
 			return true, nil
 		}
 	}
@@ -649,6 +650,69 @@ func (f *fakeStore) ExpireGitHubChecks(context.Context) error {
 	return nil
 }
 
-func (f *fakeStore) LastGitHubLogin(context.Context) (string, *time.Time, error) {
+func (f *fakeStore) LastSSOLogin(context.Context, string) (string, *time.Time, error) {
 	return "", nil, nil
+}
+
+func (f *fakeStore) ExpireGoogleChecks(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.users {
+		if f.users[i].GoogleSub != nil {
+			f.users[i].GoogleCheckedAt = nil
+		}
+	}
+	return nil
+}
+
+func (f *fakeStore) SaveGoogleUser(_ context.Context, g store.GoogleUser, role, token string) (store.User, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	for _, u := range f.users {
+		if u.GoogleSub == nil && strings.EqualFold(u.Username, g.Email) {
+			return store.User{}, store.ErrUsernameTakenByPassword
+		}
+	}
+	for i, u := range f.users {
+		if u.GoogleSub != nil && *u.GoogleSub == g.Sub {
+			f.users[i].Username, f.users[i].Role, f.users[i].GoogleCheckedAt = g.Email, role, &now
+			f.users[i].GoogleEmail, f.users[i].GoogleDomain = &g.Email, &g.Domain
+			if token != "" {
+				f.googleTokens[u.ID] = token
+			}
+			return f.users[i], nil
+		}
+	}
+	id := int32(len(f.users) + 1)
+	sub, email, domain := g.Sub, g.Email, g.Domain
+	u := store.User{ID: id, Username: g.Email, Role: role, GoogleSub: &sub, GoogleEmail: &email, GoogleDomain: &domain, GoogleCheckedAt: &now, CreatedAt: now}
+	f.users = append(f.users, u)
+	if token != "" {
+		f.googleTokens[id] = token
+	}
+	return u, nil
+}
+
+func (f *fakeStore) GoogleToken(_ context.Context, id int32) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	token, found := f.googleTokens[id]
+	if !found {
+		return "", store.ErrNotFound
+	}
+	return token, nil
+}
+
+func (f *fakeStore) SetGoogleChecked(_ context.Context, id int32, g store.GoogleUser, role string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	for i := range f.users {
+		if f.users[i].ID == id {
+			email, domain := g.Email, g.Domain
+			f.users[i].Role, f.users[i].GoogleCheckedAt, f.users[i].GoogleEmail, f.users[i].GoogleDomain = role, &now, &email, &domain
+		}
+	}
+	return nil
 }

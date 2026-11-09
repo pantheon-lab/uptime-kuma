@@ -169,6 +169,7 @@ func (s *Server) info(ctx context.Context, full bool) map[string]any {
 	}
 	info := map[string]any{
 		"githubLogin":          s.github() != nil,
+		"googleLogin":          s.google() != nil,
 		"passwordLogin":        s.passwordLogin(),
 		"primaryBaseURL":       baseURL,
 		"serverTimezone":       s.opts.Location.String(),

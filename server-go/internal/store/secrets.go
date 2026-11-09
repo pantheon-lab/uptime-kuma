@@ -126,6 +126,16 @@ var secretColumns = []secretColumn{
 		update: `UPDATE status_page_subscriber SET address = $2 WHERE id = $1::int AND address = $3`,
 	},
 	{
+		name: "Google tokens", table: "app_user", column: "google_token",
+		list:   `SELECT id::text, google_token FROM app_user WHERE google_token IS NOT NULL AND google_token <> ''`,
+		update: `UPDATE app_user SET google_token = $2 WHERE id = $1::int AND google_token = $3`,
+	},
+	{
+		name: "the Google client secret", table: "login_config", column: "google_client_secret",
+		list:   `SELECT id::text, google_client_secret FROM login_config WHERE google_client_secret <> ''`,
+		update: `UPDATE login_config SET google_client_secret = $2 WHERE id = $1::int AND google_client_secret = $3`,
+	},
+	{
 		name: "the GitHub client secret", table: "login_config", column: "github_client_secret",
 		list:   `SELECT id::text, github_client_secret FROM login_config WHERE github_client_secret <> ''`,
 		update: `UPDATE login_config SET github_client_secret = $2 WHERE id = $1::int AND github_client_secret = $3`,

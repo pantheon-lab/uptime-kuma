@@ -39,6 +39,26 @@
                     </p>
                 </div>
 
+                <div v-if="account && account.method === 'google'" class="mb-3" data-testid="google-account">
+                    <h5 class="my-4 settings-subheading">{{ $t("securityGoogleTitle") }}</h5>
+                    <p>{{ $t("securityGoogleIntro") }}</p>
+                    <dl class="row">
+                        <dt class="col-sm-3">{{ $t("Email") }}</dt>
+                        <dd class="col-sm-9">{{ account.email }}</dd>
+                        <dt class="col-sm-3">{{ $t("securityGoogleDomain") }}</dt>
+                        <dd class="col-sm-9">{{ account.domain || "—" }}</dd>
+                        <dt class="col-sm-3">{{ $t("Role") }}</dt>
+                        <dd class="col-sm-9">
+                            {{ account.role === "admin" ? $t("accountRoleAdmin") : $t("accountRoleViewer") }}
+                        </dd>
+                        <dt class="col-sm-3">{{ $t("accountGoogleChecked") }}</dt>
+                        <dd class="col-sm-9">{{ account.checkedAt || $t("Never") }}</dd>
+                    </dl>
+                    <p class="text-secondary small">
+                        {{ $t("securityGoogleRecheck", { hours: account.recheckHours }) }}
+                    </p>
+                </div>
+
                 <h5 v-if="!isGitHub" class="my-4 settings-subheading">{{ $t("Change Password") }}</h5>
                 <form v-if="!isGitHub" class="mb-3" @submit.prevent="savePassword">
                     <div class="mb-3">
@@ -201,8 +221,9 @@ export default {
         settingsLoaded() {
             return this.$parent.$parent.$parent.settingsLoaded;
         },
+        // An account that logs in with GitHub or Google, which has no password here
         isGitHub() {
-            return this.account?.method === "github";
+            return this.account?.method === "github" || this.account?.method === "google";
         },
     },
 

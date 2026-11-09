@@ -28,4 +28,11 @@ describe("callbackURL()", () => {
             guessed: true,
         });
     });
+
+    test("Google's", () => {
+        assert.strictEqual(
+            callbackURL("", "https://kuma.example", "google").url,
+            "https://kuma.example/api/auth/google/callback"
+        );
+    });
 });

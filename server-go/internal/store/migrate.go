@@ -569,6 +569,22 @@ var migrations = [][]string{
 			updated_at timestamptz NOT NULL DEFAULT now()
 		)`,
 	},
+	{
+		// Logging in with Google: the account's subject, email and Workspace domain, the sealed
+		// refresh token that checks it daily, and the settings.
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS google_sub text`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS app_user_google_sub_idx ON app_user (google_sub) WHERE google_sub IS NOT NULL`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS google_email text`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS google_domain text`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS google_token text`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS google_checked_at timestamptz`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS google_enabled boolean NOT NULL DEFAULT false`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS google_client_id text NOT NULL DEFAULT ''`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS google_client_secret text NOT NULL DEFAULT ''`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS google_domains text[] NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS google_admin_emails text[] NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS google_viewer_emails text[] NOT NULL DEFAULT '{}'`,
+	},
 }
 
 // Migrate brings the schema up to date.

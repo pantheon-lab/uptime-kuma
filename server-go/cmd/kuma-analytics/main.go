@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -310,14 +311,20 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	googleLogin, err := googleOptions()
+	if err != nil {
+		return err
+	}
 	passwordLogin := os.Getenv("KUMA_PASSWORD_LOGIN") == "" || envTrue(os.Getenv("KUMA_PASSWORD_LOGIN"))
-	loginFromEnv := os.Getenv("KUMA_PASSWORD_LOGIN") != "" || githubLogin != nil
-	if !passwordLogin && githubLogin == nil {
-		return errors.New("KUMA_PASSWORD_LOGIN=false needs GitHub login, or nobody could log in")
+	loginFromEnv := os.Getenv("KUMA_PASSWORD_LOGIN") != "" || githubLogin != nil || googleLogin != nil
+	if !passwordLogin && githubLogin == nil && googleLogin == nil {
+		return errors.New("KUMA_PASSWORD_LOGIN=false needs GitHub or Google login, or nobody could log in")
 	}
 	uiServer := ui.New(db, sched, notifyEnv, log, ui.Options{
 		GitHub:               githubLogin,
 		DisablePasswordLogin: !passwordLogin,
+		Google:               googleLogin,
+		GoogleEndpoint:       os.Getenv("KUMA_GOOGLE_ENDPOINT"),
 		LoginFromEnv:         loginFromEnv,
 		Updates:              updateChecker,
 		PasswordLeaked:       passwordLeaked,
@@ -422,6 +429,41 @@ func createInitialAdmin(ctx context.Context, server *ui.Server, log *slog.Logger
 		log.Info("an account exists, so KUMA_INITIAL_ADMIN_USERNAME and KUMA_INITIAL_ADMIN_PASSWORD are ignored")
 	}
 	return nil
+}
+
+// envList reads a comma-separated list, lowercase, without blanks.
+func envList(name string) []string {
+	var out []string
+	for _, v := range strings.Split(os.Getenv(name), ",") {
+		if v = strings.ToLower(strings.TrimSpace(v)); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// googleOptions reads the Google login settings, or returns nil when KUMA_GOOGLE_CLIENT_ID isn't set.
+func googleOptions() (*ui.GoogleOptions, error) {
+	id := strings.TrimSpace(os.Getenv("KUMA_GOOGLE_CLIENT_ID"))
+	if id == "" {
+		return nil, nil
+	}
+	g := &ui.GoogleOptions{
+		ClientID:     id,
+		ClientSecret: os.Getenv("KUMA_GOOGLE_CLIENT_SECRET"),
+		Domains:      envList("KUMA_GOOGLE_DOMAINS"),
+		AdminEmails:  envList("KUMA_GOOGLE_ADMIN_EMAILS"),
+		ViewerEmails: envList("KUMA_GOOGLE_VIEWER_EMAILS"),
+	}
+	switch {
+	case g.ClientSecret == "":
+		return nil, errors.New("KUMA_GOOGLE_CLIENT_SECRET is required with KUMA_GOOGLE_CLIENT_ID")
+	case len(g.AdminEmails) == 0 && len(g.ViewerEmails) == 0:
+		return nil, errors.New("set KUMA_GOOGLE_ADMIN_EMAILS or KUMA_GOOGLE_VIEWER_EMAILS, the addresses that may log in with Google")
+	case slices.Contains(g.ViewerEmails, "*") && len(g.Domains) == 0:
+		return nil, errors.New("KUMA_GOOGLE_VIEWER_EMAILS=* needs KUMA_GOOGLE_DOMAINS, or anyone with a Google account could log in")
+	}
+	return g, nil
 }
 
 // githubOptions reads the GitHub login settings, or returns nil when KUMA_GITHUB_CLIENT_ID isn't set.

@@ -28,13 +28,14 @@ import (
 
 // fakeStore keeps accounts, sessions and monitors in memory. Other methods return nothing.
 type fakeStore struct {
-	mu          sync.Mutex
-	loginConfig *store.LoginConfig
-	users       []store.User
-	sessions    map[string]store.Session
-	monitors    map[int32]monitor.Monitor
-	nextID      int32
-	settings    map[string]json.RawMessage
+	mu           sync.Mutex
+	loginConfig  *store.LoginConfig
+	googleTokens map[int32]string
+	users        []store.User
+	sessions     map[string]store.Session
+	monitors     map[int32]monitor.Monitor
+	nextID       int32
+	settings     map[string]json.RawMessage
 	// createErr is returned by CreateMonitor, to test how a failure is shown.
 	createErr error
 	// important is what ImportantBeats returns, newest first, and chartRanges the ranges asked for.
@@ -73,6 +74,7 @@ func newFakeStore() *fakeStore {
 		sessions: map[string]store.Session{}, monitors: map[int32]monitor.Monitor{}, settings: map[string]json.RawMessage{},
 		totpSteps: map[int32]int64{}, totpFailures: map[int32]int{}, challenges: map[string]store.TwoFactorChallenge{},
 		githubTokens: map[int32]string{},
+		googleTokens: map[int32]string{},
 	}
 }
 

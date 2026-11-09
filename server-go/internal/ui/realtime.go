@@ -245,7 +245,7 @@ func (s *Server) loginStillValid(ctx context.Context, login *userInfo) bool {
 		s.log.Warn("check realtime session", "error", err)
 		return true
 	}
-	user, allowed, err := s.checkGitHubAccount(ctx, user)
+	user, allowed, err := s.checkSSOAccount(ctx, user)
 	if err != nil {
 		s.log.Warn("check realtime session", "error", err)
 		return true

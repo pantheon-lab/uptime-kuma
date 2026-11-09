@@ -28,15 +28,16 @@ const (
 )
 
 var (
-	errLoginFromEnv = errors.New("Login is set by environment variables (KUMA_GITHUB_*, KUMA_PASSWORD_LOGIN), so it can't be changed here.")                                                                                             //nolint:staticcheck // Shown to users.
-	errNoLogin      = errors.New("Turn on password login or GitHub login: with neither, nobody could log in.")                                                                                                                           //nolint:staticcheck // Shown to users.
-	errPasswordOff  = errors.New("Password login can only be off with GitHub settings that an admin has logged in with. Save the GitHub settings with password login on, log in with GitHub as an admin, then turn password login off.") //nolint:staticcheck // Shown to users.
-	errNoAdminLeft  = errors.New("No admin could log in after this change. Keep a way in for an admin: a password, or GitHub.")                                                                                                          //nolint:staticcheck // Shown to users.
+	errLoginFromEnv = errors.New("Login is set by environment variables (KUMA_GITHUB_*, KUMA_PASSWORD_LOGIN), so it can't be changed here.")                                                                                                                                   //nolint:staticcheck // Shown to users.
+	errNoLogin      = errors.New("Turn on password login or GitHub login: with neither, nobody could log in.")                                                                                                                                                                 //nolint:staticcheck // Shown to users.
+	errPasswordOff  = errors.New("Password login can only be off while you're logged in as an admin with GitHub or Google, with that provider's settings as you logged in with them. Save its settings with password login on, log in with it, then turn password login off.") //nolint:staticcheck // Shown to users.
+	errNoAdminLeft  = errors.New("No admin could log in after this change. Keep a way in for an admin: a password, or GitHub.")                                                                                                                                                //nolint:staticcheck // Shown to users.
 )
 
 // loginState is how people log in now.
 type loginState struct {
 	github   *GitHubOptions
+	google   *GoogleOptions
 	password bool
 	// fromEnv means environment variables set it, and the UI can't change it.
 	fromEnv bool
@@ -45,12 +46,15 @@ type loginState struct {
 // github returns GitHub login's settings, or nil when it's off.
 func (s *Server) github() *GitHubOptions { return s.login.Load().github }
 
+// google returns Google login's settings, or nil when it's off.
+func (s *Server) google() *GoogleOptions { return s.login.Load().google }
+
 // passwordLogin reports whether passwords log in.
 func (s *Server) passwordLogin() bool { return s.login.Load().password }
 
 func (s *Server) loginMethods() store.LoginMethods {
 	l := s.login.Load()
-	return store.LoginMethods{Password: l.password, GitHub: l.github != nil}
+	return store.LoginMethods{Password: l.password, GitHub: l.github != nil, Google: l.google != nil}
 }
 
 // githubFromConfig is GitHub login's options from saved settings, or nil when it's off.
@@ -71,6 +75,19 @@ func githubFromConfig(c store.LoginConfig) *GitHubOptions {
 	}
 }
 
+// googleFromConfig is Google login's options from saved settings, or nil when it's off.
+func googleFromConfig(c store.GoogleConfig, endpoint string) *GoogleOptions {
+	if !c.Enabled {
+		return nil
+	}
+	g := &GoogleOptions{
+		ClientID: c.ClientID, ClientSecret: c.ClientSecret, Domains: c.Domains,
+		AdminEmails: c.AdminEmails, ViewerEmails: c.ViewerEmails,
+	}
+	googleEndpoints(g, endpoint)
+	return g
+}
+
 // LoadLoginConfig takes the login settings saved in the UI, unless environment variables set them.
 func (s *Server) LoadLoginConfig(ctx context.Context) error {
 	if s.login.Load().fromEnv {
@@ -80,7 +97,8 @@ func (s *Server) LoadLoginConfig(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	s.login.Store(&loginState{github: githubFromConfig(c), password: c.PasswordLogin})
+	s.login.Store(&loginState{github: githubFromConfig(c), google: googleFromConfig(c.Google, s.opts.GoogleEndpoint),
+		password: c.PasswordLogin})
 	return nil
 }
 
@@ -101,13 +119,14 @@ func (s *Server) WatchLoginConfig(ctx context.Context) {
 	}
 }
 
-// callbackURL is the address to register in the GitHub OAuth App.
-func (s *Server) callbackURL(ctx context.Context) string {
+// callbackURL is the address to register with a provider ("github" or "google"), or "" when the
+// server has no Primary Base URL, and the page uses its own address.
+func (s *Server) callbackURL(ctx context.Context, kind string) string {
 	base := strings.TrimRight(s.baseURL(ctx), "/")
 	if base == "" {
 		return ""
 	}
-	return base + "/api/auth/github/callback"
+	return base + "/api/auth/" + kind + "/callback"
 }
 
 func nonNilList(list []string) []string {
@@ -124,7 +143,11 @@ func (s *Server) getLoginSettings(ctx context.Context, c *conn) (reply, error) {
 		"githubEnabled": l.github != nil, "clientId": "", "hasClientSecret": false, "org": "",
 		"adminTeams": []string{}, "viewerTeams": []string{}, "webURL": "", "apiURL": "", "passwordLogin": l.password,
 	}
+	settings["google"] = googleSettingsJSON(false, "", false, nil, nil, nil)
 	if l.fromEnv {
+		if g := l.google; g != nil {
+			settings["google"] = googleSettingsJSON(true, g.ClientID, g.ClientSecret != "", g.Domains, g.AdminEmails, g.ViewerEmails)
+		}
 		if g := l.github; g != nil {
 			settings["clientId"], settings["hasClientSecret"], settings["org"] = g.ClientID, g.ClientSecret != "", g.Org
 			settings["adminTeams"], settings["viewerTeams"] = nonNilList(g.AdminTeams), nonNilList(g.ViewerTeams)
@@ -135,6 +158,8 @@ func (s *Server) getLoginSettings(ctx context.Context, c *conn) (reply, error) {
 		if err != nil {
 			return nil, err
 		}
+		settings["google"] = googleSettingsJSON(saved.Google.Enabled, saved.Google.ClientID, saved.Google.ClientSecret != "",
+			saved.Google.Domains, saved.Google.AdminEmails, saved.Google.ViewerEmails)
 		settings["githubEnabled"], settings["clientId"], settings["hasClientSecret"] = saved.GitHubEnabled, saved.ClientID, saved.ClientSecret != ""
 		settings["org"], settings["adminTeams"], settings["viewerTeams"] = saved.Org, nonNilList(saved.AdminTeams), nonNilList(saved.ViewerTeams)
 		settings["webURL"], settings["apiURL"], settings["passwordLogin"] = saved.WebURL, saved.APIURL, saved.PasswordLogin
@@ -143,16 +168,32 @@ func (s *Server) getLoginSettings(ctx context.Context, c *conn) (reply, error) {
 	if err != nil {
 		return nil, err
 	}
-	lastName, lastAt, err := s.store.LastGitHubLogin(ctx)
-	if err != nil {
-		return nil, err
+	lastLogins := map[string]any{}
+	for _, kind := range []string{"github", "google"} {
+		name, at, err := s.store.LastSSOLogin(ctx, kind)
+		if err != nil {
+			return nil, err
+		}
+		if name != "" {
+			lastLogins[kind] = map[string]any{"username": name, "at": at.In(s.opts.Location).Format(uiTimeFormat)}
+		}
 	}
-	var last any
-	if lastName != "" {
-		last = map[string]any{"username": lastName, "at": lastAt.In(s.opts.Location).Format(uiTimeFormat)}
+	you := "password"
+	switch {
+	case user.GitHubID != nil:
+		you = "github"
+	case user.GoogleSub != nil:
+		you = "google"
 	}
-	return ok("settings", settings, "managedByEnv", l.fromEnv, "callbackURL", s.callbackURL(ctx),
-		"youUseGitHub", user.GitHubID != nil, "lastGitHubLogin", last), nil
+	return ok("settings", settings, "managedByEnv", l.fromEnv, "callbackURL", s.callbackURL(ctx, "github"),
+		"googleCallbackURL", s.callbackURL(ctx, "google"), "youUse", you, "lastLogins", lastLogins), nil
+}
+
+func googleSettingsJSON(enabled bool, clientID string, hasSecret bool, domains, admins, viewers []string) map[string]any {
+	return map[string]any{
+		"enabled": enabled, "clientId": clientID, "hasClientSecret": hasSecret, "domains": nonNilList(domains),
+		"adminEmails": nonNilList(admins), "viewerEmails": nonNilList(viewers),
+	}
 }
 
 // optionalURL is "" for the default address, as the form shows it.
@@ -173,6 +214,14 @@ type loginSettingsInput struct {
 	WebURL        string   `json:"webURL"`
 	APIURL        string   `json:"apiURL"`
 	PasswordLogin bool     `json:"passwordLogin"`
+	Google        struct {
+		Enabled      bool     `json:"enabled"`
+		ClientID     string   `json:"clientId"`
+		ClientSecret string   `json:"clientSecret"`
+		Domains      []string `json:"domains"`
+		AdminEmails  []string `json:"adminEmails"`
+		ViewerEmails []string `json:"viewerEmails"`
+	} `json:"google"`
 }
 
 // teamSlugs cleans a list of team slugs: lowercase, without blanks or repeats.
@@ -234,23 +283,104 @@ func parseLoginSettings(in loginSettingsInput, saved store.LoginConfig) (store.L
 	if len(c.ClientID) > 255 || len(c.ClientSecret) > 255 || len(c.Org) > 100 {
 		return c, errors.New("a field is too long")
 	}
-	if !c.GitHubEnabled {
-		if !c.PasswordLogin {
-			return c, errNoLogin
+	if c.GitHubEnabled {
+		switch {
+		case c.ClientID == "":
+			return c, errors.New("Enter the OAuth App's client ID.") //nolint:staticcheck // Shown to users.
+		case c.ClientSecret == "":
+			return c, errors.New("Enter the OAuth App's client secret.") //nolint:staticcheck // Shown to users.
+		case c.Org == "":
+			return c, errors.New("Enter the organization whose teams decide who may log in.") //nolint:staticcheck // Shown to users.
+		case len(c.AdminTeams) == 0 && len(c.ViewerTeams) == 0:
+			return c, errors.New("Enter at least one team, whose members may log in.") //nolint:staticcheck // Shown to users.
 		}
-		return c, nil
 	}
-	switch {
-	case c.ClientID == "":
-		return c, errors.New("Enter the OAuth App's client ID.") //nolint:staticcheck // Shown to users.
-	case c.ClientSecret == "":
-		return c, errors.New("Enter the OAuth App's client secret.") //nolint:staticcheck // Shown to users.
-	case c.Org == "":
-		return c, errors.New("Enter the organization whose teams decide who may log in.") //nolint:staticcheck // Shown to users.
-	case len(c.AdminTeams) == 0 && len(c.ViewerTeams) == 0:
-		return c, errors.New("Enter at least one team, whose members may log in.") //nolint:staticcheck // Shown to users.
+	if c.Google, err = parseGoogleSettings(in, saved.Google); err != nil {
+		return c, err
+	}
+	if !c.GitHubEnabled && !c.Google.Enabled && !c.PasswordLogin {
+		return c, errNoLogin
 	}
 	return c, nil
+}
+
+// parseGoogleSettings checks the form's Google part, keeping the saved secret when it's empty.
+func parseGoogleSettings(in loginSettingsInput, saved store.GoogleConfig) (store.GoogleConfig, error) {
+	f := in.Google
+	g := store.GoogleConfig{Enabled: f.Enabled, ClientID: strings.TrimSpace(f.ClientID), ClientSecret: strings.TrimSpace(f.ClientSecret)}
+	if g.ClientSecret == "" && g.ClientID == saved.ClientID {
+		g.ClientSecret = saved.ClientSecret
+	}
+	var err error
+	if g.Domains, err = cleanList(f.Domains, validDomain, "A domain is like example.com."); err != nil { //nolint:staticcheck // Shown to users.
+		return g, err
+	}
+	if g.AdminEmails, err = cleanList(f.AdminEmails, validEmailEntry(false), "Admins are email addresses."); err != nil {
+		return g, err
+	}
+	if g.ViewerEmails, err = cleanList(f.ViewerEmails, validEmailEntry(true), "Viewers are email addresses, or * for everyone in the domains."); err != nil {
+		return g, err
+	}
+	if len(g.ClientID) > 255 || len(g.ClientSecret) > 255 {
+		return g, errors.New("a field is too long")
+	}
+	if !g.Enabled {
+		return g, nil
+	}
+	switch {
+	case g.ClientID == "":
+		return g, errors.New("Enter the Google OAuth client's ID.") //nolint:staticcheck // Shown to users.
+	case g.ClientSecret == "":
+		return g, errors.New("Enter the Google OAuth client's secret.") //nolint:staticcheck // Shown to users.
+	case len(g.AdminEmails) == 0 && len(g.ViewerEmails) == 0:
+		return g, errors.New("Enter at least one admin or viewer email, who may log in with Google.") //nolint:staticcheck // Shown to users.
+	case slices.Contains(g.ViewerEmails, "*") && len(g.Domains) == 0:
+		// Without a domain, "*" would let in anyone with a Google account.
+		return g, errors.New("A viewer of * needs at least one Google Workspace domain, or anyone with a Google account could log in.") //nolint:staticcheck // Shown to users.
+	}
+	return g, nil
+}
+
+// cleanList lowercases and trims a list, without blanks or repeats, and checks each entry.
+func cleanList(list []string, valid func(string) bool, msg string) ([]string, error) {
+	var out []string
+	for _, v := range list {
+		v = strings.ToLower(strings.TrimSpace(v))
+		if v == "" || slices.Contains(out, v) {
+			continue
+		}
+		if !valid(v) {
+			return nil, errors.New(msg + " " + v)
+		}
+		out = append(out, v)
+	}
+	if len(out) > 1000 {
+		return nil, errors.New("too many entries")
+	}
+	return out, nil
+}
+
+func validDomain(d string) bool {
+	return len(d) <= 253 && strings.Contains(d, ".") && domainFormat.MatchString(d)
+}
+
+func validEmailEntry(star bool) func(string) bool {
+	return func(v string) bool {
+		if star && v == "*" {
+			return true
+		}
+		_, ok := validEmail(v)
+		return ok
+	}
+}
+
+// sameGoogle reports whether two Google settings let in the same people the same way.
+func sameGoogle(a, b *GoogleOptions) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.ClientID == b.ClientID && a.ClientSecret == b.ClientSecret && slices.Equal(a.Domains, b.Domains) &&
+		slices.Equal(a.AdminEmails, b.AdminEmails) && slices.Equal(a.ViewerEmails, b.ViewerEmails)
 }
 
 // sameGitHub reports whether two GitHub settings let in the same people the same way.
@@ -281,21 +411,25 @@ func (s *Server) saveLoginSettings(ctx context.Context, c *conn, args []json.Raw
 	if err != nil {
 		return nil, userErr(err)
 	}
-	next := &loginState{github: githubFromConfig(config), password: config.PasswordLogin}
+	next := &loginState{github: githubFromConfig(config), google: googleFromConfig(config.Google, s.opts.GoogleEndpoint),
+		password: config.PasswordLogin}
 
-	// Turning passwords off needs proof that GitHub login works: the admin doing it is logged in
-	// with GitHub, as the settings are now. While they're off, GitHub's settings stay as they are,
-	// since a wrong one could leave nobody able to log in: turn passwords on to change them.
+	// Turning passwords off needs proof that single sign-on works: the admin doing it is logged in
+	// with GitHub or Google, as that provider's settings are now. While they're off, that provider's
+	// settings stay as they are, since a wrong one could leave nobody able to log in: turn
+	// passwords on to change them.
 	if !next.password {
 		user, err := s.store.UserByID(ctx, c.userID)
 		if err != nil {
 			return nil, err
 		}
-		if user.GitHubID == nil || current.github == nil || !sameGitHub(current.github, next.github) {
+		viaGitHub := user.GitHubID != nil && current.github != nil && sameGitHub(current.github, next.github)
+		viaGoogle := user.GoogleSub != nil && current.google != nil && sameGoogle(current.google, next.google)
+		if !user.IsAdmin() || (!viaGitHub && !viaGoogle) {
 			return nil, userErr(errPasswordOff)
 		}
 	}
-	methods := store.LoginMethods{Password: next.password, GitHub: next.github != nil}
+	methods := store.LoginMethods{Password: next.password, GitHub: next.github != nil, Google: next.google != nil}
 	if canLogIn, err := s.store.AdminCanLogIn(ctx, methods); err != nil {
 		return nil, err
 	} else if !canLogIn {
@@ -311,7 +445,12 @@ func (s *Server) saveLoginSettings(ctx context.Context, c *conn, args []json.Raw
 			return nil, err
 		}
 	}
+	if !sameGoogle(current.google, next.google) {
+		if err := s.store.ExpireGoogleChecks(ctx); err != nil {
+			return nil, err
+		}
+	}
 	s.login.Store(next)
-	s.log.Info("login settings saved", "github", next.github != nil, "password", next.password)
+	s.log.Info("login settings saved", "github", next.github != nil, "google", next.google != nil, "password", next.password)
 	return okI18n("Saved."), nil
 }

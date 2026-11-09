@@ -17,6 +17,11 @@ export function parseTeams(text: string): string[] {
 }
 
 /**
+ * Emails or domains from the form's text, as for teams: lowercase, split by commas or spaces
+ */
+export const parseList = parseTeams;
+
+/**
  * Teams as the form shows them
  * @param teams Team slugs
  * @returns Such as "sre, support"
@@ -29,11 +34,16 @@ export function teamsText(teams: string[]): string {
  * The OAuth App's callback URL: from the server's Primary Base URL, or else this page's address
  * @param fromServer The server's, or "" when it has no base URL
  * @param origin This page's origin
+ * @param provider Whose callback
  * @returns The callback URL, and whether it was guessed from the page
  */
-export function callbackURL(fromServer: string, origin: string): { url: string; guessed: boolean } {
+export function callbackURL(
+    fromServer: string,
+    origin: string,
+    provider: "github" | "google" = "github"
+): { url: string; guessed: boolean } {
     if (fromServer) {
         return { url: fromServer, guessed: false };
     }
-    return { url: origin.replace(/\/+$/, "") + "/api/auth/github/callback", guessed: true };
+    return { url: origin.replace(/\/+$/, "") + `/api/auth/${provider}/callback`, guessed: true };
 }
