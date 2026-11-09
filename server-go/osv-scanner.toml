@@ -1,0 +1,7 @@
+# OSV-Scanner's ignores for server-go/go.mod. Each one says why it doesn't apply, and expires, so
+# that it's looked at again: see .github/workflows/osv-scanner.yml.
+
+[[IgnoredVulns]]
+id = "GO-2026-5932"
+ignoreUntil = 2027-02-09
+reason = "golang.org/x/crypto/openpgp is unmaintained: no package here imports it, directly or through a dependency (go list -deps), so it isn't in the binary. The fix, removing it, isn't in a tagged x/crypto release yet."

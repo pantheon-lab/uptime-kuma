@@ -1,0 +1,17 @@
+# OSV-Scanner's ignores for package-lock.json. Each one says why it doesn't apply, and expires,
+# so that it's looked at again: see .github/workflows/osv-scanner.yml.
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-02-09
+reason = "minimatch 10, under @typescript-eslint (lint only, a dev dependency): the fix is minimatch 11, which typescript-eslint doesn't take yet. The globs are this repository's own lint config, not untrusted input."
+
+[[IgnoredVulns]]
+id = "GHSA-qr28-fpjm-wq7f"
+ignoreUntil = 2027-02-09
+reason = "decode-uri-component 0.2, through stylus's source-map-resolve at build time only (a dev dependency): the fixed versions are ESM-only, which source-map-resolve can't load. Its input is this repository's own source maps."
+
+[[IgnoredVulns]]
+id = "GHSA-vcc3-ghjq-m6fr"
+ignoreUntil = 2027-02-09
+reason = "decode-uri-component 0.2, through stylus's source-map-resolve at build time only (a dev dependency): as GHSA-qr28-fpjm-wq7f."

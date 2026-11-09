@@ -1,6 +1,6 @@
 module github.com/pantheon-lab/uptime-kuma/server-go
 
-go 1.26.6
+go 1.26.10
 
 require (
 	github.com/Azure/go-ntlmssp v0.1.1
