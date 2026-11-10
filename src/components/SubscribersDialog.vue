@@ -89,6 +89,9 @@
                                     <span v-if="!sub.confirmed" class="badge bg-secondary me-1">
                                         {{ $t("subscribersWaiting") }}
                                     </span>
+                                    <span v-if="sub.kind !== 'email'" class="me-1" data-testid="subscriber-added">
+                                        {{ $t("subscribersAdded", [fromNow(sub.createdDate)]) }}
+                                    </span>
                                     <span v-if="sub.lastError" class="text-danger" data-testid="subscriber-error">
                                         {{ $t("subscribersLastError", [sub.lastError]) }}
                                     </span>

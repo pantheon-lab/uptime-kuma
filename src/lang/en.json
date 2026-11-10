@@ -1906,6 +1906,7 @@
     "subscribersNone": "No one has subscribed yet.",
     "subscribersWaiting": "Waiting for confirmation",
     "subscribersLastSent": "Last sent {0}",
+    "subscribersAdded": "Added {0}",
     "subscribersLastError": "Last send failed: {0}",
     "subscribersRemove": "Remove {0}",
     "ssoTitle": "Single Sign-On",

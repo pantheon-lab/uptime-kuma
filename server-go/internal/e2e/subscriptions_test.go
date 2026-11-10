@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/quotedprintable"
 	"net"
@@ -295,7 +296,7 @@ func TestStatusPageSubscriptions(t *testing.T) {
 	for _, s := range subs {
 		m := s.(map[string]any)
 		// A webhook's path isn't shown, as it can hold a token.
-		if m["kind"] == "webhook" && m["address"] != hook.srv.URL+"/…" {
+		if m["kind"] == "webhook" && m["address"] != fmt.Sprintf("%s/… #%d", hook.srv.URL, int(m["id"].(float64))) {
 			t.Fatalf("webhook shown as %v", m["address"])
 		}
 		if m["lastError"] != "" {
