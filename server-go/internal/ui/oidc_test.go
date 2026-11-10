@@ -188,6 +188,7 @@ func TestOIDCLogin(t *testing.T) {
 		"unsaid": {sub: "u7", email: "listed2@example.com", name: "unsaid"},
 		"nobody": {sub: "u5", email: "nobody@example.com", name: "nobody", groups: []string{"Sales"}, verified: &yes},
 		"taken":  {sub: "u6", email: "admin@example.com", name: "taken", groups: []string{"Kuma-Admins"}, verified: &yes},
+		"leaver": {sub: "u8", email: "leaver@example.com", name: "leaver", groups: []string{"Support"}, verified: &yes},
 	}
 	s, fs, ts := newTestServer(t)
 	s.limiter = &loginLimiter{global: rate.NewLimiter(rate.Inf, 0), users: map[string]*rate.Limiter{}, perUser: rate.Inf}
@@ -372,6 +373,22 @@ func TestOIDCLogin(t *testing.T) {
 		t.Fatalf("rotated refresh token: %q", token)
 	}
 
+	// Some providers, Keycloak among them, leave the groups claim out for someone in no group:
+	// left out of the ID token and of userinfo's answer, it's no groups, not the old ones.
+	leaver, _ := login(people["leaver"], nil)
+	if user := session(leaver); user["role"] != "viewer" {
+		t.Fatalf("leaver: %v", user)
+	}
+	clock.Lock()
+	now = now.Add(25 * time.Hour)
+	clock.Unlock()
+	idp.mu.Lock()
+	people["leaver"].groups = nil
+	idp.mu.Unlock()
+	if user := session(leaver); user != nil {
+		t.Fatalf("someone who left their last group kept their old one: %v", user)
+	}
+
 	// Another issuer logs the old one's accounts out.
 	idp2 := newFakeIdP(t)
 	if r := admin("saveLoginSettings", with(map[string]any{"issuer": idp2.srv.URL, "clientSecret": "s3cret"})); r["ok"] != true {
@@ -491,5 +508,25 @@ func TestOIDCRole(t *testing.T) {
 	}
 	if got := claimStrings("solo"); len(got) != 1 || got[0] != "solo" {
 		t.Errorf("claim string: %v", got)
+	}
+}
+
+func TestOIDCRedirect(t *testing.T) {
+	to := func(raw string) *http.Request {
+		u, _ := url.Parse(raw)
+		return &http.Request{URL: u}
+	}
+	for raw, want := range map[string]bool{
+		"https://idp.example/token": true,
+		"http://localhost:8080/x":   true,
+		"http://127.0.0.1/x":        true,
+		"http://idp.example/token":  false,
+	} {
+		if err := oidcRedirect(to(raw), nil); (err == nil) != want {
+			t.Errorf("%s: %v", raw, err)
+		}
+	}
+	if err := oidcRedirect(to("https://idp.example/"), make([]*http.Request, 10)); err == nil {
+		t.Error("followed an eleventh redirect")
 	}
 }

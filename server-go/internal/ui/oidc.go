@@ -69,7 +69,19 @@ func (o *OIDCOptions) client() *http.Client {
 	if o.Client != nil {
 		return o.Client
 	}
-	return &http.Client{Timeout: 15 * time.Second}
+	return &http.Client{Timeout: 15 * time.Second, CheckRedirect: oidcRedirect}
+}
+
+// oidcRedirect follows a provider's redirect only to https, or http on this machine, as the
+// request can carry a client secret, code or token.
+func oidcRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	if req.URL.Scheme != "https" && !(req.URL.Scheme == "http" && localHost(req.URL.Hostname())) {
+		return errors.New("the provider redirected to an address that isn't https")
+	}
+	return nil
 }
 
 func (o *OIDCOptions) groupsClaim() string {
@@ -355,8 +367,9 @@ func (s *Server) oidcToken(ctx context.Context, o *OIDCOptions, d *oidcDiscovery
 
 // oidcIdentity is who the provider says someone is: from the ID token's claims, and the userinfo
 // endpoint's for an email or groups the ID token doesn't have. emailSaid reports whether the
-// provider sent an email at all, verified or not.
-func (s *Server) oidcIdentity(ctx context.Context, o *OIDCOptions, d *oidcDiscovery, claims jwt.MapClaims, accessToken string) (store.OIDCUser, bool) {
+// provider sent an email at all, verified or not, and infoSaid whether the userinfo endpoint
+// answered for this person, so that the claims it left out are ones the person doesn't have.
+func (s *Server) oidcIdentity(ctx context.Context, o *OIDCOptions, d *oidcDiscovery, claims jwt.MapClaims, accessToken string) (who store.OIDCUser, emailSaid, infoSaid bool) {
 	sub, _ := claims["sub"].(string)
 	_, hasEmail := claims["email"]
 	_, hasGroups := claims[o.groupsClaim()]
@@ -374,7 +387,8 @@ func (s *Server) oidcIdentity(ctx context.Context, o *OIDCOptions, d *oidcDiscov
 			}
 		}
 		// Only the same person's claims count.
-		if infoSub, _ := info["sub"].(string); infoSub == sub {
+		if infoSub, _ := info["sub"].(string); infoSub != "" && infoSub == sub {
+			infoSaid = true
 			for k, v := range info {
 				if _, found := claims[k]; !found {
 					claims[k] = v
@@ -383,7 +397,7 @@ func (s *Server) oidcIdentity(ctx context.Context, o *OIDCOptions, d *oidcDiscov
 		}
 	}
 	email, _ := claims["email"].(string)
-	_, emailSaid := claims["email"]
+	_, emailSaid = claims["email"]
 	// Only an email the provider says is verified counts, for the email lists and as the account's
 	// name: with some providers (Microsoft Entra ID among them) a user or tenant can set any email,
 	// and leave email_verified out, so that one address could be anyone's.
@@ -409,7 +423,7 @@ func (s *Server) oidcIdentity(ctx context.Context, o *OIDCOptions, d *oidcDiscov
 		Name:   name,
 		Email:  strings.ToLower(email),
 		Groups: claimStrings(claims[o.groupsClaim()]),
-	}, emailSaid
+	}, emailSaid, infoSaid
 }
 
 // claimStrings reads a claim that's a list of strings, or one string.
@@ -570,7 +584,7 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 		fail("oidc-failed")
 		return
 	}
-	who, _ := s.oidcIdentity(ctx, o, d, claims, tokens.AccessToken)
+	who, _, _ := s.oidcIdentity(ctx, o, d, claims, tokens.AccessToken)
 	role := oidcRole(o, who.Email, who.Groups)
 	if role == "" {
 		s.log.Warn("OpenID Connect login refused: not in the groups or emails", "name", who.Name, "groups", who.Groups)
@@ -654,13 +668,16 @@ func (s *Server) recheckOIDC(ctx context.Context, user store.User) string {
 			failed = true
 			return user.Role
 		}
-		if fresh, emailSaid := s.oidcIdentity(ctx, o, d, claims, tokens.AccessToken); fresh.Key == *user.OIDCSub {
+		if fresh, emailSaid, infoSaid := s.oidcIdentity(ctx, o, d, claims, tokens.AccessToken); fresh.Key == *user.OIDCSub {
 			// Keep what the provider left out of the answer. An email it sent but no longer says
 			// is verified is dropped, so that a role from the email lists ends with it.
 			if !emailSaid {
 				fresh.Email = who.Email
 			}
-			if _, has := claims[o.groupsClaim()]; !has {
+			// Groups left out of the ID token and of a userinfo answer are none: some providers,
+			// Keycloak among them, leave the claim out for someone in no group. Without a userinfo
+			// answer they're kept, as the ID token may not carry them at all.
+			if _, has := claims[o.groupsClaim()]; !has && !infoSaid {
 				fresh.Groups = who.Groups
 			}
 			who = fresh

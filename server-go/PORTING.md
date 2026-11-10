@@ -1270,9 +1270,11 @@ Not tested: real Google, and a Workspace account suspended for real.
   subject), compared as written since some providers' are ids; and from emails, only those the provider says are
   verified. A viewer group of `*` lets in everyone the provider logs in.
 - **Accounts** keyed by "issuer subject" (`oidc_sub`), named by email, preferred username or subject, never taking
-  over another account's name. A daily check with the refresh token, when there is one: refused logs out,
-  unreachable keeps the role for 10 minutes, new groups apply, a rotated token is kept. Another issuer logs the
-  old one's accounts out.
+  over another account's name; only a verified email moves from one account to another. A daily check with the
+  refresh token, when there is one: refused logs out, unreachable keeps the role for 10 minutes, new groups apply
+  (a groups claim that the ID token and a userinfo answer both leave out is no groups, as Keycloak leaves it out
+  for someone in none), a rotated token is kept. Another issuer logs the old one's accounts out.
+- The provider's endpoints, from discovery and from any redirect, must be https, or http on this machine.
 - **Settings > Single Sign-On**'s OpenID Connect section, with a **Check** of the issuer's discovery document, and
   scopes and the groups claim under **Scopes and claims**. The issuer must be https, or http on this machine for
   trying a provider. Security, Accounts and the login page show the provider by its name. `KUMA_OIDC_*`

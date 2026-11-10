@@ -265,10 +265,16 @@ func (s *Server) sendIncidentWebhook(ctx context.Context, d delivery, sub store.
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		// The URL can hold a token, which the error would repeat.
+		// The URL can hold a token, which the error would repeat, as would a redirect's.
 		var uerr *url.Error
 		if errors.As(err, &uerr) {
+			if uerr.Timeout() {
+				return errors.New("the webhook didn't answer in time")
+			}
 			err = uerr.Err
+		}
+		if resp != nil || strings.Contains(err.Error(), "Location") || strings.Contains(err.Error(), "redirect") {
+			return errors.New("the webhook's redirect couldn't be followed")
 		}
 		return err
 	}
