@@ -155,22 +155,37 @@ func TestUIQueries(t *testing.T) {
 		t.Fatalf("since: %v %v", since, err)
 	}
 
-	if n, err := s.CountImportantBeats(ctx, nil); err != nil || n != 3 {
+	if n, err := s.CountImportantBeats(ctx, nil, EventFilter{}); err != nil || n != 3 {
 		t.Fatalf("count all: %d %v", n, err)
 	}
-	if n, err := s.CountImportantBeats(ctx, &a.ID); err != nil || n != 2 {
+	if n, err := s.CountImportantBeats(ctx, &a.ID, EventFilter{}); err != nil || n != 2 {
 		t.Fatalf("count a: %d %v", n, err)
 	}
-	page, err := s.ImportantBeats(ctx, nil, 1, 1)
+	page, err := s.ImportantBeats(ctx, nil, EventFilter{}, 1, 1)
 	if err != nil || len(page) != 1 || page[0].MonitorID != a.ID || page[0].Status != 1 {
 		t.Fatalf("page: %+v %v", page, err)
 	}
+	testEventFilter(t, s, a.ID, b.ID, now)
 
-	if err := s.ClearEvents(ctx, a.ID); err != nil {
+	if err := s.ClearEvents(ctx, &a.ID); err != nil {
 		t.Fatal(err)
 	}
-	if n, _ := s.CountImportantBeats(ctx, nil); n != 1 {
+	if n, _ := s.CountImportantBeats(ctx, nil, EventFilter{}); n != 1 {
 		t.Fatalf("after clearing a: %d", n)
+	}
+	if err := s.ClearEvents(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := s.CountImportantBeats(ctx, nil, EventFilter{}); n != 0 {
+		t.Fatalf("after clearing all: %d", n)
+	}
+	// Clearing hides the events but keeps the beats, which outages are found from.
+	if n, _ := s.CountImportantBeats(ctx, nil, EventFilter{IncludeCleared: true}); n != 3 {
+		t.Fatalf("beats after clearing: %d", n)
+	}
+	cut := now.Add(-time.Minute)
+	if before, _ := s.ImportantBeats(ctx, &a.ID, EventFilter{Before: &cut, IncludeCleared: true}, 0, 10); len(before) == 0 {
+		t.Fatal("no beats before the cut")
 	}
 
 	n, err := s.CreateNotification(ctx, Notification{Name: "n", Type: "webhook", Config: map[string]any{}, Active: true}, false)
@@ -416,12 +431,12 @@ func TestRoles(t *testing.T) {
 func TestGitHubAccounts(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
-	alice, err := s.SaveGitHubUser(ctx, 101, "alice", RoleViewer, "token-1", nil)
+	alice, err := s.SaveGitHubUser(ctx, 101, "alice", RoleViewer, "token-1", nil, LoginVersion{Env: true})
 	if err != nil || alice.Username != "@alice" || alice.Role != RoleViewer || alice.GitHubID == nil || *alice.GitHubID != 101 {
 		t.Fatalf("first login: %+v %v", alice, err)
 	}
 	// Logging in again updates the same account.
-	again, err := s.SaveGitHubUser(ctx, 101, "alice", RoleAdmin, "token-2", nil)
+	again, err := s.SaveGitHubUser(ctx, 101, "alice", RoleAdmin, "token-2", nil, LoginVersion{Env: true})
 	if err != nil || again.ID != alice.ID || again.Role != RoleAdmin {
 		t.Fatalf("second login: %+v %v", again, err)
 	}
@@ -429,10 +444,10 @@ func TestGitHubAccounts(t *testing.T) {
 		t.Fatalf("token %q %v", token, err)
 	}
 	// Alice renames herself, and someone else takes "alice".
-	if _, err := s.SaveGitHubUser(ctx, 101, "alice2", RoleAdmin, "token-3", nil); err != nil {
+	if _, err := s.SaveGitHubUser(ctx, 101, "alice2", RoleAdmin, "token-3", nil, LoginVersion{Env: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SaveGitHubUser(ctx, 102, "alice2", RoleViewer, "token-4", nil); err != nil {
+	if _, err := s.SaveGitHubUser(ctx, 102, "alice2", RoleViewer, "token-4", nil, LoginVersion{Env: true}); err != nil {
 		t.Fatalf("a login another account had: %v", err)
 	}
 	old, err := s.UserByUsername(ctx, fmt.Sprintf("@alice2#%d", alice.ID))
@@ -444,7 +459,7 @@ func TestGitHubAccounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SaveGitHubUser(ctx, 103, "Alice2", RoleViewer, "token-5", nil); err != nil {
+	if _, err := s.SaveGitHubUser(ctx, 103, "Alice2", RoleViewer, "token-5", nil, LoginVersion{Env: true}); err != nil {
 		t.Fatal(err)
 	}
 	if renamed, err := s.UserByID(ctx, second.ID); err != nil || renamed.Username != fmt.Sprintf("@alice2#%d", second.ID) {
@@ -453,7 +468,7 @@ func TestGitHubAccounts(t *testing.T) {
 	if err := s.CreateSession(ctx, []byte("t"), Session{UserID: alice.ID, ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SetGitHubChecked(ctx, alice.ID, RoleViewer, []string{"support"}); err != nil {
+	if err := s.SetGitHubChecked(ctx, alice.ID, RoleViewer, []string{"support"}, LoginVersion{Env: true}); err != nil {
 		t.Fatal(err)
 	}
 	if _, user, err := s.FindSession(ctx, []byte("t")); err != nil || user.Role != RoleViewer || user.GitHubCheckedAt == nil {
@@ -475,5 +490,43 @@ func TestGitHubAccounts(t *testing.T) {
 	}
 	if _, err := s.GitHubToken(ctx, adminID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("password account's token: %v", err)
+	}
+}
+
+// testEventFilter checks narrowing events, given a's important beats: down three hours ago and up
+// two minutes ago, and b's: down 30 seconds ago.
+func testEventFilter(t *testing.T, s *Store, a, b int32, now time.Time) {
+	t.Helper()
+	ctx := context.Background()
+	hourAgo := now.Add(-time.Hour)
+	cases := []struct {
+		name   string
+		id     *int32
+		filter EventFilter
+		want   int64
+	}{
+		{"down", nil, EventFilter{Statuses: []int16{0}}, 2},
+		{"down or up", nil, EventFilter{Statuses: []int16{0, 1}}, 3},
+		{"maintenance", nil, EventFilter{Statuses: []int16{3}}, 0},
+		{"monitors", nil, EventFilter{MonitorIDs: []int32{b}}, 1},
+		{"since", nil, EventFilter{Since: &hourAgo}, 2},
+		{"all three", nil, EventFilter{MonitorIDs: []int32{a, b}, Statuses: []int16{0}, Since: &hourAgo}, 1},
+		{"one monitor and a filter", &a, EventFilter{Statuses: []int16{0}}, 1},
+		{"one monitor outside the filter's", &a, EventFilter{MonitorIDs: []int32{b}}, 0},
+		{"empty lists don't narrow", nil, EventFilter{MonitorIDs: []int32{}, Statuses: []int16{}}, 3},
+	}
+	for _, c := range cases {
+		n, err := s.CountImportantBeats(ctx, c.id, c.filter)
+		if err != nil || n != c.want {
+			t.Fatalf("%s: count %d, want %d, %v", c.name, n, c.want, err)
+		}
+		beats, err := s.ImportantBeats(ctx, c.id, c.filter, 0, 10)
+		if err != nil || int64(len(beats)) != c.want {
+			t.Fatalf("%s: %d beats, want %d, %v", c.name, len(beats), c.want, err)
+		}
+	}
+	beats, _ := s.ImportantBeats(ctx, nil, EventFilter{Statuses: []int16{0}}, 0, 10)
+	if beats[0].MonitorID != b || beats[1].MonitorID != a {
+		t.Fatalf("down events out of order: %+v", beats)
 	}
 }

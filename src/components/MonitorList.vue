@@ -9,12 +9,14 @@
                     </a>
                     <form @submit.prevent>
                         <input
+                            ref="searchInput"
                             v-model="searchText"
                             class="form-control search-input"
                             data-testid="monitor-search"
                             :placeholder="$t('Search...')"
                             :aria-label="$t('Search monitored sites')"
                             autocomplete="off"
+                            @keydown.esc="onSearchEscape"
                         />
                     </form>
                 </div>
@@ -68,6 +70,17 @@
                         </button>
                         <ul class="dropdown-menu">
                             <li>
+                                <a
+                                    class="dropdown-item"
+                                    href="#"
+                                    data-testid="bulk-edit"
+                                    @click.prevent="$refs.bulkEditDialog.show(Object.keys(selectedMonitors))"
+                                >
+                                    <font-awesome-icon icon="edit" class="me-2" />
+                                    {{ $t("bulkEditAction") }}
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item" href="#" data-testid="bulk-pause" @click.prevent="pauseDialog">
                                     <font-awesome-icon icon="pause" class="me-2" />
                                     {{ $t("Pause") }}
@@ -115,8 +128,11 @@
                 <div v-for="i in 8" :key="i" class="skeleton-row"></div>
             </div>
             <div v-else-if="Object.keys($root.monitorList).length === 0" class="text-center mt-3">
-                {{ $t("No Monitors, please") }}
-                <router-link to="/add">{{ $t("add one") }}</router-link>
+                <template v-if="$root.canEdit">
+                    {{ $t("No Monitors, please") }}
+                    <router-link to="/add">{{ $t("add one") }}</router-link>
+                </template>
+                <template v-else>{{ $t("viewerNoMonitorsShort") }}</template>
             </div>
 
             <div :style="{ height: renderedRows.top + 'px' }"></div>
@@ -137,6 +153,8 @@
         </div>
     </div>
 
+    <BulkEditDialog ref="bulkEditDialog" @saved="cancelSelectMode" />
+
     <Confirm ref="confirmPause" :yes-text="$t('Yes')" :no-text="$t('No')" @yes="pauseSelected">
         {{ $t("pauseMonitorMsg") }}
     </Confirm>
@@ -147,6 +165,7 @@
 </template>
 
 <script>
+import BulkEditDialog from "../components/BulkEditDialog.vue";
 import Confirm from "../components/Confirm.vue";
 import MonitorListItem from "../components/MonitorListItem.vue";
 import MonitorListFilter from "./MonitorListFilter.vue";
@@ -155,6 +174,7 @@ import { computeListWindow, computeRowMetrics } from "../monitor-list-window";
 
 export default {
     components: {
+        BulkEditDialog,
         Confirm,
         MonitorListItem,
         MonitorListFilter,
@@ -363,6 +383,16 @@ export default {
                 this.selectedMonitors = {};
             }
         },
+        filterState: {
+            handler(state) {
+                this.$root.monitorListFilter = state;
+            },
+            deep: true,
+            immediate: true,
+        },
+        "$root.monitorListFilterRequest"() {
+            this.applyFilterRequest();
+        },
     },
     created() {
         this.rowRefs = new Map();
@@ -371,11 +401,17 @@ export default {
         window.addEventListener("scroll", this.onScroll);
         window.addEventListener("resize", this.onListScroll);
         this.onListScroll();
+        this.applyFilterRequest();
+        this.$root.emitter.on("focusMonitorSearch", this.focusSearch);
+        this.$root.emitter.on("monitorListMove", this.moveSelection);
     },
     updated() {
         this.measureRows();
     },
     beforeUnmount() {
+        this.$root.emitter.off("focusMonitorSearch", this.focusSearch);
+        this.$root.emitter.off("monitorListMove", this.moveSelection);
+        this.$root.monitorListFilter = null;
         window.removeEventListener("scroll", this.onScroll);
         window.removeEventListener("resize", this.onListScroll);
     },
@@ -453,12 +489,74 @@ export default {
             this.searchText = "";
         },
         /**
+         * Put the cursor in the search box
+         * @returns {void}
+         */
+        focusSearch() {
+            this.$refs.searchInput?.focus();
+            this.$refs.searchInput?.select();
+        },
+        /**
+         * Esc in the search box clears it, or, when it's empty, leaves it
+         * @returns {void}
+         */
+        onSearchEscape() {
+            if (this.searchText !== "") {
+                this.searchText = "";
+            } else {
+                this.$refs.searchInput?.blur();
+            }
+        },
+        /**
+         * Open the monitor after or before the one shown, in the list's order, groups opened
+         * @param {number} delta 1 for the next, -1 for the one before
+         * @returns {void}
+         */
+        moveSelection(delta) {
+            const links = [...(this.$refs.monitorList?.querySelectorAll("a.item") ?? [])];
+            if (links.length === 0) {
+                return;
+            }
+            const current = links.findIndex((a) => a.getAttribute("href") === this.$route.path);
+            let next;
+            if (current < 0) {
+                next = delta > 0 ? 0 : links.length - 1;
+            } else {
+                next = Math.min(Math.max(current + delta, 0), links.length - 1);
+            }
+            if (next === current) {
+                return;
+            }
+            links[next].scrollIntoView({ block: "nearest" });
+            this.$router.push(links[next].getAttribute("href"));
+        },
+        /**
          * Update the MonitorList Filter
          * @param {object} newFilter Object with new filter
          * @returns {void}
          */
         updateFilter(newFilter) {
             this.filterState = newFilter;
+        },
+        /**
+         * Apply the status filter asked for elsewhere, such as by the dashboard's counts,
+         * keeping the tags chosen
+         * @returns {void}
+         */
+        applyFilterRequest() {
+            const request = this.$root.monitorListFilterRequest;
+            if (!request) {
+                return;
+            }
+            this.$root.monitorListFilterRequest = null;
+            this.filterState = {
+                ...this.filterState,
+                status: request.status,
+                active: request.active,
+            };
+            if (this.$refs.monitorList) {
+                this.$refs.monitorList.scrollTop = 0;
+            }
         },
         /**
          * Toggle collapse state for all group monitors

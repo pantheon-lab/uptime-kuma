@@ -33,7 +33,7 @@
                     </a>
                 </div>
                 <div class="settings-content col-lg-9 col-md-7">
-                    <div v-if="currentPage" class="settings-content-header">
+                    <div v-if="currentPage && subMenus[currentPage]" class="settings-content-header">
                         {{ subMenus[currentPage].title }}
                     </div>
                     <div class="mx-3">
@@ -124,6 +124,9 @@ export default {
                 },
                 accounts: {
                     title: this.$t("Accounts"),
+                },
+                sso: {
+                    title: this.$t("ssoTitle"),
                 },
                 proxies: {
                     title: this.$t("Proxies"),

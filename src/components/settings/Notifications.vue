@@ -52,6 +52,25 @@
                     step="1"
                 />
             </div>
+
+            <div v-if="tags.length > 0" class="my-4" data-testid="muted-toast-tags">
+                <label class="form-label">{{ $t("mutedToastTags") }}</label>
+                <div class="d-flex flex-wrap gap-3">
+                    <div v-for="tag in tags" :key="tag.id" class="form-check">
+                        <input
+                            :id="`mute-tag-${tag.id}`"
+                            class="form-check-input"
+                            type="checkbox"
+                            :checked="$root.toastMuted.tags.includes(tag.id)"
+                            @change="$root.setToastMuted('tags', tag.id, $event.target.checked)"
+                        />
+                        <label class="form-check-label" :for="`mute-tag-${tag.id}`">
+                            <Tag :item="tag" :size="'sm'" />
+                        </label>
+                    </div>
+                </div>
+                <div class="form-text">{{ $t("mutedToastTagsHelp") }}</div>
+            </div>
         </div>
 
         <div class="my-4 pt-4">
@@ -137,11 +156,13 @@
 <script>
 import NotificationDialog from "../../components/NotificationDialog.vue";
 import ActionInput from "../ActionInput.vue";
+import Tag from "../Tag.vue";
 
 export default {
     components: {
         NotificationDialog,
         ActionInput,
+        Tag,
     },
 
     data() {
@@ -153,6 +174,7 @@ export default {
              */
             tlsExpiryNotifInput: null,
             domainExpiryNotifInput: null,
+            tags: [],
         };
     },
 
@@ -186,6 +208,11 @@ export default {
 
     mounted() {
         this.loadToastTimeoutSettings();
+        this.$root.getSocket().emit("getTags", (res) => {
+            if (res.ok) {
+                this.tags = res.tags;
+            }
+        });
     },
 
     methods: {

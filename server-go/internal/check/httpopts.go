@@ -68,8 +68,11 @@ type ProxyReader interface {
 // SetProxies sets where proxies come from. Call it before checks start.
 func (c *Checker) SetProxies(r ProxyReader) { c.proxies = r }
 
+// maxTransports bounds the transports kept: settings that change keep making new ones.
+const maxTransports = 500
+
 // transports keeps one transport for each combination of options, so that connections are
-// reused between checks as they are without options.
+// reused between checks as they are without options. A trial check's isn't kept.
 type transports struct {
 	mu   sync.Mutex
 	byID map[string]*http.Transport
@@ -109,6 +112,7 @@ func (c *Checker) transportFor(ctx context.Context, m monitor.Monitor) (*http.Tr
 	}
 	id := string(key.Sum(nil))
 
+	dry := isDryRun(ctx)
 	c.extra.mu.Lock()
 	defer c.extra.mu.Unlock()
 	if t, found := c.extra.byID[id]; found {
@@ -149,8 +153,21 @@ func (c *Checker) transportFor(ctx context.Context, m monitor.Monitor) (*http.Tr
 			return nil, err
 		}
 	}
+	if dry {
+		// A trial of settings that may never be saved, such as the Edit Monitor form's test: not
+		// kept, and without connections left open, so that trying many settings holds nothing.
+		t.DisableKeepAlives = true
+		return t, nil
+	}
 	if c.extra.byID == nil {
 		c.extra.byID = map[string]*http.Transport{}
+	}
+	if len(c.extra.byID) >= maxTransports {
+		// Settings that changed many times: start again, rather than keep every old one's connections.
+		for _, old := range c.extra.byID {
+			old.CloseIdleConnections()
+		}
+		clear(c.extra.byID)
 	}
 	c.extra.byID[id] = t
 	return t, nil

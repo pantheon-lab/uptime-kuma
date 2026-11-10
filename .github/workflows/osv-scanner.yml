@@ -1,0 +1,51 @@
+# Known vulnerabilities in dependencies (package-lock.json and server-go/go.mod), from OSV.dev.
+# A pull request fails only for vulnerabilities it adds. main is scanned in full on each push and
+# every Monday, since new advisories appear for dependencies that haven't changed. Results go to
+# Security > Code scanning. Ignores, each with a reason and an expiry, are in osv-scanner.toml
+# next to each lockfile.
+name: osv-scanner
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "30 4 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+# A newer push to the same branch or pull request replaces a scan still running.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan-pr:
+    if: github.event_name == 'pull_request'
+    permissions:
+      actions: read # The reusable workflow reads its own run, to upload the results
+      contents: read # Checks out the pull request and its base, to compare them
+      security-events: write # Uploads the results to code scanning
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+    with:
+      scan-args: |-
+        --recursive
+        ./
+      # A fork's pull request has a read-only token, which can't upload them
+      upload-sarif: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+
+  scan:
+    if: github.event_name != 'pull_request'
+    permissions:
+      actions: read # The reusable workflow reads its own run, to upload the results
+      contents: read # Checks out main
+      security-events: write # Uploads the results to code scanning
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+    with:
+      scan-args: |-
+        --recursive
+        ./

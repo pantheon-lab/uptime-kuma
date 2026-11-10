@@ -35,6 +35,8 @@ type AccountSession struct {
 type LoginMethods struct {
 	Password bool
 	GitHub   bool
+	Google   bool
+	OIDC     bool
 }
 
 // accountsLockID serializes changes that could leave no admin.
@@ -92,8 +94,9 @@ func otherAdminExists(ctx context.Context, tx pgx.Tx, userID int32, methods Logi
 		SELECT EXISTS (
 			SELECT 1 FROM app_user
 			WHERE id <> $1 AND role = 'admin'
-			  AND ((github_id IS NULL AND $2 AND password_hash <> '') OR (github_id IS NOT NULL AND $3)))`,
-		userID, methods.Password, methods.GitHub).Scan(&exists)
+			  AND ((github_id IS NULL AND google_sub IS NULL AND oidc_sub IS NULL AND $2 AND password_hash <> '')
+			    OR (github_id IS NOT NULL AND $3) OR (google_sub IS NOT NULL AND $4) OR (oidc_sub IS NOT NULL AND $5)))`,
+		userID, methods.Password, methods.GitHub, methods.Google, methods.OIDC).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("check admins: %w", err)
 	}
@@ -144,7 +147,7 @@ func (s *Store) SetUserRole(ctx context.Context, userID int32, role string, meth
 		if err != nil {
 			return err
 		}
-		if user.GitHubID != nil {
+		if user.SSO() {
 			return ErrRoleFromGitHub
 		}
 		if user.IsAdmin() && role == RoleViewer && !others {

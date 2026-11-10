@@ -227,6 +227,16 @@ func TestGitHubLogin(t *testing.T) {
 	if c, to := login("t-alice", func(q url.Values) { q.Set("code", "made-up") }); !strings.HasSuffix(to, "github-failed") || session(c) != nil {
 		t.Errorf("bad code: %s", to)
 	}
+	// Login settings changed during the login: no account is saved, and it's to be tried again.
+	fs.mu.Lock()
+	fs.loginChanged = true
+	fs.mu.Unlock()
+	if c, to := login("t-alice", nil); !strings.HasSuffix(to, "loginError=login-changed") || session(c) != nil {
+		t.Errorf("settings changed during the login: %s", to)
+	}
+	fs.mu.Lock()
+	fs.loginChanged = false
+	fs.mu.Unlock()
 	// A callback without the start's cookie, such as one sent to someone else.
 	res, _ := noRedirect(newClient(t)).Get(ts.URL + "/api/auth/github/callback?code=code-t-alice&state=x")
 	if !strings.HasSuffix(res.Header.Get("Location"), "github-expired") {

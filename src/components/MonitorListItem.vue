@@ -2,6 +2,7 @@
     <div>
         <div
             class="draggable-item"
+            :data-monitor-id="monitor.id"
             :style="depthMargin"
             :class="{ 'drag-over': dragOverCount > 0 }"
             @dragstart="onDragStart"
@@ -29,18 +30,22 @@
                             <Uptime :monitor="monitor" type="24" :pill="true" />
                         </div>
                         <div class="d-flex align-items-center gap-2 flex-fill" style="min-width: 0">
-                            <span
+                            <!-- A button, so that the keyboard opens and closes groups too -->
+                            <button
                                 v-if="hasChildren"
-                                class="collapse-padding"
+                                type="button"
+                                class="collapse-padding collapse-button"
                                 data-testid="monitor-collapse"
-                                @click.prevent="changeCollapsed"
+                                :aria-expanded="!isCollapsed"
+                                :aria-label="$t(isCollapsed ? 'expandGroup' : 'collapseGroup', [monitor.name])"
+                                @click.prevent.stop="changeCollapsed"
                             >
                                 <font-awesome-icon
                                     icon="chevron-down"
                                     class="animated"
                                     :class="{ collapsed: isCollapsed }"
                                 />
-                            </span>
+                            </button>
                             <div class="flex-fill text-truncate" style="min-width: 0">
                                 <div class="text-truncate">{{ monitor.name }}</div>
                                 <div v-if="monitor.tags.length > 0" class="tags gap-1">
@@ -234,6 +239,11 @@ export default {
          * @returns {void} This method does not return anything.
          */
         onDragStart(event) {
+            // A viewer's move could only fail
+            if (!this.$root.canEdit) {
+                event.preventDefault();
+                return;
+            }
             try {
                 event.dataTransfer.setData("text/monitor-id", String(this.monitor.id));
                 event.dataTransfer.effectAllowed = "move";
@@ -326,7 +336,11 @@ export default {
                                 this.$root.toastError(saveRes.msg);
                             }
                         } else {
-                            this.$root.toastRes(saveRes);
+                            this.$root.toastRes({
+                                ok: true,
+                                msg: this.$t("movedIntoGroup", [draggedMonitor.name, this.monitor.name]),
+                            });
+                            this.showMoved(draggedMonitorId);
                         }
                     });
                 } catch (e) {
@@ -334,6 +348,23 @@ export default {
                 }
             });
         },
+        /**
+         * After a drop: open this group, and give the moved monitor focus, which the drop lost
+         * @param {number} id The moved monitor
+         * @returns {void}
+         */
+        showMoved(id) {
+            if (this.isCollapsed) {
+                this.changeCollapsed();
+            }
+            // The list draws the moved row again under its new group
+            this.$nextTick(() =>
+                requestAnimationFrame(() =>
+                    document.querySelector(`.draggable-item[data-monitor-id="${id}"] a.item`)?.focus()
+                )
+            );
+        },
+
         /**
          * Get URL of monitor
          * @param {number} id ID of monitor
@@ -359,6 +390,19 @@ export default {
 
 <style lang="scss" scoped>
 @import "../assets/vars.scss";
+
+.collapse-button {
+    padding: 2px 4px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: inherit;
+
+    &:focus-visible {
+        outline: 2px solid $primary;
+        outline-offset: 1px;
+    }
+}
 
 .small-padding {
     padding-left: 5px !important;

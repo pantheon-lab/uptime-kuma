@@ -558,9 +558,12 @@ func TestTOTPMatchesBetterAuthForImportedKeys(t *testing.T) {
 	}
 }
 
-func (f *fakeStore) SaveGitHubUser(_ context.Context, githubID int64, login, role, token string, teams []string) (store.User, error) {
+func (f *fakeStore) SaveGitHubUser(_ context.Context, githubID int64, login, role, token string, teams []string, _ store.LoginVersion) (store.User, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.loginChanged {
+		return store.User{}, store.ErrLoginChanged
+	}
 	now := time.Now()
 	for i, u := range f.users {
 		if u.GitHubID != nil && *u.GitHubID == githubID {
@@ -586,7 +589,7 @@ func (f *fakeStore) GitHubToken(_ context.Context, id int32) (string, error) {
 	return token, nil
 }
 
-func (f *fakeStore) SetGitHubChecked(_ context.Context, id int32, role string, teams []string) error {
+func (f *fakeStore) SetGitHubChecked(_ context.Context, id int32, role string, teams []string, _ store.LoginVersion) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	now := time.Now()
@@ -607,4 +610,183 @@ func (f *fakeStore) EndUserSessions(_ context.Context, id int32) error {
 		}
 	}
 	return nil
+}
+
+func (f *fakeStore) LoginConfig(context.Context) (store.LoginConfig, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.loginConfig == nil {
+		return store.LoginConfig{PasswordLogin: true}, nil
+	}
+	return *f.loginConfig, nil
+}
+
+func (f *fakeStore) SaveLoginConfig(_ context.Context, c store.LoginConfig) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	c.UpdatedAt = &now
+	f.loginConfig = &c
+	return nil
+}
+
+func (f *fakeStore) AdminCanLogIn(_ context.Context, methods store.LoginMethods) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, u := range f.users {
+		if u.Role == store.RoleAdmin && ((!u.SSO() && methods.Password && u.PasswordHash != "") ||
+			(u.GitHubID != nil && methods.GitHub) || (u.GoogleSub != nil && methods.Google) || (u.OIDCSub != nil && methods.OIDC)) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (f *fakeStore) ExpireGitHubChecks(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.users {
+		if f.users[i].GitHubID != nil {
+			f.users[i].GitHubCheckedAt = nil
+		}
+	}
+	return nil
+}
+
+func (f *fakeStore) LastSSOLogin(context.Context, string) (string, *time.Time, error) {
+	return "", nil, nil
+}
+
+func (f *fakeStore) ExpireGoogleChecks(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.users {
+		if f.users[i].GoogleSub != nil {
+			f.users[i].GoogleCheckedAt = nil
+		}
+	}
+	return nil
+}
+
+func (f *fakeStore) SaveGoogleUser(_ context.Context, g store.GoogleUser, role, token string, _ store.LoginVersion) (store.User, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	for _, u := range f.users {
+		if u.GoogleSub == nil && strings.EqualFold(u.Username, g.Email) {
+			return store.User{}, store.ErrUsernameTakenByPassword
+		}
+	}
+	for i, u := range f.users {
+		if u.GoogleSub != nil && *u.GoogleSub == g.Sub {
+			f.users[i].Username, f.users[i].Role, f.users[i].GoogleCheckedAt = g.Email, role, &now
+			f.users[i].GoogleEmail, f.users[i].GoogleDomain = &g.Email, &g.Domain
+			if token != "" {
+				f.googleTokens[u.ID] = token
+			}
+			return f.users[i], nil
+		}
+	}
+	id := int32(len(f.users) + 1)
+	sub, email, domain := g.Sub, g.Email, g.Domain
+	u := store.User{ID: id, Username: g.Email, Role: role, GoogleSub: &sub, GoogleEmail: &email, GoogleDomain: &domain, GoogleCheckedAt: &now, CreatedAt: now}
+	f.users = append(f.users, u)
+	if token != "" {
+		f.googleTokens[id] = token
+	}
+	return u, nil
+}
+
+func (f *fakeStore) GoogleToken(_ context.Context, id int32) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	token, found := f.googleTokens[id]
+	if !found {
+		return "", store.ErrNotFound
+	}
+	return token, nil
+}
+
+func (f *fakeStore) SetGoogleChecked(_ context.Context, id int32, g store.GoogleUser, role string, _ store.LoginVersion) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	for i := range f.users {
+		if f.users[i].ID == id {
+			email, domain := g.Email, g.Domain
+			f.users[i].Role, f.users[i].GoogleCheckedAt, f.users[i].GoogleEmail, f.users[i].GoogleDomain = role, &now, &email, &domain
+		}
+	}
+	return nil
+}
+
+func (f *fakeStore) ExpireOIDCChecks(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.users {
+		if f.users[i].OIDCSub != nil {
+			f.users[i].OIDCCheckedAt = nil
+		}
+	}
+	return nil
+}
+
+func (f *fakeStore) SaveOIDCUser(_ context.Context, o store.OIDCUser, role, token string, _ store.LoginVersion) (store.User, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	name := strings.ToLower(o.Name)
+	for _, u := range f.users {
+		if u.OIDCSub == nil && strings.EqualFold(u.Username, name) {
+			return store.User{}, store.ErrUsernameTakenByPassword
+		}
+	}
+	email, groups := o.Email, o.Groups
+	for i, u := range f.users {
+		if u.OIDCSub != nil && *u.OIDCSub == o.Key {
+			f.users[i].Username, f.users[i].Role, f.users[i].OIDCCheckedAt, f.users[i].OIDCEmail, f.users[i].OIDCGroups = name, role, &now, &email, groups
+			if token != "" {
+				f.oidcTokens[u.ID] = token
+			}
+			return f.users[i], nil
+		}
+	}
+	id := int32(len(f.users) + 1)
+	key := o.Key
+	u := store.User{ID: id, Username: name, Role: role, OIDCSub: &key, OIDCEmail: &email, OIDCGroups: groups, OIDCCheckedAt: &now, CreatedAt: now}
+	f.users = append(f.users, u)
+	if token != "" {
+		f.oidcTokens[id] = token
+	}
+	return u, nil
+}
+
+func (f *fakeStore) OIDCToken(_ context.Context, id int32) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	token, found := f.oidcTokens[id]
+	if !found {
+		return "", store.ErrNotFound
+	}
+	return token, nil
+}
+
+func (f *fakeStore) SetOIDCChecked(_ context.Context, id int32, o store.OIDCUser, role, token string, _ store.LoginVersion) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	for i := range f.users {
+		if f.users[i].ID == id {
+			email := o.Email
+			f.users[i].Role, f.users[i].OIDCCheckedAt, f.users[i].OIDCEmail, f.users[i].OIDCGroups = role, &now, &email, o.Groups
+		}
+	}
+	if token != "" {
+		f.oidcTokens[id] = token
+	}
+	return nil
+}
+
+func (f *fakeStore) LoginChanged(context.Context, store.LoginVersion) (bool, error) {
+	return false, nil
 }

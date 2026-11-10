@@ -1,6 +1,6 @@
 module github.com/pantheon-lab/uptime-kuma/server-go
 
-go 1.26.6
+go 1.26.10
 
 require (
 	github.com/Azure/go-ntlmssp v0.1.1
@@ -18,6 +18,7 @@ require (
 	github.com/exaring/otelpgx v0.13.0
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/godbus/dbus/v5 v5.2.4
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gosnmp/gosnmp v1.47.0
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/microsoft/go-mssqldb v1.11.2
@@ -68,7 +69,6 @@ require (
 	github.com/go-json-experiment/json v0.0.0-20260213210345-44df1a37e875 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect

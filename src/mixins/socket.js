@@ -11,6 +11,10 @@ import { BeatVersionThrottle } from "../beat-version-throttle";
 import { applyBeat, applyLatestBeats, beatStatusEntry } from "../beat-state";
 import { logout as betterAuthLogout } from "../auth-client";
 import { applyFavicon } from "../app-icon.js";
+import { loadMuted, planToasts, saveMuted } from "../alert-toasts";
+
+// Important beats that arrive within this long of each other share a pop-up
+const TOAST_BATCH_MS = 1000;
 const toast = useToast();
 
 let socket;
@@ -78,6 +82,13 @@ export default {
             showReverseProxyGuide: true,
             faviconUpdateDebounce: null,
             emitter: mitt(),
+            // The monitor list's status filter while a list is shown, and a filter asked of it
+            monitorListFilter: null,
+            monitorListFilterRequest: null,
+            // Monitors and tags whose pop-ups are muted in this browser
+            toastMuted: loadMuted(),
+            // The page a viewer was last sent away from, to say why once
+            viewOnlyNoted: null,
         };
     },
 
@@ -101,7 +112,12 @@ export default {
                 !viewerSettings.test(path) &&
                 (editing.test(path) || this.$route?.query?.edit !== undefined)
             ) {
-                this.$router.replace("/dashboard");
+                this.$router.replace(viewerPlaceFor(path));
+                // Once, rather than at each page the session check visits again
+                if (this.viewOnlyNoted !== path) {
+                    this.viewOnlyNoted = path;
+                    toast.info(this.$t("viewOnlyRedirect"), { timeout: getToastSuccessTimeout() });
+                }
             }
         },
 
@@ -149,19 +165,8 @@ export default {
 
             this.socket.initedSocketIO = true;
 
-            let protocol = location.protocol + "//";
-
-            let url;
-            // The Vite dev frontend runs on :3000 and the backend on :3001. Anywhere else,
-            // connect to the origin that served this page (do not rely on build-time NODE_ENV)
-            if (location.port === "3000" || localStorage.dev === "dev") {
-                url = protocol + location.hostname + ":3001";
-            } else {
-                // Connect to the current url
-                url = "";
-            }
-
-            socket = connectRealtime(url);
+            // The origin that served this page. `npm run dev` proxies the backend's paths to it.
+            socket = connectRealtime("");
 
             socket.on("info", (info) => {
                 // Sent without `runtime` before login (hideVersion), so keep a safe default
@@ -269,22 +274,9 @@ export default {
                 }
 
                 // Add to important list if it is important
-                // Also toast
+                // Also toast, together with the others that arrive with it
                 if (data.important) {
-                    if (this.monitorList[data.monitorID] !== undefined) {
-                        if (data.status === 0) {
-                            toast.error(`[${this.monitorList[data.monitorID].name}] [DOWN] ${data.msg}`, {
-                                timeout: getToastErrorTimeout(),
-                            });
-                        } else if (data.status === 1) {
-                            toast.success(`[${this.monitorList[data.monitorID].name}] [Up] ${data.msg}`, {
-                                timeout: getToastSuccessTimeout(),
-                            });
-                        } else {
-                            toast(`[${this.monitorList[data.monitorID].name}] ${data.msg}`);
-                        }
-                    }
-
+                    this.queueToast(data);
                     this.emitter.emit("newImportantHeartbeat", data);
                 }
             });
@@ -433,6 +425,57 @@ export default {
          * @param {{ok:boolean, msg: string, msgi18n: false} | {ok:boolean, msg: string|{key: string, values: object}, msgi18n: true}} res Response object
          * @returns {void}
          */
+        /**
+         * Show a pop-up for an important beat, with the others that arrive within a second
+         * @param {object} beat Important beat
+         * @returns {void}
+         */
+        queueToast(beat) {
+            if (!this.pendingToastBeats) {
+                this.pendingToastBeats = [];
+            }
+            this.pendingToastBeats.push({ monitorID: beat.monitorID, status: beat.status, msg: beat.msg });
+            if (this.toastBatchTimer == null) {
+                this.toastBatchTimer = setTimeout(() => this.flushToasts(), TOAST_BATCH_MS);
+            }
+        },
+
+        /**
+         * Show the pop-ups for the beats queued
+         * @returns {void}
+         */
+        flushToasts() {
+            const beats = this.pendingToastBeats || [];
+            this.pendingToastBeats = [];
+            this.toastBatchTimer = null;
+            const plans = planToasts(beats, this.monitorList, this.toastMuted, (key, values) => this.$t(key, values));
+            for (const plan of plans) {
+                if (plan.kind === "error") {
+                    toast.error(plan.text, { timeout: getToastErrorTimeout() });
+                } else if (plan.kind === "success") {
+                    toast.success(plan.text, { timeout: getToastSuccessTimeout() });
+                } else {
+                    toast(plan.text);
+                }
+            }
+        },
+
+        /**
+         * Mute or unmute a monitor's or a tag's pop-ups in this browser
+         * @param {"monitors"|"tags"} kind What to mute
+         * @param {number} id Its id
+         * @param {boolean} mute Mute, or unmute
+         * @returns {void}
+         */
+        setToastMuted(kind, id, mute) {
+            const ids = this.toastMuted[kind].filter((other) => other !== id);
+            if (mute) {
+                ids.push(id);
+            }
+            this.toastMuted = { ...this.toastMuted, [kind]: ids };
+            saveMuted(this.toastMuted);
+        },
+
         toastRes(res) {
             if (res.msgi18n) {
                 res.msg = this.applyTranslation(res.msg);
@@ -697,6 +740,10 @@ export default {
         getMonitorChartData(monitorID, period, callback) {
             socket.emit("getMonitorChartData", monitorID, period, callback);
         },
+
+        getMonitorChartRange(monitorID, from, to, callback) {
+            socket.emit("getMonitorChartRange", monitorID, from, to, callback);
+        },
     },
 
     computed: {
@@ -837,6 +884,28 @@ export default {
         },
     },
 };
+
+/**
+ * Where a viewer goes instead of a page that edits: the nearest page that only shows
+ * @param {string} path The page that edits
+ * @returns {string} The page to show instead
+ */
+export function viewerPlaceFor(path) {
+    const monitor = path.match(/^\/(?:edit|clone)\/(\d+)/);
+    if (monitor) {
+        return `/dashboard/${monitor[1]}`;
+    }
+    if (path.startsWith("/settings")) {
+        return "/settings/security";
+    }
+    if (path.startsWith("/maintenance") || path.startsWith("/add-maintenance")) {
+        return "/maintenance";
+    }
+    if (path.startsWith("/add-status-page")) {
+        return "/manage-status-page";
+    }
+    return "/dashboard";
+}
 
 /**
  * Reconnect to the realtime server.

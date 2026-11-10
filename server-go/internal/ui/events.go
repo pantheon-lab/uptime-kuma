@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -147,7 +148,8 @@ func monitorTypeList() map[string]any {
 	return out
 }
 
-func (s *Server) info(ctx context.Context, full bool) map[string]any {
+// baseURL is the UI's public address: the one saved in Settings, or else the configured one.
+func (s *Server) baseURL(ctx context.Context) string {
 	baseURL := s.opts.BaseURL
 	if settings, err := s.store.Settings(ctx); err == nil {
 		var saved string
@@ -155,14 +157,21 @@ func (s *Server) info(ctx context.Context, full bool) map[string]any {
 			baseURL = saved
 		}
 	}
+	return baseURL
+}
+
+func (s *Server) info(ctx context.Context, full bool) map[string]any {
+	baseURL := s.baseURL(ctx)
 	_, offset := s.now().In(s.opts.Location).Zone()
 	sign := "+"
 	if offset < 0 {
 		sign, offset = "-", -offset
 	}
 	info := map[string]any{
-		"githubLogin":          s.opts.GitHub != nil,
-		"passwordLogin":        !s.opts.DisablePasswordLogin,
+		"githubLogin":          s.github() != nil,
+		"googleLogin":          s.google() != nil,
+		"oidcLogin":            s.oidcName(),
+		"passwordLogin":        s.passwordLogin(),
 		"primaryBaseURL":       baseURL,
 		"serverTimezone":       s.opts.Location.String(),
 		"serverTimezoneOffset": fmt.Sprintf("%s%02d:%02d", sign, offset/3600, offset%3600/60),
@@ -363,6 +372,12 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.addMonitor(ctx, args)
 	case "editMonitor":
 		r, err = s.editMonitor(ctx, args)
+	case "bulkEditMonitors":
+		r, err = s.bulkEditMonitors(ctx, args)
+	case "importMonitors":
+		r, err = s.importMonitors(ctx, args)
+	case "testMonitor":
+		r, err = s.testMonitor(ctx, args)
 	case "pauseMonitor":
 		r, err = s.setActive(ctx, args, false)
 	case "resumeMonitor":
@@ -375,6 +390,10 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.monitorBeats(ctx, args)
 	case "getMonitorChartData":
 		r, err = s.chartData(ctx, args)
+	case "getMonitorChartRange":
+		r, err = s.chartRange(ctx, args)
+	case "getMonitorOutages":
+		r, err = s.monitorOutages(ctx, args)
 	case "monitorImportantHeartbeatListCount":
 		r, err = s.importantCount(ctx, args)
 	case "monitorImportantHeartbeatListPaged":
@@ -493,6 +512,12 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.deleteAPIKey(ctx, c, args)
 	case "getOwnAccount":
 		r, err = s.getOwnAccount(ctx, c)
+	case "getLoginSettings":
+		r, err = s.getLoginSettings(ctx, c)
+	case "saveLoginSettings":
+		r, err = s.saveLoginSettings(ctx, c, args)
+	case "checkOIDCIssuer":
+		r, err = s.checkOIDCIssuer(ctx, args)
 	case "getAccountList":
 		r, err = s.getAccountList(ctx, c)
 	case "deleteAccount":
@@ -755,12 +780,55 @@ func optionalMonitorID(args []json.RawMessage, i int) (*int32, error) {
 	return &id, nil
 }
 
+// maxEventFilterMonitors bounds the monitors an event filter lists, such as a group's.
+const maxEventFilterMonitors = 10000
+
+// eventFilterArg reads the dashboard's filter of events, which may be absent or null.
+func eventFilterArg(args []json.RawMessage, i int) (store.EventFilter, error) {
+	var in struct {
+		MonitorIDs []flexInt `json:"monitorIDs"`
+		Statuses   []int16   `json:"statuses"`
+		Since      string    `json:"since"`
+	}
+	if err := arg(args, i, &in); err != nil {
+		return store.EventFilter{}, err
+	}
+	if len(in.MonitorIDs) > maxEventFilterMonitors || len(in.Statuses) > 8 {
+		return store.EventFilter{}, errors.New("invalid filter")
+	}
+	var f store.EventFilter
+	for _, id := range in.MonitorIDs {
+		if !id.set || id.value <= 0 || id.value > math.MaxInt32 {
+			return store.EventFilter{}, errors.New("invalid filter")
+		}
+		f.MonitorIDs = append(f.MonitorIDs, int32(id.value))
+	}
+	for _, status := range in.Statuses {
+		if status < 0 || status > 3 {
+			return store.EventFilter{}, errors.New("invalid filter")
+		}
+	}
+	f.Statuses = in.Statuses
+	if in.Since != "" {
+		since, err := time.Parse(time.RFC3339, in.Since)
+		if err != nil {
+			return store.EventFilter{}, errors.New("invalid filter")
+		}
+		f.Since = &since
+	}
+	return f, nil
+}
+
 func (s *Server) importantCount(ctx context.Context, args []json.RawMessage) (reply, error) {
 	id, err := optionalMonitorID(args, 0)
 	if err != nil {
 		return nil, userErr(err)
 	}
-	count, err := s.store.CountImportantBeats(ctx, id)
+	filter, err := eventFilterArg(args, 1)
+	if err != nil {
+		return nil, userErr(err)
+	}
+	count, err := s.store.CountImportantBeats(ctx, id, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -782,17 +850,30 @@ func (s *Server) importantPage(ctx context.Context, args []json.RawMessage) (rep
 	if offset.value < 0 || count.value < 0 || count.value > maxEventsPage {
 		return nil, userErr(errors.New("invalid page"))
 	}
-	beats, err := s.store.ImportantBeats(ctx, id, int(offset.value), int(count.value))
+	filter, err := eventFilterArg(args, 3)
+	if err != nil {
+		return nil, userErr(err)
+	}
+	beats, err := s.store.ImportantBeats(ctx, id, filter, int(offset.value), int(count.value))
 	if err != nil {
 		return nil, err
 	}
 	return ok("data", beatsJSON(beats)), nil
 }
 
+// clearEvents empties one monitor's event list, or every monitor's for "all". A missing or null
+// monitor is refused, so that a page that hasn't loaded its monitor can't clear them all.
 func (s *Server) clearEvents(ctx context.Context, args []json.RawMessage) (reply, error) {
-	id, err := idArg(args, 0)
-	if err != nil {
-		return nil, userErr(err)
+	var all string
+	var id *int32
+	if len(args) > 0 && json.Unmarshal(args[0], &all) == nil && all == "all" {
+		id = nil
+	} else {
+		monitorID, err := idArg(args, 0)
+		if err != nil {
+			return nil, userErr(err)
+		}
+		id = &monitorID
 	}
 	if err := s.store.ClearEvents(ctx, id); err != nil {
 		return nil, err

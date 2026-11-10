@@ -28,14 +28,22 @@ import (
 
 // fakeStore keeps accounts, sessions and monitors in memory. Other methods return nothing.
 type fakeStore struct {
-	mu       sync.Mutex
-	users    []store.User
-	sessions map[string]store.Session
-	monitors map[int32]monitor.Monitor
-	nextID   int32
-	settings map[string]json.RawMessage
+	mu sync.Mutex
+	// loginChanged makes account saves at login refuse, as when the settings changed meanwhile.
+	loginChanged bool
+	loginConfig  *store.LoginConfig
+	googleTokens map[int32]string
+	oidcTokens   map[int32]string
+	users        []store.User
+	sessions     map[string]store.Session
+	monitors     map[int32]monitor.Monitor
+	nextID       int32
+	settings     map[string]json.RawMessage
 	// createErr is returned by CreateMonitor, to test how a failure is shown.
 	createErr error
+	// important is what ImportantBeats returns, newest first, and chartRanges the ranges asked for.
+	important   []store.Beat
+	chartRanges [][2]time.Time
 
 	windows   map[int32]maintenance.Window
 	links     map[int32][]int32
@@ -55,9 +63,13 @@ type fakeStore struct {
 	challenges   map[string]store.TwoFactorChallenge
 	apiKeys      []store.APIKey
 
-	cleared      []int32
-	githubTokens map[int32]string
-	retention    []int
+	cleared []int32
+	// notifications, and each monitor's, for the bulk edit. defaultLinked is who got the defaults.
+	notifications        []store.Notification
+	monitorNotifications map[int32][]int32
+	defaultLinked        []int32
+	githubTokens         map[int32]string
+	retention            []int
 }
 
 func newFakeStore() *fakeStore {
@@ -65,6 +77,8 @@ func newFakeStore() *fakeStore {
 		sessions: map[string]store.Session{}, monitors: map[int32]monitor.Monitor{}, settings: map[string]json.RawMessage{},
 		totpSteps: map[int32]int64{}, totpFailures: map[int32]int{}, challenges: map[string]store.TwoFactorChallenge{},
 		githubTokens: map[int32]string{},
+		googleTokens: map[int32]string{},
+		oidcTokens:   map[int32]string{},
 	}
 }
 
@@ -236,17 +250,35 @@ func (f *fakeStore) LatestBeatPerMonitor(context.Context) ([]store.Beat, error) 
 func (f *fakeStore) BeatsSince(context.Context, int32, time.Time, int) ([]store.Beat, error) {
 	return nil, nil
 }
-func (f *fakeStore) ImportantBeats(context.Context, *int32, int, int) ([]store.Beat, error) {
-	return nil, nil
+func (f *fakeStore) ImportantBeats(_ context.Context, _ *int32, filter store.EventFilter, offset, limit int) ([]store.Beat, error) {
+	var out []store.Beat
+	for _, b := range f.important {
+		if (filter.Since == nil || !b.Time.Before(*filter.Since)) && (filter.Before == nil || b.Time.Before(*filter.Before)) {
+			if offset > 0 {
+				offset--
+			} else if len(out) < limit {
+				out = append(out, b)
+			}
+		}
+	}
+	return out, nil
 }
-func (f *fakeStore) CountImportantBeats(context.Context, *int32) (int64, error) { return 0, nil }
-func (f *fakeStore) ClearEvents(context.Context, int32) error                   { return nil }
+func (f *fakeStore) CountImportantBeats(context.Context, *int32, store.EventFilter) (int64, error) {
+	return 0, nil
+}
+func (f *fakeStore) ClearEvents(context.Context, *int32) error { return nil }
 func (f *fakeStore) Chart(context.Context, int32, int) ([]store.ChartPoint, error) {
 	return nil, nil
 }
+func (f *fakeStore) ChartRange(_ context.Context, _ int32, from, to time.Time) ([]store.ChartPoint, error) {
+	f.chartRanges = append(f.chartRanges, [2]time.Time{from, to})
+	return []store.ChartPoint{{Time: from, Up: 1}}, nil
+}
 func (f *fakeStore) Stats(context.Context) ([]store.MonitorStats, error) { return nil, nil }
 func (f *fakeStore) ListNotifications(context.Context) ([]store.Notification, error) {
-	return nil, nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.notifications), nil
 }
 func (f *fakeStore) GetNotification(context.Context, int32) (store.Notification, error) {
 	return store.Notification{}, store.ErrNotFound
@@ -258,10 +290,30 @@ func (f *fakeStore) CreateNotification(_ context.Context, n store.Notification, 
 func (f *fakeStore) UpdateNotification(_ context.Context, n store.Notification, _ bool) (store.Notification, error) {
 	return n, nil
 }
-func (f *fakeStore) DeleteNotification(context.Context, int32) error               { return nil }
-func (f *fakeStore) SetMonitorNotifications(context.Context, int32, []int32) error { return nil }
+func (f *fakeStore) DeleteNotification(context.Context, int32) error { return nil }
+func (f *fakeStore) SetMonitorNotifications(_ context.Context, monitorID int32, ids []int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.monitorNotifications == nil {
+		f.monitorNotifications = map[int32][]int32{}
+	}
+	f.monitorNotifications[monitorID] = slices.Clone(ids)
+	return nil
+}
 func (f *fakeStore) AllMonitorNotificationIDs(context.Context) (map[int32][]int32, error) {
-	return map[int32][]int32{}, nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := map[int32][]int32{}
+	for id, list := range f.monitorNotifications {
+		out[id] = slices.Clone(list)
+	}
+	return out, nil
+}
+func (f *fakeStore) LinkDefaultNotifications(_ context.Context, monitorID int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.defaultLinked = append(f.defaultLinked, monitorID)
+	return nil
 }
 
 func (f *fakeStore) ListTags(context.Context) ([]store.Tag, error) {
@@ -920,6 +972,13 @@ func TestBeatJSON(t *testing.T) {
 	b := beatJSON(store.Beat{MonitorID: 3, Time: time.Date(2026, 1, 2, 3, 4, 5, 6_000_000, time.FixedZone("x", 3600)), Status: 1, Ping: &ping})
 	if b["time"] != "2026-01-02 02:04:05.006" || b["monitorID"] != int32(3) || b["monitor_id"] != int32(3) {
 		t.Fatalf("beat: %v", b)
+	}
+	if _, found := b["traceId"]; found {
+		t.Fatalf("a beat without a trace has a traceId: %v", b)
+	}
+	failed := beatJSON(store.Beat{MonitorID: 3, Status: 0, TraceID: "4bf92f3577b34da6a3ce929d0e0e4736"})
+	if failed["traceId"] != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Fatalf("failed beat: %v", failed)
 	}
 }
 

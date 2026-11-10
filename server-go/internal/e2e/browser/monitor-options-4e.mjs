@@ -19,6 +19,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const browser = await chromium.launch({ executablePath: chromiumPath });
 const context = await browser.newContext({ baseURL, viewport: { width: 1400, height: 1100 }, timezoneId: "UTC" });
 const page = await context.newPage();
+
+/**
+ * Open the Edit Monitor form's Advanced section, which is folded until opened
+ * @returns {Promise<void>}
+ */
+async function openAdvanced() {
+    const toggle = page.getByTestId("advanced-toggle");
+    if ((await toggle.count()) > 0 && (await toggle.getAttribute("aria-expanded")) === "false") {
+        await toggle.click();
+    }
+}
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 
@@ -125,6 +136,7 @@ await step("keyword monitor through the proxy", async () => {
         await page.getByTestId("url-input").fill("https://example.com");
         await page.locator("#keyword").fill("Example Domain");
         await page.locator("#proxy-1").check();
+        await openAdvanced();
         await page.locator("#cache-bust").check();
         await page.locator("#ipFamily").first().selectOption("ipv4");
         await page.locator("#description").fill("Checked through the proxy");
@@ -177,6 +189,7 @@ await step("form explains an untracked domain", async () => {
     await page.goto("/add");
     await page.getByTestId("monitor-type-select").selectOption("ping");
     await page.locator("#hostname").fill("10.0.0.1");
+    await openAdvanced();
     await page.locator("#domain-expiry-notification").check();
     await page.getByText("is not a candidate for domain expiry monitoring").first().waitFor({ timeout: 10000 });
 });

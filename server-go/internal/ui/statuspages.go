@@ -40,6 +40,22 @@ type StatusPageStore interface {
 	ResolveIncident(ctx context.Context, pageID, id int32) (store.Incident, error)
 	DeleteIncident(ctx context.Context, pageID, id int32) error
 	UnpinIncidents(ctx context.Context, pageID int32) error
+	MarkIncidentNotified(ctx context.Context, id int32) error
+
+	Subscribers(ctx context.Context, pageID int32) ([]store.Subscriber, error)
+	CountSubscribers(ctx context.Context, pageID int32) (int, error)
+	AddEmailSubscriber(ctx context.Context, pageID int32, email, token string) (store.Subscriber, bool, error)
+	AddWebhookSubscriber(ctx context.Context, pageID int32, url, token string) (store.Subscriber, error)
+	ClaimConfirmation(ctx context.Context, id int32, interval time.Duration) (bool, error)
+	ConfirmSubscriber(ctx context.Context, pageID int32, token string, maxAge time.Duration) (store.Subscriber, error)
+	RemoveSubscriberByToken(ctx context.Context, pageID int32, token string) (store.Subscriber, error)
+	RemoveSubscriber(ctx context.Context, pageID, id int32) error
+	DeleteUnconfirmedSubscribers(ctx context.Context, before time.Time) error
+	RecordDelivery(ctx context.Context, id int32, sendErr string) error
+	SetStatusPageSubscriptions(ctx context.Context, pageID int32, notificationID *int32) error
+	IncidentTemplates(ctx context.Context) ([]store.IncidentTemplate, error)
+	SaveIncidentTemplate(ctx context.Context, t store.IncidentTemplate) (store.IncidentTemplate, error)
+	DeleteIncidentTemplate(ctx context.Context, id int32) error
 
 	SetMaintenanceStatusPages(ctx context.Context, maintenanceID int32, pageIDs []int32) error
 	MaintenanceStatusPages(ctx context.Context, maintenanceID int32) ([]store.StatusPage, error)
@@ -92,6 +108,14 @@ var statusPageEvents = map[string]func(*Server, context.Context, []json.RawMessa
 	"deleteIncident":     (*Server).deleteIncident,
 	"unpinIncident":      (*Server).unpinIncident,
 	"getIncidentHistory": (*Server).getIncidentHistory,
+
+	"getIncidentTemplates":       (*Server).getIncidentTemplates,
+	"saveIncidentTemplate":       (*Server).saveIncidentTemplate,
+	"deleteIncidentTemplate":     (*Server).deleteIncidentTemplate,
+	"getStatusPageSubscribers":   (*Server).getStatusPageSubscribers,
+	"setStatusPageSubscriptions": (*Server).setStatusPageSubscriptions,
+	"addStatusPageWebhook":       (*Server).addStatusPageWebhook,
+	"removeStatusPageSubscriber": (*Server).removeStatusPageSubscriber,
 }
 
 func checkSlug(slug string) error {
@@ -129,6 +153,8 @@ func statusPageJSON(p store.StatusPage, public bool) map[string]any {
 		"showCertificateExpiry": p.ShowCertificateExpiry,
 		"showOnlyLastHeartbeat": p.ShowOnlyLastHeartbeat,
 		"rssTitle":              p.RSSTitle,
+		// Whether people can subscribe to the page by email.
+		"subscribable": p.SubscribeNotificationID != nil,
 	}
 	if !public {
 		domains := p.Domains
@@ -156,6 +182,7 @@ func incidentJSON(i store.Incident) map[string]any {
 		"createdDate":     i.CreatedAt.UTC().Format(beatTimeFormat),
 		"lastUpdatedDate": updated,
 		"status_page_id":  i.StatusPageID,
+		"notified":        i.Notified,
 	}
 }
 
@@ -321,11 +348,16 @@ func (s *Server) statusPageData(ctx context.Context, page store.StatusPage) (map
 	if err != nil {
 		return nil, err
 	}
+	upcoming, err := s.pageUpcomingMaintenance(ctx, page.ID)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
-		"config":          statusPageJSON(page, true),
-		"incidents":       incidentsJSON(incidents),
-		"publicGroupList": groupList,
-		"maintenanceList": windows,
+		"config":                  statusPageJSON(page, true),
+		"incidents":               incidentsJSON(incidents),
+		"publicGroupList":         groupList,
+		"maintenanceList":         windows,
+		"upcomingMaintenanceList": upcoming,
 	}, nil
 }
 
@@ -706,6 +738,8 @@ type incidentInput struct {
 	Content string  `json:"content"`
 	Style   string  `json:"style"`
 	Pin     *bool   `json:"pin"`
+	// Notify sends a posted incident to the page's subscribers.
+	Notify bool `json:"notify"`
 }
 
 // parseIncident checks an incident form. An unknown style becomes warning, as in Node.js.
@@ -738,11 +772,22 @@ func (s *Server) postIncident(ctx context.Context, args []json.RawMessage) (repl
 	if err != nil {
 		return nil, userErr(err)
 	}
+	var in incidentInput
+	_ = arg(args, 1, &in)
 	saved, err := s.pages.PostIncident(ctx, incident)
 	if err != nil {
 		return nil, err
 	}
 	s.cache.clear()
+	if in.Notify {
+		// An update to one that subscribers weren't told of is news to them.
+		event := incidentCreated
+		if incident.ID != 0 && saved.Notified {
+			event = incidentUpdated
+		}
+		s.notifySubscribers(ctx, page, saved, event)
+		saved.Notified = true
+	}
 	return ok("incident", incidentJSON(saved)), nil
 }
 
@@ -789,6 +834,10 @@ func (s *Server) resolveIncident(ctx context.Context, args []json.RawMessage) (r
 		return nil, err
 	}
 	s.cache.clear()
+	// Those who were told of it hear that it's over.
+	if saved.Notified {
+		s.notifySubscribers(ctx, page, saved, incidentResolved)
+	}
 	return okI18n("Resolved", "incident", incidentJSON(saved)), nil
 }
 

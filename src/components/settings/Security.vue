@@ -39,6 +39,49 @@
                     </p>
                 </div>
 
+                <div v-if="account && account.method === 'oidc'" class="mb-3" data-testid="oidc-account">
+                    <h5 class="my-4 settings-subheading">{{ $t("securityOIDCTitle", [account.provider]) }}</h5>
+                    <p>{{ $t("securityOIDCIntro", [account.provider]) }}</p>
+                    <dl class="row">
+                        <dt class="col-sm-3">{{ $t("Email") }}</dt>
+                        <dd class="col-sm-9">{{ account.email || "—" }}</dd>
+                        <dt class="col-sm-3">{{ $t("securityOIDCGroups") }}</dt>
+                        <dd class="col-sm-9">
+                            <span v-for="g in account.groups" :key="g" class="badge bg-secondary me-1">{{ g }}</span>
+                            <span v-if="account.groups.length === 0">—</span>
+                        </dd>
+                        <dt class="col-sm-3">{{ $t("Role") }}</dt>
+                        <dd class="col-sm-9">
+                            {{ account.role === "admin" ? $t("accountRoleAdmin") : $t("accountRoleViewer") }}
+                        </dd>
+                        <dt class="col-sm-3">{{ $t("accountOIDCChecked") }}</dt>
+                        <dd class="col-sm-9">{{ account.checkedAt || $t("Never") }}</dd>
+                    </dl>
+                    <p class="text-secondary small">
+                        {{ $t("securityOIDCRecheck", { hours: account.recheckHours }) }}
+                    </p>
+                </div>
+
+                <div v-if="account && account.method === 'google'" class="mb-3" data-testid="google-account">
+                    <h5 class="my-4 settings-subheading">{{ $t("securityGoogleTitle") }}</h5>
+                    <p>{{ $t("securityGoogleIntro") }}</p>
+                    <dl class="row">
+                        <dt class="col-sm-3">{{ $t("Email") }}</dt>
+                        <dd class="col-sm-9">{{ account.email }}</dd>
+                        <dt class="col-sm-3">{{ $t("securityGoogleDomain") }}</dt>
+                        <dd class="col-sm-9">{{ account.domain || "—" }}</dd>
+                        <dt class="col-sm-3">{{ $t("Role") }}</dt>
+                        <dd class="col-sm-9">
+                            {{ account.role === "admin" ? $t("accountRoleAdmin") : $t("accountRoleViewer") }}
+                        </dd>
+                        <dt class="col-sm-3">{{ $t("accountGoogleChecked") }}</dt>
+                        <dd class="col-sm-9">{{ account.checkedAt || $t("Never") }}</dd>
+                    </dl>
+                    <p class="text-secondary small">
+                        {{ $t("securityGoogleRecheck", { hours: account.recheckHours }) }}
+                    </p>
+                </div>
+
                 <h5 v-if="!isGitHub" class="my-4 settings-subheading">{{ $t("Change Password") }}</h5>
                 <form v-if="!isGitHub" class="mb-3" @submit.prevent="savePassword">
                     <div class="mb-3">
@@ -201,8 +244,9 @@ export default {
         settingsLoaded() {
             return this.$parent.$parent.$parent.settingsLoaded;
         },
+        // An account that logs in with GitHub or Google, which has no password here
         isGitHub() {
-            return this.account?.method === "github";
+            return ["github", "google", "oidc"].includes(this.account?.method);
         },
     },
 

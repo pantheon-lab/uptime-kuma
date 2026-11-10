@@ -17,6 +17,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const browser = await chromium.launch({ executablePath: chromiumPath });
 const context = await browser.newContext({ baseURL, viewport: { width: 1400, height: 1100 }, timezoneId: "UTC" });
 const page = await context.newPage();
+
+/**
+ * Open the Edit Monitor form's Advanced section, which is folded until opened
+ * @returns {Promise<void>}
+ */
+async function openAdvanced() {
+    const toggle = page.getByTestId("advanced-toggle");
+    if ((await toggle.count()) > 0 && (await toggle.getAttribute("aria-expanded")) === "false") {
+        await toggle.click();
+    }
+}
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 
@@ -93,6 +104,7 @@ const cases = [
             await page.getByTestId("monitor-subtype-select").selectOption("ping");
             await page.getByTestId("hostname-input").fill("example.com");
             await page.locator("#location").fill("Europe");
+            await openAdvanced();
             await page.locator("#ping-count").fill("2");
         },
         want: (b) => b.status === 1 && b.msg.endsWith(" : OK"),

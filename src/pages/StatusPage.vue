@@ -214,6 +214,21 @@
                     ></prism-editor>
                 </div>
 
+                <!-- Subscribers -->
+                <div class="my-3">
+                    <div class="mb-1">{{ $t("subscribersTitle") }}</div>
+                    <button
+                        type="button"
+                        class="btn btn-outline-normal"
+                        data-testid="subscribers-button"
+                        @click="$refs.subscribersDialog.show()"
+                    >
+                        <font-awesome-icon icon="envelope" />
+                        {{ $t("subscribersManage") }}
+                    </button>
+                    <div class="form-text">{{ $t("subscribersSidebarHelp", subscriberCount) }}</div>
+                </div>
+
                 <div class="danger-zone">
                     <button class="btn btn-danger me-2" @click="deleteDialog">
                         <font-awesome-icon icon="trash" />
@@ -303,6 +318,36 @@
                 </div>
             </div>
 
+            <!-- What a subscription email's link asked for -->
+            <div
+                v-if="subscriptionAction"
+                class="shadow-box alert p-3 mb-4 subscription-action"
+                :class="subscriptionAction.state === 'failed' ? 'bg-warning' : 'bg-info'"
+                role="status"
+                data-testid="subscription-action"
+            >
+                <template v-if="subscriptionAction.state === 'ask'">
+                    <p class="mb-2">{{ $t("unsubscribeAsk", [config.title]) }}</p>
+                    <button
+                        type="button"
+                        class="btn btn-light"
+                        data-testid="unsubscribe-button"
+                        @click="runSubscriptionLink"
+                    >
+                        {{ $t("unsubscribeButton") }}
+                    </button>
+                </template>
+                <template v-else-if="subscriptionAction.state === 'working'">{{ $t("subscriptionWorking") }}</template>
+                <template v-else-if="subscriptionAction.state === 'done'">
+                    {{
+                        subscriptionAction.action === "confirm"
+                            ? $t("subscriptionConfirmed", [config.title])
+                            : $t("unsubscribed", [config.title])
+                    }}
+                </template>
+                <template v-else>{{ subscriptionAction.message }}</template>
+            </div>
+
             <!-- Incident Edit Form -->
             <IncidentEditForm
                 v-if="
@@ -311,6 +356,7 @@
                     (!incident.id || !activeIncidents.some((i) => i.id === incident.id))
                 "
                 v-model="incident"
+                :subscriber-count="subscriberCount"
                 @post="postIncident"
                 @cancel="cancelIncident"
             />
@@ -321,6 +367,7 @@
                 <IncidentEditForm
                     v-if="editIncidentMode && incident !== null && incident.id === activeIncident.id"
                     v-model="incident"
+                    :subscriber-count="subscriberCount"
                     @post="postIncident"
                     @cancel="cancelIncident"
                 />
@@ -429,6 +476,25 @@
                     <MaintenanceTime :maintenance="maintenance" />
                 </div>
             </template>
+
+            <!-- Coming maintenance -->
+            <div
+                v-for="maintenance in upcomingMaintenanceList"
+                :key="'upcoming-' + maintenance.id"
+                class="shadow-box alert mb-4 p-3 upcoming-maintenance"
+                data-testid="upcoming-maintenance"
+            >
+                <h4 class="alert-heading h5">
+                    <font-awesome-icon icon="calendar-alt" class="me-2" />
+                    {{ $t("upcomingMaintenance", [maintenance.title]) }}
+                </h4>
+                <!-- eslint-disable-next-line vue/no-v-html-->
+                <div class="content" v-html="maintenanceHTML(maintenance.description)"></div>
+                <div class="timeslot" data-testid="upcoming-maintenance-time">
+                    {{ upcomingWhenText(maintenance) }}
+                    <span class="ms-1">({{ startsInText(maintenance) }})</span>
+                </div>
+            </div>
 
             <!-- Description -->
             <strong v-if="editMode">{{ $t("Description") }}:</strong>
@@ -544,12 +610,63 @@
                 </div>
             </div>
 
+            <!-- Subscribe by email -->
+            <section
+                v-if="config.subscribable && !enableEditMode"
+                class="shadow-box p-4 mb-4 subscribe-box"
+                aria-labelledby="subscribe-title"
+                data-testid="subscribe-box"
+            >
+                <h2 id="subscribe-title" class="h5">
+                    <font-awesome-icon icon="envelope" class="me-2" />
+                    {{ $t("subscribeTitle") }}
+                </h2>
+                <p class="form-text mt-0">{{ $t("subscribeHelp") }}</p>
+                <form class="d-flex flex-wrap gap-2" @submit.prevent="subscribe">
+                    <label for="subscribe-email" class="visually-hidden">{{ $t("Email") }}</label>
+                    <input
+                        id="subscribe-email"
+                        v-model="subscribeEmail"
+                        type="email"
+                        class="form-control subscribe-email"
+                        required
+                        autocomplete="email"
+                        placeholder="you@example.com"
+                        data-testid="subscribe-email"
+                    />
+                    <button
+                        type="submit"
+                        class="btn btn-primary"
+                        :disabled="subscribeState === 'sending'"
+                        data-testid="subscribe-submit"
+                    >
+                        {{ $t("subscribeButton") }}
+                    </button>
+                </form>
+                <div
+                    class="mt-2"
+                    :class="subscribeState === 'failed' ? 'text-danger' : 'form-text'"
+                    role="status"
+                    aria-live="polite"
+                    data-testid="subscribe-result"
+                >
+                    {{ subscribeMessage }}
+                </div>
+            </section>
+
             <!-- Incident Manage Modal -->
             <IncidentManageModal
                 v-if="enableEditMode"
                 ref="incidentManageModal"
                 :slug="slug"
                 @incident-updated="loadIncidentHistory"
+            />
+
+            <SubscribersDialog
+                v-if="enableEditMode"
+                ref="subscribersDialog"
+                :slug="slug"
+                @changed="subscriberCount = $event.confirmed"
             />
 
             <footer class="mt-5 mb-4">
@@ -628,6 +745,8 @@ import MaintenanceTime from "../components/MaintenanceTime.vue";
 import IncidentHistory from "../components/IncidentHistory.vue";
 import IncidentManageModal from "../components/IncidentManageModal.vue";
 import IncidentEditForm from "../components/IncidentEditForm.vue";
+import SubscribersDialog from "../components/SubscribersDialog.vue";
+import { startsIn, subscriptionLink, upcomingWhen } from "../status-subscriptions";
 import { getResBaseURL } from "../util-frontend";
 import { authClient } from "../auth-client";
 import {
@@ -667,6 +786,7 @@ export default {
         IncidentHistory,
         IncidentManageModal,
         IncidentEditForm,
+        SubscribersDialog,
     },
 
     // Leave Page for vue route change
@@ -710,6 +830,14 @@ export default {
             baseURL: "",
             clickedEditButton: false,
             maintenanceList: [],
+            upcomingMaintenanceList: [],
+            // Confirmed subscribers, whom an incident can be sent to
+            subscriberCount: 0,
+            subscribeEmail: "",
+            subscribeState: "",
+            subscribeMessage: "",
+            // A confirmation or unsubscribe link: { action, token, state, message }
+            subscriptionAction: null,
             lastUpdateTime: dayjs(),
             updateCountdown: null,
             updateCountdownText: null,
@@ -971,6 +1099,10 @@ export default {
             .getSession()
             .then((session) => {
                 this.authenticated = session.data !== null;
+                // No realtime session here, which would say the role: a viewer can't edit.
+                if (session.data) {
+                    this.$root.role = session.data.user?.role || "admin";
+                }
             })
             .catch(() => {
                 this.authenticated = false;
@@ -1010,6 +1142,7 @@ export default {
                 }
 
                 this.maintenanceList = res.data.maintenanceList;
+                this.upcomingMaintenanceList = res.data.upcomingMaintenanceList ?? [];
                 this.$root.publicGroupList = res.data.publicGroupList;
 
                 this.loading = false;
@@ -1033,6 +1166,16 @@ export default {
 
         this.updateHeartbeatList();
         this.loadIncidentHistory();
+
+        // A link from a subscription email: confirming runs at once, unsubscribing asks first
+        const link = subscriptionLink(this.$route.query);
+        if (link) {
+            this.subscriptionAction = { ...link, state: link.action === "confirm" ? "working" : "ask", message: "" };
+            history.replaceState(history.state, "", location.pathname);
+            if (link.action === "confirm") {
+                this.runSubscriptionLink();
+            }
+        }
 
         // Go to edit page if ?edit present
         // null means ?edit present, but no value
@@ -1141,7 +1284,7 @@ export default {
          * @returns {void}
          */
         edit() {
-            if (this.authenticated) {
+            if (this.authenticated && this.$root.canEdit) {
                 this.$root.initSocketIO(true);
                 this.enableEditMode = true;
                 this.clickedEditButton = true;
@@ -1290,6 +1433,8 @@ export default {
          */
         createIncident() {
             this.enableEditIncidentMode = true;
+            // People may have subscribed since the editor opened
+            this.$refs.subscribersDialog?.load();
 
             if (this.incident) {
                 this.previousIncident = this.incident;
@@ -1299,6 +1444,7 @@ export default {
                 title: "",
                 content: "",
                 style: "primary",
+                notify: true,
             };
         },
 
@@ -1312,8 +1458,12 @@ export default {
                 return;
             }
 
+            const sent = this.incident.notify && this.subscriberCount > 0;
             this.$root.getSocket().emit("postIncident", this.slug, this.incident, (res) => {
                 if (res.ok) {
+                    if (sent) {
+                        this.$root.toastSuccess(this.$t("incidentSentToSubscribers", this.subscriberCount));
+                    }
                     this.enableEditIncidentMode = false;
                     this.incident = null;
                     this.loadIncidentHistory();
@@ -1330,7 +1480,9 @@ export default {
          */
         editIncident(incident) {
             this.previousIncident = this.incident;
-            this.incident = { ...incident };
+            // Subscribers told of it hear of the change, unless unticked
+            this.incident = { ...incident, notify: !!incident.notified };
+            this.$refs.subscribersDialog?.load();
             this.enableEditIncidentMode = true;
         },
 
@@ -1376,6 +1528,62 @@ export default {
          */
         dateFromNow(date) {
             return dayjs.utc(date).fromNow();
+        },
+
+        /**
+         * When a coming window runs, in the reader's time
+         * @param {object} maintenance The window
+         * @returns {string} Its dates and times
+         */
+        upcomingWhenText(maintenance) {
+            return upcomingWhen(maintenance.start, maintenance.end, this.$i18n.locale);
+        },
+
+        /**
+         * How soon a coming window starts
+         * @param {object} maintenance The window
+         * @returns {string} Such as "in 3 hours"
+         */
+        startsInText(maintenance) {
+            return startsIn(maintenance.start, new Date(), this.$i18n.locale);
+        },
+
+        /**
+         * Ask for the page's incidents by email
+         * @returns {Promise<void>}
+         */
+        async subscribe() {
+            this.subscribeState = "sending";
+            this.subscribeMessage = "";
+            try {
+                await axios.post(`/api/status-page/${encodeURIComponent(this.slug)}/subscribe`, {
+                    email: this.subscribeEmail.trim(),
+                });
+                this.subscribeState = "sent";
+                this.subscribeMessage = this.$t("subscribeSent", [this.subscribeEmail.trim()]);
+                this.subscribeEmail = "";
+            } catch (error) {
+                this.subscribeState = "failed";
+                this.subscribeMessage = error.response?.data?.msg ?? this.$t("subscribeFailed");
+            }
+        },
+
+        /**
+         * Confirm a subscription, or unsubscribe, with the link's token
+         * @returns {Promise<void>}
+         */
+        async runSubscriptionLink() {
+            const link = this.subscriptionAction;
+            link.state = "working";
+            try {
+                await axios.post(`/api/status-page/${encodeURIComponent(this.slug)}/${link.action}`, {
+                    token: link.token,
+                });
+                link.state = "done";
+            } catch (error) {
+                link.state = "failed";
+                link.message = error.response?.data?.msg ?? this.$t("subscribeFailed");
+            }
         },
 
         /**
@@ -1763,6 +1971,25 @@ footer {
     .alert-heading {
         font-weight: bold;
     }
+}
+
+.upcoming-maintenance {
+    border-left: 6px solid $maintenance;
+
+    .alert-heading {
+        font-weight: bold;
+    }
+
+    .timeslot {
+        background-color: rgba($maintenance, 0.12);
+        // It wraps on phones
+        border-radius: 12px;
+    }
+}
+
+.subscribe-box .subscribe-email {
+    flex: 1 1 16rem;
+    width: auto;
 }
 
 .refresh-info {

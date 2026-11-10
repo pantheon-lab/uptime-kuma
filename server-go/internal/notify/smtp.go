@@ -117,6 +117,36 @@ func sendSMTP(c *call) error {
 	return deliver(c.ctx, c, from.Address, recipients, message)
 }
 
+// SendMail sends one plain text email to one address through an SMTP notification's server and
+// sender, with its own subject, body and extra headers. The notification's recipients, headers and
+// templates aren't used, so that text from outside isn't read as a template.
+func SendMail(ctx context.Context, env *Env, config M, to, subject, body string, headers map[string]string) error {
+	c := &call{ctx: ctx, env: env, cfg: config}
+	from, err := mail.ParseAddress(c.s("smtpFrom"))
+	if err != nil {
+		return errors.New("invalid sender address")
+	}
+	recipient, err := mail.ParseAddress(to)
+	if err != nil {
+		return errors.New("invalid recipient address")
+	}
+	for name, value := range headers {
+		if strings.ContainsAny(name, "\r\n:") || strings.ContainsAny(value, "\r\n") {
+			return errors.New("headers can't contain line breaks")
+		}
+	}
+	message, err := buildMail(env.Now(), from, []*mail.Address{recipient}, nil, subject, body, false, headers)
+	if err != nil {
+		return err
+	}
+	if c.t("smtpDkimDomain") {
+		if message, err = signDKIM(c, message); err != nil {
+			return err
+		}
+	}
+	return deliver(ctx, c, from.Address, []string{recipient.Address}, message)
+}
+
 // buildMail encodes the message. BCC recipients only appear in the envelope.
 func buildMail(now time.Time, from *mail.Address, to, cc []*mail.Address, subject, body string, html bool, extra map[string]string) ([]byte, error) {
 	var buffer bytes.Buffer

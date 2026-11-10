@@ -42,7 +42,29 @@ type User struct {
 	GitHubCheckedAt *time.Time
 	// GitHubTeams are the organization's teams the account was in then.
 	GitHubTeams []string
+
+	// GoogleSub is set for an account that logs in with Google, which has no password: Google's
+	// unchanging id for the person.
+	GoogleSub *string
+	// GoogleEmail and GoogleDomain (the Workspace domain, or "") are as Google last said.
+	GoogleEmail  *string
+	GoogleDomain *string
+	// GoogleCheckedAt is when Google last confirmed the account.
+	GoogleCheckedAt *time.Time
+
+	// OIDCSub is set for an account that logs in with the OpenID Connect provider: its issuer and
+	// subject, as "<issuer> <sub>", which no other provider's account can have.
+	OIDCSub *string
+	// OIDCEmail and OIDCGroups are as the provider last said.
+	OIDCEmail  *string
+	OIDCGroups []string
+	// OIDCCheckedAt is when the provider last confirmed the account.
+	OIDCCheckedAt *time.Time
 }
+
+// SSO reports whether the account logs in with GitHub, Google or OpenID Connect, and so has no
+// password here.
+func (u User) SSO() bool { return u.GitHubID != nil || u.GoogleSub != nil || u.OIDCSub != nil }
 
 // Roles. An admin can do everything. A viewer can look at monitors, beats, maintenance and status
 // pages, but changes nothing and is sent no credentials.
@@ -55,7 +77,8 @@ const (
 func (u User) IsAdmin() bool { return u.Role == RoleAdmin }
 
 const userColumns = `id, username, password_hash, created_at, totp_secret, totp_enabled, totp_locked_until, role,
-	github_id, github_checked_at, github_teams`
+	github_id, github_checked_at, github_teams, google_sub, google_email, google_domain, google_checked_at,
+	oidc_sub, oidc_email, oidc_groups, oidc_checked_at`
 
 // userColumnsOf is userColumns, each qualified with a table's alias.
 func userColumnsOf(alias string) string {
@@ -115,7 +138,9 @@ func (s *Store) CreateFirstUser(ctx context.Context, username, passwordHash stri
 }
 
 func (u *User) fields() []any {
-	return []any{&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPLockedUntil, &u.Role, &u.GitHubID, &u.GitHubCheckedAt, &u.GitHubTeams}
+	return []any{&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPLockedUntil, &u.Role, &u.GitHubID, &u.GitHubCheckedAt, &u.GitHubTeams,
+		&u.GoogleSub, &u.GoogleEmail, &u.GoogleDomain, &u.GoogleCheckedAt,
+		&u.OIDCSub, &u.OIDCEmail, &u.OIDCGroups, &u.OIDCCheckedAt}
 }
 
 func (s *Store) scanUser(row pgx.Row) (User, error) {
@@ -349,13 +374,17 @@ func (s *Store) ImportWebpushKeys(ctx context.Context, public, private string) (
 const GitHubAccountPrefix = "@"
 
 // SaveGitHubUser makes or updates the account of a GitHub user at login, with the role their
-// teams give. The token is kept to check the teams again later.
-func (s *Store) SaveGitHubUser(ctx context.Context, githubID int64, login, role, token string, teams []string) (User, error) {
+// teams give under the login settings of the version. The token is kept to check the teams again
+// later. It returns ErrLoginChanged, saving nothing, when the settings changed since.
+func (s *Store) SaveGitHubUser(ctx context.Context, githubID int64, login, role, token string, teams []string, v LoginVersion) (User, error) {
 	if teams == nil {
 		teams = []string{}
 	}
 	var user User
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := loginHeld(ctx, tx, v); err != nil {
+			return err
+		}
 		// GitHub logins can be renamed and taken by someone else: the account that had the name
 		// before keeps its id, under a name that says so.
 		if _, err := tx.Exec(ctx, `
@@ -406,14 +435,20 @@ func (s *Store) GitHubToken(ctx context.Context, userID int32) (string, error) {
 	return plain, nil
 }
 
-// SetGitHubChecked records a check of a GitHub account's teams, and the role they give now.
-func (s *Store) SetGitHubChecked(ctx context.Context, userID int32, role string, teams []string) error {
+// SetGitHubChecked records a check of a GitHub account's teams, and the role they give now, made
+// with the login settings of the version. It returns ErrLoginChanged, recording nothing, when the
+// settings changed since.
+func (s *Store) SetGitHubChecked(ctx context.Context, userID int32, role string, teams []string, v LoginVersion) error {
 	if teams == nil {
 		teams = []string{}
 	}
-	if _, err := s.pool.Exec(ctx, `UPDATE app_user SET role = $2, github_checked_at = now(), github_teams = $3 WHERE id = $1`,
-		userID, role, teams); err != nil {
+	tag, err := s.pool.Exec(ctx, `UPDATE app_user SET role = $2, github_checked_at = now(), github_teams = $3
+		WHERE id = $1 AND `+loginCurrent(4), userID, role, teams, v.Env, v.SavedAt)
+	if err != nil {
 		return fmt.Errorf("record GitHub check: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrLoginChanged
 	}
 	return nil
 }

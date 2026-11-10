@@ -115,8 +115,8 @@
                 </span>
             </p>
 
-            <div v-if="$root.canEdit" class="functions">
-                <div class="btn-group" role="group">
+            <div class="functions">
+                <div v-if="$root.canEdit" class="btn-group me-2" role="group">
                     <button v-if="monitor.active" class="btn btn-normal" @click="pauseDialog">
                         <font-awesome-icon icon="pause" />
                         {{ $t("Pause") }}
@@ -143,6 +143,28 @@
                         {{ $t("Delete") }}
                     </button>
                 </div>
+                <button
+                    v-if="isFailing"
+                    type="button"
+                    class="btn btn-outline-danger me-2"
+                    data-testid="ai-prompt"
+                    :title="$t('aiPromptButtonHelp')"
+                    @click="$refs.aiPrompt.show([monitor.id])"
+                >
+                    <font-awesome-icon icon="robot" />
+                    {{ $t("aiPromptButton") }}
+                </button>
+                <button
+                    type="button"
+                    class="btn btn-normal"
+                    data-testid="mute-toasts"
+                    :aria-pressed="toastsMuted"
+                    :title="$t('muteToastsHelp')"
+                    @click="$root.setToastMuted('monitors', monitor.id, !toastsMuted)"
+                >
+                    <font-awesome-icon :icon="toastsMuted ? 'bell' : 'bell-slash'" />
+                    {{ toastsMuted ? $t("unmuteToasts") : $t("muteToasts") }}
+                </button>
             </div>
 
             <div class="shadow-box">
@@ -231,31 +253,49 @@
                     </div>
 
                     <!-- Uptime (24-hour) -->
-                    <div class="col-12 col-sm col row d-flex align-items-center d-sm-block">
-                        <h4 class="col-4 col-sm-12">{{ $t("Uptime") }}</h4>
-                        <p class="col-4 col-sm-12 mb-0 mb-sm-2">({{ $t("hours", 24) }})</p>
+                    <button
+                        type="button"
+                        class="col-12 col-sm col row d-flex align-items-center d-sm-block stat-button"
+                        data-testid="uptime-24"
+                        :title="$t('uptimeShowOnChart')"
+                        @click="showChartPeriod(24)"
+                    >
+                        <span class="h4 d-block col-4 col-sm-12">{{ $t("Uptime") }}</span>
+                        <span class="d-block col-4 col-sm-12 mb-0 mb-sm-2">({{ $t("hours", 24) }})</span>
                         <span class="col-4 col-sm-12 num">
                             <Uptime :monitor="monitor" type="24" />
                         </span>
-                    </div>
+                    </button>
 
                     <!-- Uptime (30-day) -->
-                    <div class="col-12 col-sm col row d-flex align-items-center d-sm-block">
-                        <h4 class="col-4 col-sm-12">{{ $t("Uptime") }}</h4>
-                        <p class="col-4 col-sm-12 mb-0 mb-sm-2">({{ $t("days", 30) }})</p>
+                    <button
+                        type="button"
+                        class="col-12 col-sm col row d-flex align-items-center d-sm-block stat-button"
+                        data-testid="uptime-720"
+                        :title="$t('uptimeShowOnChart')"
+                        @click="showChartPeriod(720)"
+                    >
+                        <span class="h4 d-block col-4 col-sm-12">{{ $t("Uptime") }}</span>
+                        <span class="d-block col-4 col-sm-12 mb-0 mb-sm-2">({{ $t("days", 30) }})</span>
                         <span class="col-4 col-sm-12 num">
                             <Uptime :monitor="monitor" type="720" />
                         </span>
-                    </div>
+                    </button>
 
                     <!-- Uptime (1-year) -->
-                    <div class="col-12 col-sm col row d-flex align-items-center d-sm-block">
-                        <h4 class="col-4 col-sm-12">{{ $t("Uptime") }}</h4>
-                        <p class="col-4 col-sm-12 mb-0 mb-sm-2">({{ $t("years", 1) }})</p>
+                    <button
+                        type="button"
+                        class="col-12 col-sm col row d-flex align-items-center d-sm-block stat-button"
+                        data-testid="uptime-1y"
+                        :title="$t('uptimeShowOnChart')"
+                        @click="showChartPeriod(8760)"
+                    >
+                        <span class="h4 d-block col-4 col-sm-12">{{ $t("Uptime") }}</span>
+                        <span class="d-block col-4 col-sm-12 mb-0 mb-sm-2">({{ $t("years", 1) }})</span>
                         <span class="col-4 col-sm-12 num">
                             <Uptime :monitor="monitor" type="1y" />
                         </span>
-                    </div>
+                    </button>
 
                     <div v-if="tlsInfo" class="col-12 col-sm col row d-flex align-items-center d-sm-block">
                         <h4 class="col-4 col-sm-12">{{ $t("Cert Exp.") }}</h4>
@@ -305,10 +345,12 @@
             <div v-if="showPingChartBox" class="shadow-box big-padding text-center ping-chart-wrapper">
                 <div class="row">
                     <div class="col">
-                        <PingChart :monitor-id="monitor.id" />
+                        <PingChart ref="pingChart" :monitor-id="monitor.id" />
                     </div>
                 </div>
             </div>
+
+            <MonitorOutages :monitor-id="monitor.id" @show-range="showChartRange" />
 
             <!-- Screenshot -->
             <div v-if="monitor.type === 'real-browser'" class="shadow-box">
@@ -383,6 +425,8 @@
                 </div>
             </div>
 
+            <AIPromptDialog ref="aiPrompt" />
+
             <Confirm ref="confirmPause" :yes-text="$t('Yes')" :no-text="$t('No')" @yes="pauseMonitor">
                 {{ $t("pauseMonitorMsg") }}
             </Confirm>
@@ -450,7 +494,9 @@ import Pagination from "v-pagination-3";
 const PingChart = defineAsyncComponent(() => import("../components/PingChart.vue"));
 import Tag from "../components/Tag.vue";
 import CertificateInfo from "../components/CertificateInfo.vue";
-import { getMonitorRelativeURL } from "../util.ts";
+import { DOWN, PENDING, getMonitorRelativeURL } from "../util.ts";
+import AIPromptDialog from "../components/AIPromptDialog.vue";
+import MonitorOutages from "../components/MonitorOutages.vue";
 import { URL } from "whatwg-url";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
@@ -477,6 +523,8 @@ export default {
         CertificateInfo,
         PrismEditor,
         ScreenshotDialog,
+        AIPromptDialog,
+        MonitorOutages,
     },
     data() {
         return {
@@ -503,6 +551,23 @@ export default {
         };
     },
     computed: {
+        /**
+         * Whether this monitor's pop-ups are muted in this browser
+         * @returns {boolean} Whether they are
+         */
+        toastsMuted() {
+            return this.$root.toastMuted.monitors.includes(this.monitor.id);
+        },
+
+        /**
+         * Whether the monitor is failing: down or pending. A group is down when a monitor in it is.
+         * @returns {boolean} Whether it is
+         */
+        isFailing() {
+            const beat = this.$root.lastHeartbeatList[this.monitor.id];
+            return !!this.monitor.active && !!beat && (beat.status === DOWN || beat.status === PENDING);
+        },
+
         monitor() {
             // The dashboard list only carries the fields the list needs, so this page
             // renders nothing until the full monitor has been fetched
@@ -696,6 +761,45 @@ export default {
                 }
                 this.$root.toastRes(res);
             });
+        },
+
+        /**
+         * Show a period on the chart, from the uptime figures
+         * @param {number} hours The period
+         * @returns {void}
+         */
+        showChartPeriod(hours) {
+            this.withChart((chart) => chart.showPeriod(hours));
+        },
+
+        /**
+         * Show a range on the chart, such as an outage's
+         * @param {Date} from Start
+         * @param {Date} to End
+         * @returns {void}
+         */
+        showChartRange(from, to) {
+            this.withChart((chart) => chart.showRange(from, to));
+        },
+
+        /**
+         * Open the chart, bring it into view, and act on it once it has loaded
+         * @param {Function} act What to do with it
+         * @returns {void}
+         */
+        withChart(act) {
+            this.showPingChartBox = true;
+            const tryNow = (attempt) => {
+                const chart = this.$refs.pingChart;
+                if (chart?.showRange) {
+                    act(chart);
+                    chart.$el?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+                } else if (attempt < 50) {
+                    // The chart is loaded on demand
+                    setTimeout(() => tryNow(attempt + 1), 100);
+                }
+            };
+            this.$nextTick(() => tryNow(0));
         },
 
         /**
@@ -1005,6 +1109,22 @@ table {
 
     .col {
         margin: 20px 0;
+    }
+}
+
+// The uptime figures, which show their period on the chart
+.stat-button {
+    margin-left: 0;
+    margin-right: 0;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    color: inherit;
+    transition: background-color ease-in-out 0.15s;
+
+    &:hover,
+    &:focus-visible {
+        background-color: rgba($primary, 0.08);
     }
 }
 

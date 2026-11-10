@@ -21,3 +21,12 @@ $easing-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
 $easing-in-out: cubic-bezier(0.79, 0.14, 0.15, 0.86);
 
 $dropdown-border-radius: 0.5rem;
+
+// Bootstrap 5.3's dark colour mode, in the dark theme's colours. The theme sets data-bs-theme, so
+// Bootstrap's components, forms and menus follow it without rules of their own.
+$body-bg-dark: #090c10;
+$body-color-dark: $dark-font-color;
+$border-color-dark: $dark-border-color;
+$body-secondary-bg-dark: $dark-header-bg;
+$body-tertiary-bg-dark: $dark-bg;
+$link-color-dark: $dark-font-color;

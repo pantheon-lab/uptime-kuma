@@ -521,6 +521,99 @@ var migrations = [][]string{
 			PRIMARY KEY (source_id, daily, bucket)
 		)`,
 	},
+	{
+		// Status page subscriptions: the SMTP notification a page's emails are sent through, and
+		// who gets them. A webhook's address can hold a token, so it's sealed like other secrets;
+		// address_key keeps one subscription per address (a lowercase email, or the URL's SHA-256).
+		`ALTER TABLE status_page ADD COLUMN IF NOT EXISTS subscribe_notification_id integer
+			REFERENCES notification (id) ON DELETE SET NULL`,
+		`CREATE TABLE IF NOT EXISTS status_page_subscriber (
+			id serial PRIMARY KEY,
+			status_page_id integer NOT NULL REFERENCES status_page (id) ON DELETE CASCADE,
+			kind text NOT NULL CHECK (kind IN ('email', 'webhook')),
+			address text NOT NULL,
+			address_key text NOT NULL,
+			token text NOT NULL UNIQUE,
+			confirmed boolean NOT NULL DEFAULT false,
+			created_at timestamptz NOT NULL DEFAULT now(),
+			confirm_sent_at timestamptz,
+			last_sent_at timestamptz,
+			last_error text NOT NULL DEFAULT '',
+			UNIQUE (status_page_id, kind, address_key)
+		)`,
+		// Whether an incident was sent to subscribers, so that only those get its resolution.
+		`ALTER TABLE incident ADD COLUMN IF NOT EXISTS notified boolean NOT NULL DEFAULT false`,
+		// Incident templates, shared by every page, one per title.
+		`CREATE TABLE IF NOT EXISTS incident_template (
+			id serial PRIMARY KEY,
+			title text NOT NULL UNIQUE,
+			content text NOT NULL,
+			style text NOT NULL,
+			updated_at timestamptz NOT NULL DEFAULT now()
+		)`,
+	},
+	{
+		// Login methods set in the UI: GitHub login and whether passwords work. One row, made at the
+		// first save; environment variables, when set, are used instead. The secret is sealed.
+		`CREATE TABLE IF NOT EXISTS login_config (
+			id integer PRIMARY KEY CHECK (id = 1),
+			github_enabled boolean NOT NULL DEFAULT false,
+			github_client_id text NOT NULL DEFAULT '',
+			github_client_secret text NOT NULL DEFAULT '',
+			github_org text NOT NULL DEFAULT '',
+			github_admin_teams text[] NOT NULL DEFAULT '{}',
+			github_viewer_teams text[] NOT NULL DEFAULT '{}',
+			github_web_url text NOT NULL DEFAULT '',
+			github_api_url text NOT NULL DEFAULT '',
+			password_login boolean NOT NULL DEFAULT true,
+			updated_at timestamptz NOT NULL DEFAULT now()
+		)`,
+	},
+	{
+		// Logging in with Google: the account's subject, email and Workspace domain, the sealed
+		// refresh token that checks it daily, and the settings.
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS google_sub text`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS app_user_google_sub_idx ON app_user (google_sub) WHERE google_sub IS NOT NULL`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS google_email text`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS google_domain text`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS google_token text`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS google_checked_at timestamptz`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS google_enabled boolean NOT NULL DEFAULT false`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS google_client_id text NOT NULL DEFAULT ''`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS google_client_secret text NOT NULL DEFAULT ''`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS google_domains text[] NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS google_admin_emails text[] NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS google_viewer_emails text[] NOT NULL DEFAULT '{}'`,
+	},
+	{
+		// Logging in with an OpenID Connect provider: the account's issuer and subject, email and
+		// groups as the provider last said, the sealed refresh token, and the settings.
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS oidc_sub text`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS app_user_oidc_sub_idx ON app_user (oidc_sub) WHERE oidc_sub IS NOT NULL`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS oidc_email text`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS oidc_groups text[]`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS oidc_token text`,
+		`ALTER TABLE app_user ADD COLUMN IF NOT EXISTS oidc_checked_at timestamptz`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_enabled boolean NOT NULL DEFAULT false`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_name text NOT NULL DEFAULT ''`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_issuer text NOT NULL DEFAULT ''`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_client_id text NOT NULL DEFAULT ''`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_client_secret text NOT NULL DEFAULT ''`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_scopes text[] NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_groups_claim text NOT NULL DEFAULT ''`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_admin_groups text[] NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_viewer_groups text[] NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_admin_emails text[] NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE login_config ADD COLUMN IF NOT EXISTS oidc_viewer_emails text[] NOT NULL DEFAULT '{}'`,
+	},
+	{
+		// When each monitor's events were last cleared. The event list starts after it; the beats
+		// keep their important flag, which outages are found from.
+		`CREATE TABLE IF NOT EXISTS event_clear (
+			monitor_id integer PRIMARY KEY REFERENCES monitor (id) ON DELETE CASCADE,
+			cleared_at timestamptz NOT NULL
+		)`,
+	},
 }
 
 // Migrate brings the schema up to date.

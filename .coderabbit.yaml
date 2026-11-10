@@ -1,0 +1,89 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit's reviews of pull requests. It also reads AGENTS.md, CLAUDE.md and
+# .github/copilot-instructions.md as this repository's guidelines.
+
+language: en-US
+tone_instructions: "Be brief and specific: say what's wrong, why it matters, and how to fix it. Skip praise, and style that Prettier, ESLint or gofmt already enforce."
+early_access: false
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  collapse_walkthrough: true
+  sequence_diagrams: false
+  poem: false
+  in_progress_fortune: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+  path_filters:
+    # Lockfiles and recorded test data: what matters in them shows up elsewhere, or isn't code
+    - "!package-lock.json"
+    - "!server-go/go.sum"
+    - "!server-go/internal/**/testdata/**"
+    - "!server-go/internal/holidays/holidays.json.gz"
+  path_instructions:
+    - path: "server-go/**/*.go"
+      instructions: |
+        The Go backend. Check for:
+        - SQL built from values rather than pgx parameters, and missing context or timeouts on calls out.
+        - Secrets reaching browsers, logs or error messages: notification settings, tokens, client secrets and webhook URLs are sealed (internal/store/secrets.go).
+        - Errors returned without context, and messages shown to users that don't go through userErr.
+        - Goroutines without a way to stop, and maps or fields shared between goroutines without a lock.
+        - Tests: new behaviour should have them, store code against TimescaleDB (TEST_DATABASE_URL), and run with -race.
+    - path: "server-go/internal/store/migrate.go"
+      instructions: |
+        Migrations run in order and are recorded by number: existing entries must never change, only new ones be appended. Every statement must be idempotent (IF NOT EXISTS and the like), since a failed migration runs again.
+    - path: "server-go/internal/ui/**/*.go"
+      instructions: |
+        The web UI's API. Realtime events are admin-only unless listed in viewerEvents (roles.go): check that a new event's access is deliberate. Login and single sign-on code (auth.go, github.go, google.go, oidc.go, sso.go) must keep the lockout rules: no change may leave no admin who can log in, and passwords only turn off from a single sign-on admin's login. A new method on the Store interfaces needs the fake store in the tests too.
+    - path: "src/**/*.{vue,js,ts}"
+      instructions: |
+        The Vue 3 frontend (Options API). Check for:
+        - Strings not in src/lang/en.json, or added to other languages (Weblate translates those).
+        - v-html without DOMPurify.
+        - Accessibility: inputs without labels, controls that only work with a mouse, state shown only by colour.
+        - Missing JSDoc on functions and methods, and logic that belongs in a tested TypeScript module.
+    - path: ".github/workflows/**"
+      instructions: |
+        Actions pinned to a full commit SHA with the version in a comment; permissions: {} at the top and the least each job needs; persist-credentials: false on checkouts; no untrusted input (PR titles, branch names) expanded in run: scripts.
+    - path: "server-go/PORTING.md"
+      instructions: |
+        Each phase records what was tested, its known limits, and what wasn't tested. Check that these match the change and don't claim more than its tests show.
+  tools:
+    actionlint:
+      enabled: true
+    zizmor:
+      enabled: true
+    gitleaks:
+      enabled: true
+    golangci-lint:
+      enabled: true
+    eslint:
+      enabled: true
+    hadolint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    osvScanner:
+      enabled: true
+    yamllint:
+      enabled: true
+    # Prettier formats the Markdown, and its wording is reviewed by people
+    markdownlint:
+      enabled: false
+    languagetool:
+      enabled: false
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - ".github/REVIEW_GUIDELINES.md"

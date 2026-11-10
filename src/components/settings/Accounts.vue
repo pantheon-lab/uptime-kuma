@@ -2,6 +2,8 @@
     <div>
         <p class="mt-4 text-secondary small">
             <template v-if="githubLogin">{{ $t("accountsGitHubHint") }}</template>
+            <template v-if="googleLogin">{{ $t("accountsGoogleHint") }}</template>
+            <template v-if="oidcLogin">{{ $t("accountsOIDCHint", [oidcLogin]) }}</template>
             {{ $t("accountsLastAdminHint") }}
         </p>
 
@@ -26,13 +28,27 @@
                     <div class="status">
                         {{ account.role === "admin" ? $t("accountRoleAdmin") : $t("accountRoleViewer") }}
                         ·
-                        {{ account.method === "github" ? $t("accountMethodGitHub") : $t("accountMethodPassword") }}
+                        {{
+                            account.method === "github"
+                                ? $t("accountMethodGitHub")
+                                : account.method === "google"
+                                  ? $t("accountMethodGoogle")
+                                  : account.method === "oidc"
+                                    ? oidcLogin || $t("accountMethodOIDC")
+                                    : $t("accountMethodPassword")
+                        }}
                         <template v-if="account.twoFactorEnabled">· {{ $t("Two Factor Authentication") }}</template>
                     </div>
                     <div class="date">{{ $t("createdAt", { date: account.createdAt }) }}</div>
                     <div class="date">{{ $t("accountLastLogin") }}: {{ account.lastLoginAt || $t("Never") }}</div>
                     <div v-if="account.method === 'github'" class="date">
                         {{ $t("accountTeamsChecked") }}: {{ account.githubCheckedAt || $t("Never") }}
+                    </div>
+                    <div v-if="account.method === 'oidc'" class="date">
+                        {{ $t("accountOIDCChecked") }}: {{ account.oidcCheckedAt || $t("Never") }}
+                    </div>
+                    <div v-if="account.method === 'google'" class="date">
+                        {{ $t("accountGoogleChecked") }}: {{ account.googleCheckedAt || $t("Never") }}
                     </div>
                     <div class="date" data-testid="sessions">
                         {{ $t("accountSessions", { count: account.sessions.length }) }}
@@ -87,6 +103,12 @@
                 <template v-if="selected.method === 'github'">
                     {{ $t("removeGitHubAccountMsg") }}
                 </template>
+                <template v-if="selected.method === 'google'">
+                    {{ $t("removeGoogleAccountMsg") }}
+                </template>
+                <template v-if="selected.method === 'oidc'">
+                    {{ $t("removeOIDCAccountMsg") }}
+                </template>
             </template>
             <template v-else-if="selected">
                 {{ $t(selected.you ? "endOwnSessionsMsg" : "endSessionsMsg", { username: selected.username }) }}
@@ -106,6 +128,8 @@ export default {
         return {
             accounts: [],
             githubLogin: false,
+            googleLogin: false,
+            oidcLogin: "",
             loaded: false,
             selected: null,
             action: null,
@@ -126,6 +150,8 @@ export default {
                 if (res.ok) {
                     this.accounts = res.accounts;
                     this.githubLogin = res.githubLogin;
+                    this.googleLogin = res.googleLogin;
+                    this.oidcLogin = res.oidcLogin;
                     this.loaded = true;
                 } else {
                     this.$root.toastError(res.msg);

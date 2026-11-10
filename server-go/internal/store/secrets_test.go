@@ -26,7 +26,7 @@ func TestStoredSecrets(t *testing.T) {
 	if err := s.StartTOTPSetup(ctx, user.ID, []byte("totp-plain-key")); err != nil {
 		t.Fatal(err)
 	}
-	gh, err := s.SaveGitHubUser(ctx, 5, "octocat", RoleAdmin, "gho-plain-token", nil)
+	gh, err := s.SaveGitHubUser(ctx, 5, "octocat", RoleAdmin, "gho-plain-token", nil, LoginVersion{Env: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestStoredSecrets(t *testing.T) {
 	if id, err := s.ImportProxy(ctx, check.Proxy{Protocol: "http", Host: "proxy", Port: 3128, Auth: true, Username: "u", Password: "other"}); err != nil || id == proxy.ID {
 		t.Errorf("import a proxy with another password: %d %v", id, err)
 	}
-	if _, err := s.SaveGitHubUser(ctx, 5, "octocat", RoleAdmin, "gho-new-token", nil); err != nil {
+	if _, err := s.SaveGitHubUser(ctx, 5, "octocat", RoleAdmin, "gho-new-token", nil, LoginVersion{Env: true}); err != nil {
 		t.Fatal(err)
 	}
 	wantToken = "gho-new-token"

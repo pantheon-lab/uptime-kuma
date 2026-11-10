@@ -62,7 +62,7 @@ func (g *GitHubOptions) client() *http.Client {
 // githubStart sends the browser to GitHub to log in. The state and the PKCE verifier are kept in
 // a short-lived cookie only this flow's paths receive.
 func (s *Server) githubStart(w http.ResponseWriter, r *http.Request) {
-	g := s.opts.GitHub
+	g := s.github()
 	if g == nil {
 		http.NotFound(w, r)
 		return
@@ -88,9 +88,11 @@ func (s *Server) githubStart(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, strings.TrimRight(g.WebURL, "/")+"/login/oauth/authorize?"+query.Encode(), http.StatusFound)
 }
 
-// githubCallback finishes the login GitHub sent the browser back from.
+// githubCallback finishes the login GitHub sent the browser back from, with one reading of the
+// login settings throughout, which the account's save refuses if they changed meanwhile.
 func (s *Server) githubCallback(w http.ResponseWriter, r *http.Request) {
-	g := s.opts.GitHub
+	l := s.currentLogin(r.Context())
+	g := l.github
 	if g == nil {
 		http.NotFound(w, r)
 		return
@@ -117,13 +119,13 @@ func (s *Server) githubCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	token, err := s.githubExchange(ctx, r.URL.Query().Get("code"), parts[1])
+	token, err := s.githubExchange(ctx, g, r.URL.Query().Get("code"), parts[1])
 	if err != nil {
 		s.log.Warn("GitHub login failed", "error", err)
 		fail("github-failed")
 		return
 	}
-	id, login, role, teams, err := s.githubRole(ctx, token)
+	id, login, role, teams, err := s.githubRole(ctx, g, token)
 	if err != nil {
 		s.log.Warn("GitHub login failed", "error", err)
 		fail("github-failed")
@@ -134,7 +136,14 @@ func (s *Server) githubCallback(w http.ResponseWriter, r *http.Request) {
 		fail("github-not-allowed")
 		return
 	}
-	user, err := s.store.SaveGitHubUser(ctx, id, login, role, token, teams)
+	user, err := s.store.SaveGitHubUser(ctx, id, login, role, token, teams, l.version)
+	if errors.Is(err, store.ErrLoginChanged) {
+		// An admin changed the login settings during the login: it's tried again with the new ones.
+		s.loginStale(ctx, l)
+		s.log.Warn("GitHub login refused: the login settings changed during it", "github", login)
+		fail("login-changed")
+		return
+	}
 	if err != nil {
 		s.log.Error("GitHub login", "error", err)
 		fail("github-failed")
@@ -158,8 +167,7 @@ func randomToken() string {
 }
 
 // githubExchange trades the code GitHub gave the browser for a token.
-func (s *Server) githubExchange(ctx context.Context, code, verifier string) (string, error) {
-	g := s.opts.GitHub
+func (s *Server) githubExchange(ctx context.Context, g *GitHubOptions, code, verifier string) (string, error) {
 	if code == "" {
 		return "", errors.New("no code")
 	}
@@ -194,13 +202,12 @@ func (s *Server) githubExchange(ctx context.Context, code, verifier string) (str
 // githubRole asks GitHub who the token's user is, which of the organization's teams they're in,
 // and what those make them: RoleAdmin, RoleViewer, or "" for someone who may not log in. A token
 // GitHub refuses is "", and a GitHub that can't be reached is errGitHubUnavailable.
-func (s *Server) githubRole(ctx context.Context, token string) (int64, string, string, []string, error) {
-	g := s.opts.GitHub
+func (s *Server) githubRole(ctx context.Context, g *GitHubOptions, token string) (int64, string, string, []string, error) {
 	var user struct {
 		ID    int64  `json:"id"`
 		Login string `json:"login"`
 	}
-	status, err := s.githubGet(ctx, token, "/user", &user)
+	status, err := s.githubGet(ctx, g, token, "/user", &user)
 	if err != nil {
 		return 0, "", "", nil, err
 	}
@@ -214,7 +221,7 @@ func (s *Server) githubRole(ctx context.Context, token string) (int64, string, s
 	var membership struct {
 		State string `json:"state"`
 	}
-	status, err = s.githubGet(ctx, token, "/user/memberships/orgs/"+url.PathEscape(g.Org), &membership)
+	status, err = s.githubGet(ctx, g, token, "/user/memberships/orgs/"+url.PathEscape(g.Org), &membership)
 	if err != nil {
 		return 0, "", "", nil, err
 	}
@@ -234,7 +241,7 @@ func (s *Server) githubRole(ctx context.Context, token string) (int64, string, s
 				Login string `json:"login"`
 			} `json:"organization"`
 		}
-		status, err := s.githubGet(ctx, token, fmt.Sprintf("/user/teams?per_page=100&page=%d", page), &list)
+		status, err := s.githubGet(ctx, g, token, fmt.Sprintf("/user/teams?per_page=100&page=%d", page), &list)
 		if err != nil {
 			return 0, "", "", nil, err
 		}
@@ -272,8 +279,7 @@ func roleForTeams(teams, adminTeams, viewerTeams []string) string {
 	return ""
 }
 
-func (s *Server) githubGet(ctx context.Context, token, path string, into any) (int, error) {
-	g := s.opts.GitHub
+func (s *Server) githubGet(ctx context.Context, g *GitHubOptions, token, path string, into any) (int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(g.APIURL, "/")+path, nil)
 	if err != nil {
 		return 0, err
@@ -301,7 +307,7 @@ func (s *Server) githubGet(ctx context.Context, token, path string, into any) (i
 // the account's role now, or "" when it may no longer log in, which ends its sessions. When
 // GitHub can't be reached, the account keeps its role until the next try.
 func (s *Server) recheckGitHub(ctx context.Context, user store.User) string {
-	if s.opts.GitHub == nil {
+	if s.github() == nil {
 		// GitHub login was turned off: its accounts have no other way in.
 		return ""
 	}
@@ -315,6 +321,10 @@ func (s *Server) recheckGitHub(ctx context.Context, user store.User) string {
 	}
 	failed := false
 	defer func() { s.endGitHubCheck(user.ID, failed) }()
+	l := s.currentLogin(ctx)
+	if l.github == nil {
+		return ""
+	}
 	token, err := s.store.GitHubToken(ctx, user.ID)
 	if errors.Is(err, store.ErrNotFound) {
 		return ""
@@ -326,17 +336,25 @@ func (s *Server) recheckGitHub(ctx context.Context, user store.User) string {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	_, _, role, teams, err := s.githubRole(ctx, token)
+	_, _, role, teams, err := s.githubRole(ctx, l.github, token)
 	if err != nil {
 		s.log.Warn("check GitHub teams", "username", user.Username, "error", err)
 		failed = true
 		return user.Role
 	}
 	if role == "" {
+		if s.loginStale(ctx, l) {
+			return user.Role
+		}
 		s.log.Info("GitHub account logged out: no longer in the teams", "username", user.Username)
 		return ""
 	}
-	if err := s.store.SetGitHubChecked(ctx, user.ID, role, teams); err != nil {
+	if err := s.store.SetGitHubChecked(ctx, user.ID, role, teams, l.version); err != nil {
+		if errors.Is(err, store.ErrLoginChanged) {
+			// Checked with settings another instance replaced: read them, and check again next time.
+			s.loginStale(ctx, l)
+			return user.Role
+		}
 		// The stored role stays as it was, so keep it until the next try: returning the new
 		// one would look like a change on every request, and close the user's streams each time.
 		s.log.Warn("check GitHub teams", "error", err)

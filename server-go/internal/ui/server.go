@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/holidays"
@@ -30,10 +31,24 @@ type Store interface {
 	UserByID(ctx context.Context, id int32) (store.User, error)
 	SetPassword(ctx context.Context, userID int32, passwordHash string, keep []byte) error
 	UpgradePasswordHash(ctx context.Context, userID int32, old, hash string) error
-	SaveGitHubUser(ctx context.Context, githubID int64, login, role, token string, teams []string) (store.User, error)
+	SaveGitHubUser(ctx context.Context, githubID int64, login, role, token string, teams []string, v store.LoginVersion) (store.User, error)
 	GitHubToken(ctx context.Context, userID int32) (string, error)
-	SetGitHubChecked(ctx context.Context, userID int32, role string, teams []string) error
+	SetGitHubChecked(ctx context.Context, userID int32, role string, teams []string, v store.LoginVersion) error
+	LoginChanged(ctx context.Context, v store.LoginVersion) (bool, error)
 	EndUserSessions(ctx context.Context, userID int32) error
+	LoginConfig(ctx context.Context) (store.LoginConfig, error)
+	SaveLoginConfig(ctx context.Context, c store.LoginConfig) error
+	AdminCanLogIn(ctx context.Context, methods store.LoginMethods) (bool, error)
+	ExpireGitHubChecks(ctx context.Context) error
+	LastSSOLogin(ctx context.Context, kind string) (string, *time.Time, error)
+	ExpireGoogleChecks(ctx context.Context) error
+	SaveGoogleUser(ctx context.Context, g store.GoogleUser, role, refreshToken string, v store.LoginVersion) (store.User, error)
+	GoogleToken(ctx context.Context, userID int32) (string, error)
+	SetGoogleChecked(ctx context.Context, userID int32, g store.GoogleUser, role string, v store.LoginVersion) error
+	ExpireOIDCChecks(ctx context.Context) error
+	SaveOIDCUser(ctx context.Context, o store.OIDCUser, role, refreshToken string, v store.LoginVersion) (store.User, error)
+	OIDCToken(ctx context.Context, userID int32) (string, error)
+	SetOIDCChecked(ctx context.Context, userID int32, o store.OIDCUser, role, refreshToken string, v store.LoginVersion) error
 	EndOtherUserSessions(ctx context.Context, userID int32, keep []byte) error
 	ListAccounts(ctx context.Context) ([]store.Account, error)
 	DeleteUser(ctx context.Context, userID int32, methods store.LoginMethods) (store.User, error)
@@ -67,14 +82,16 @@ type Store interface {
 	LatestBeats(ctx context.Context, monitorID int32, limit int) ([]store.Beat, error)
 	LatestBeatPerMonitor(ctx context.Context) ([]store.Beat, error)
 	BeatsSince(ctx context.Context, monitorID int32, since time.Time, limit int) ([]store.Beat, error)
-	ImportantBeats(ctx context.Context, monitorID *int32, offset, limit int) ([]store.Beat, error)
-	CountImportantBeats(ctx context.Context, monitorID *int32) (int64, error)
-	ClearEvents(ctx context.Context, monitorID int32) error
+	ImportantBeats(ctx context.Context, monitorID *int32, filter store.EventFilter, offset, limit int) ([]store.Beat, error)
+	CountImportantBeats(ctx context.Context, monitorID *int32, filter store.EventFilter) (int64, error)
+	ClearEvents(ctx context.Context, monitorID *int32) error
+	BulkEditMonitors(ctx context.Context, e store.BulkEdit) ([]monitor.Monitor, error)
 	ClearMonitorStats(ctx context.Context, monitorID int32) error
 	ClearAllStats(ctx context.Context) error
 	DatabaseSize(ctx context.Context) (int64, error)
 	SetRetention(ctx context.Context, days int) error
 	Chart(ctx context.Context, monitorID int32, hours int) ([]store.ChartPoint, error)
+	ChartRange(ctx context.Context, monitorID int32, from, to time.Time) ([]store.ChartPoint, error)
 	Stats(ctx context.Context) ([]store.MonitorStats, error)
 
 	ListNotifications(ctx context.Context) ([]store.Notification, error)
@@ -84,6 +101,7 @@ type Store interface {
 	DeleteNotification(ctx context.Context, id int32) error
 	SetMonitorNotifications(ctx context.Context, monitorID int32, ids []int32) error
 	AllMonitorNotificationIDs(ctx context.Context) (map[int32][]int32, error)
+	LinkDefaultNotifications(ctx context.Context, monitorID int32) error
 
 	ListTags(ctx context.Context) ([]store.Tag, error)
 	CreateTag(ctx context.Context, name, color string) (store.Tag, error)
@@ -151,9 +169,26 @@ type Options struct {
 	GitHub *GitHubOptions
 	// DisablePasswordLogin refuses logging in with a password, once GitHub login works.
 	DisablePasswordLogin bool
+	// Google turns on logging in with Google. Its endpoints are set from GoogleEndpoint.
+	Google *GoogleOptions
+	// GoogleEndpoint replaces Google's addresses, for tests: <it>/o/oauth2/v2/auth, /token and
+	// /v1/userinfo. Empty means Google's.
+	GoogleEndpoint string
+	// OIDC turns on logging in with an OpenID Connect provider.
+	OIDC *OIDCOptions
+	// LoginFromEnv means environment variables set how people log in, so Settings > Single
+	// Sign-On only shows it. GitHub, Google, OIDC or DisablePasswordLogin being set means it too.
+	LoginFromEnv bool
 	// IndexHTML is the web UI's index.html, which status pages are rendered into. Without it,
 	// /status/ answers 404, and the data is still at /api/status-page/.
 	IndexHTML []byte
+	// Checker runs the Edit Monitor form's test. Without it, the test isn't supported.
+	Checker Checker
+}
+
+// Checker runs one check.
+type Checker interface {
+	Run(ctx context.Context, m monitor.Monitor) monitor.Result
 }
 
 // Server serves the UI's API.
@@ -171,6 +206,10 @@ type Server struct {
 	// pages is nil when status pages aren't supported.
 	pages StatusPageStore
 	cache *publicCache
+	// subs sends incidents to status pages' subscribers.
+	subs *deliveries
+	// login is how people log in now: see sso.go.
+	login atomic.Pointer[loginState]
 
 	setupMu sync.Mutex
 
@@ -183,6 +222,10 @@ type Server struct {
 	githubMu       sync.Mutex
 	githubChecking map[int32]bool
 	githubFailed   map[int32]time.Time
+
+	// oidcCache keeps the OpenID Connect provider's discovery document and keys.
+	oidcMu    sync.Mutex
+	oidcCache *oidcProvider
 }
 
 // New creates the server.
@@ -209,10 +252,19 @@ func New(s Store, scheduler Scheduler, notifyEnv *notify.Env, log *slog.Logger, 
 		conns:       map[string]*conn{},
 		pages:       opts.StatusPages,
 		cache:       newPublicCache(),
+		subs:        newDeliveries(),
 
 		githubChecking: map[int32]bool{},
 		githubFailed:   map[int32]time.Time{},
 	}
+	if opts.Google != nil && opts.Google.TokenURL == "" {
+		googleEndpoints(opts.Google, opts.GoogleEndpoint)
+	}
+	fromEnv := opts.LoginFromEnv || opts.GitHub != nil || opts.Google != nil || opts.OIDC != nil || opts.DisablePasswordLogin
+	server.login.Store(&loginState{
+		github: opts.GitHub, google: opts.Google, oidc: opts.OIDC, password: !opts.DisablePasswordLogin,
+		fromEnv: fromEnv, version: store.LoginVersion{Env: fromEnv},
+	})
 	// A window started or ended, so open pages show its new status.
 	opts.Maintenance.OnChange(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), handlerTimeout)
@@ -236,6 +288,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/two-factor/verify-totp", s.sameOrigin(s.verifyTOTP))
 	mux.HandleFunc("GET /api/auth/github/start", s.githubStart)
 	mux.HandleFunc("GET /api/auth/github/callback", s.githubCallback)
+	mux.HandleFunc("GET /api/auth/google/start", s.googleStart)
+	mux.HandleFunc("GET /api/auth/google/callback", s.googleCallback)
+	mux.HandleFunc("GET /api/auth/oidc/start", s.oidcStart)
+	mux.HandleFunc("GET /api/auth/oidc/callback", s.oidcCallback)
 	mux.HandleFunc("/api/auth/", s.authNotSupported)
 	mux.HandleFunc("GET /api/realtime/stream", s.stream)
 	mux.HandleFunc("POST /api/realtime/send", s.sameOrigin(s.send))
@@ -243,6 +299,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /robots.txt", s.robots)
 	if s.pages != nil {
 		s.registerPublic(mux)
+		s.registerSubscriptions(mux)
 	} else {
 		mux.HandleFunc("GET /{$}", s.root)
 	}

@@ -28,11 +28,13 @@
         <div>
             {{ $t("For example: nginx, Apache and Traefik.") }}
             <br />
-            {{ $t("Please read") }}
-            <a href="https://github.com/louislam/uptime-kuma/wiki/Reverse-Proxy" target="_blank">
-                https://github.com/louislam/uptime-kuma/wiki/Reverse-Proxy
+            <a
+                href="https://github.com/pantheon-lab/uptime-kuma/tree/main/server-go#behind-a-reverse-proxy"
+                target="_blank"
+                rel="noopener"
+            >
+                {{ $t("reverseProxyGuideLink") }}
             </a>
-            .
         </div>
 
         <h4 class="my-4">{{ $t("HTTP Headers") }}</h4>

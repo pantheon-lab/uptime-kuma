@@ -1,7 +1,10 @@
 <template>
-    <div tabindex="-1" class="dropdown" @focusin="openMenu" @focusout="handleFocusOut">
+    <div tabindex="-1" class="dropdown" @focusin="openMenu" @focusout="handleFocusOut" @keydown.esc="close">
         <button
+            ref="toggle"
             type="button"
+            aria-haspopup="true"
+            :aria-expanded="open"
             class="filter-dropdown-status"
             :class="{ active: filterActive }"
             tabindex="0"
@@ -43,6 +46,20 @@ export default {
         openMenu() {
             this.$emit("openMenu");
             this.open = true;
+        },
+
+        /**
+         * Close the menu, leaving focus on its button
+         * @returns {void}
+         */
+        close() {
+            this.open = false;
+            // Focusing the button would open it again
+            this.$refs.toggle.blur();
+            this.$nextTick(() => {
+                this.$refs.toggle.focus({ preventScroll: true });
+                this.open = false;
+            });
         },
 
         handleFocusOut(e) {

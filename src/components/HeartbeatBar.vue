@@ -43,6 +43,7 @@ import { claimHeartbeatHistory, releaseHeartbeatHistory, shouldRequestHistory } 
 import dayjs from "dayjs";
 import { DOWN, UP, PENDING, MAINTENANCE } from "../util.ts";
 import Tooltip from "./Tooltip.vue";
+import { beatShape } from "../beat-shape";
 
 export default {
     components: {
@@ -284,14 +285,21 @@ export default {
          */
         canvasAriaLabel() {
             if (!this.shortBeatList || this.shortBeatList.length === 0) {
-                return "Heartbeat history: No data";
+                return this.$t("heartbeatBarNoData");
             }
 
             const validBeats = this.shortBeatList.filter((b) => b !== 0 && b !== null);
             const upCount = validBeats.filter((b) => Number(b.status) === UP).length;
             const downCount = validBeats.filter((b) => Number(b.status) === DOWN).length;
 
-            return `Heartbeat history: ${validBeats.length} checks, ${upCount} up, ${downCount} down`;
+            const count = (status) => validBeats.filter((b) => Number(b.status) === status).length;
+            return this.$t("heartbeatBarLabel", {
+                checks: validBeats.length,
+                up: upCount,
+                down: downCount,
+                pending: count(PENDING),
+                maintenance: count(MAINTENANCE),
+            });
         },
     },
     watch: {
@@ -613,12 +621,16 @@ export default {
             };
 
             // Draw each beat
+            const dark = this.$root.isDark;
             this.shortBeatList.forEach((beat, index) => {
                 const x = index * beatFullWidth + this.beatHoverAreaPadding;
                 const isHovered = index === this.hoveredBeatIndex;
+                const empty = beat === 0 || beat === null || beat?.status === null;
+                // Status by shape as well as colour, with an edge where the fill is too pale
+                const shape = beatShape(empty ? null : Number(beat.status), dark);
 
                 let width = this.beatWidth;
-                let height = this.beatHeight;
+                let height = this.beatHeight * shape.height;
                 let offsetX = x;
                 let offsetY = centerY - height / 2;
 
@@ -634,12 +646,25 @@ export default {
                 const borderRadius = width / 2;
 
                 // Get color based on beat status
-                let color = this.getBeatColor(beat, colors);
+                let color = shape.fill ?? this.getBeatColor(beat, colors);
 
                 // Draw beat rectangle
-                ctx.fillStyle = color;
-                this.roundRect(ctx, offsetX, offsetY, width, height, borderRadius);
-                ctx.fill();
+                if (shape.hollow) {
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 2;
+                    this.roundRect(ctx, offsetX + 1, offsetY + 1, width - 2, height - 2, borderRadius - 1);
+                    ctx.stroke();
+                } else {
+                    ctx.fillStyle = color;
+                    this.roundRect(ctx, offsetX, offsetY, width, height, borderRadius);
+                    ctx.fill();
+                }
+                if (shape.edge) {
+                    ctx.strokeStyle = shape.edge;
+                    ctx.lineWidth = 1;
+                    this.roundRect(ctx, offsetX + 0.5, offsetY + 0.5, width - 1, height - 1, borderRadius - 0.5);
+                    ctx.stroke();
+                }
 
                 // Apply hover opacity
                 if (isHovered && beat !== 0) {
@@ -648,6 +673,9 @@ export default {
                     this.roundRect(ctx, offsetX, offsetY, width, height, borderRadius);
                     ctx.fill();
                     ctx.globalAlpha = 1;
+                }
+                if (shape.notch) {
+                    ctx.clearRect(offsetX - 1, centerY - 1.5, width + 2, 3);
                 }
             });
         },

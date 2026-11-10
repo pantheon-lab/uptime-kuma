@@ -51,7 +51,7 @@ func (c *Checker) runDNS(ctx context.Context, m monitor.Monitor) monitor.Result 
 	}
 	ping := elapsedMs(start)
 	msg := dnsMessage(m.DNSResolveType, answers)
-	if c.dnsResults != nil {
+	if c.dnsResults != nil && !isDryRun(ctx) {
 		if err := c.dnsResults.SetDNSLastResult(ctx, m.ID, monitor.SanitizeMsg(msg)); err != nil {
 			slog.Warn("store DNS result", "monitor", m.ID, "error", err)
 		}

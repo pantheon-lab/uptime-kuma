@@ -5,8 +5,12 @@
                 {{ $root.connectionErrorMsg }}
                 <div v-if="$root.showReverseProxyGuide">
                     {{ $t("Using a Reverse Proxy?") }}
-                    <a href="https://github.com/louislam/uptime-kuma/wiki/Reverse-Proxy" target="_blank">
-                        {{ $t("Check how to config it for WebSocket") }}
+                    <a
+                        href="https://github.com/pantheon-lab/uptime-kuma/tree/main/server-go#behind-a-reverse-proxy"
+                        target="_blank"
+                        rel="noopener"
+                    >
+                        {{ $t("reverseProxyGuideLink") }}
                     </a>
                 </div>
             </div>
@@ -33,6 +37,12 @@
             </a>
 
             <ul class="nav nav-pills">
+                <li v-if="$root.loggedIn && !$root.canEdit" class="nav-item me-3 d-flex align-items-center">
+                    <span class="view-only-badge" data-testid="view-only-badge" :title="$t('viewOnlyHelp')">
+                        <font-awesome-icon icon="eye" class="me-1" />
+                        {{ $t("viewOnly") }}
+                    </span>
+                </li>
                 <li v-if="$root.loggedIn" class="nav-item me-2">
                     <router-link to="/manage-status-page" class="nav-link">
                         <font-awesome-icon icon="stream" />
@@ -47,10 +57,18 @@
                 </li>
                 <li v-if="$root.loggedIn" class="nav-item">
                     <div class="dropdown dropdown-profile-pic">
-                        <div class="nav-link" data-bs-toggle="dropdown">
-                            <div class="profile-pic">{{ $root.usernameFirstChar }}</div>
+                        <!-- A button, so that the keyboard reaches it and opens it -->
+                        <button
+                            type="button"
+                            class="nav-link"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            data-testid="account-menu"
+                            :aria-label="$t('accountMenu', [$root.username ?? ''])"
+                        >
+                            <span class="profile-pic" aria-hidden="true">{{ $root.usernameFirstChar }}</span>
                             <font-awesome-icon icon="angle-down" />
-                        </div>
+                        </button>
 
                         <!-- Header's Dropdown Menu -->
                         <ul class="dropdown-menu">
@@ -96,13 +114,26 @@
 
                             <li>
                                 <a
-                                    href="https://github.com/louislam/uptime-kuma/wiki"
+                                    href="https://github.com/pantheon-lab/uptime-kuma/tree/main/server-go#readme"
                                     class="dropdown-item"
                                     target="_blank"
+                                    rel="noopener"
                                 >
                                     <font-awesome-icon icon="info-circle" />
                                     {{ $t("Help") }}
                                 </a>
+                            </li>
+
+                            <li>
+                                <button
+                                    type="button"
+                                    class="dropdown-item"
+                                    data-testid="menu-shortcuts"
+                                    @click="$root.emitter.emit('showShortcutsHelp')"
+                                >
+                                    <font-awesome-icon icon="keyboard" />
+                                    {{ $t("Keyboard shortcuts") }}
+                                </button>
                             </li>
 
                             <li v-if="$root.loggedIn">
@@ -130,8 +161,23 @@
             <Login v-if="!$root.loggedIn && $root.allowLoginDialog" />
         </main>
 
+        <!-- Kept mounted while the login is checked again, so that an open one isn't torn down -->
+        <CommandPalette />
+        <ShortcutsHelp />
+
         <!-- Mobile Only -->
+        <div
+            v-if="$root.isMobile && $root.loggedIn && !$root.canEdit"
+            class="view-only-strip"
+            data-testid="view-only-badge"
+            role="note"
+        >
+            <font-awesome-icon icon="eye" class="me-1" />
+            {{ $t("viewOnlyHelp") }}
+        </div>
         <div v-if="$root.isMobile" style="width: 100%; height: calc(60px + env(safe-area-inset-bottom))" />
+        <!-- Room for the viewer's note above the navigation -->
+        <div v-if="$root.isMobile && $root.loggedIn && !$root.canEdit" style="height: 28px" />
         <nav v-if="$root.isMobile && $root.loggedIn" class="bottom-nav">
             <router-link to="/dashboard" class="nav-link">
                 <div><font-awesome-icon icon="tachometer-alt" /></div>
@@ -167,6 +213,8 @@
 
 <script>
 import Login from "../components/Login.vue";
+import CommandPalette from "../components/CommandPalette.vue";
+import ShortcutsHelp from "../components/ShortcutsHelp.vue";
 import compareVersions from "compare-versions";
 import { useToast } from "vue-toastification";
 const toast = useToast();
@@ -174,6 +222,8 @@ const toast = useToast();
 export default {
     components: {
         Login,
+        CommandPalette,
+        ShortcutsHelp,
     },
 
     data() {
@@ -239,6 +289,41 @@ export default {
 
 <style lang="scss" scoped>
 @import "../assets/vars.scss";
+
+.view-only-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 50rem;
+    font-size: 13px;
+    font-weight: 600;
+    color: $dark-font-color2;
+    background-color: rgba($secondary-text, 0.12);
+    cursor: help;
+
+    .dark & {
+        color: $dark-font-color;
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+}
+
+.view-only-strip {
+    position: fixed;
+    bottom: calc(60px + env(safe-area-inset-bottom));
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    padding: 4px 12px;
+    font-size: 12px;
+    text-align: center;
+    color: $dark-font-color2;
+    background-color: #eef2f7;
+
+    .dark & {
+        color: $dark-font-color;
+        background-color: $dark-header-bg;
+    }
+}
 
 .nav-link {
     &:hover {
@@ -328,6 +413,7 @@ main {
         display: flex;
         gap: 6px;
         align-items: center;
+        border: 0;
         background-color: rgba(200, 200, 200, 0.2);
         padding: 0.5rem 0.8rem;
 

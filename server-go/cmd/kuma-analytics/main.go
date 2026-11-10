@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -310,13 +311,26 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	googleLogin, err := googleOptions()
+	if err != nil {
+		return err
+	}
+	oidcLogin, err := oidcOptions()
+	if err != nil {
+		return err
+	}
 	passwordLogin := os.Getenv("KUMA_PASSWORD_LOGIN") == "" || envTrue(os.Getenv("KUMA_PASSWORD_LOGIN"))
-	if !passwordLogin && githubLogin == nil {
-		return errors.New("KUMA_PASSWORD_LOGIN=false needs GitHub login, or nobody could log in")
+	loginFromEnv := os.Getenv("KUMA_PASSWORD_LOGIN") != "" || githubLogin != nil || googleLogin != nil || oidcLogin != nil
+	if !passwordLogin && githubLogin == nil && googleLogin == nil && oidcLogin == nil {
+		return errors.New("KUMA_PASSWORD_LOGIN=false needs GitHub, Google or OpenID Connect login, or nobody could log in")
 	}
 	uiServer := ui.New(db, sched, notifyEnv, log, ui.Options{
 		GitHub:               githubLogin,
 		DisablePasswordLogin: !passwordLogin,
+		Google:               googleLogin,
+		OIDC:                 oidcLogin,
+		GoogleEndpoint:       os.Getenv("KUMA_GOOGLE_ENDPOINT"),
+		LoginFromEnv:         loginFromEnv,
 		Updates:              updateChecker,
 		PasswordLeaked:       passwordLeaked,
 		Version:              version,
@@ -326,10 +340,16 @@ func run(log *slog.Logger) error {
 		StatusPages:          db,
 		IndexHTML:            webui.IndexHTML(),
 		Domains:              domainService,
+		Checker:              checker,
 	})
 	if err := createInitialAdmin(ctx, uiServer, log); err != nil {
 		return err
 	}
+	// Login settings saved in Settings > Single Sign-On, when no environment variable sets them.
+	if err := uiServer.LoadLoginConfig(ctx); err != nil {
+		return err
+	}
+	go uiServer.WatchLoginConfig(ctx)
 	go uiServer.Run(ctx, hub)
 	certService.OnChange(uiServer.BroadcastCertInfo)
 	domainService.OnChange(uiServer.BroadcastDomainInfo)
@@ -414,6 +434,78 @@ func createInitialAdmin(ctx context.Context, server *ui.Server, log *slog.Logger
 		log.Info("an account exists, so KUMA_INITIAL_ADMIN_USERNAME and KUMA_INITIAL_ADMIN_PASSWORD are ignored")
 	}
 	return nil
+}
+
+// envList reads a comma-separated list, lowercase, without blanks.
+func envList(name string) []string {
+	var out []string
+	for _, v := range strings.Split(os.Getenv(name), ",") {
+		if v = strings.ToLower(strings.TrimSpace(v)); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// googleOptions reads the Google login settings, or returns nil when KUMA_GOOGLE_CLIENT_ID isn't set.
+func googleOptions() (*ui.GoogleOptions, error) {
+	id := strings.TrimSpace(os.Getenv("KUMA_GOOGLE_CLIENT_ID"))
+	if id == "" {
+		return nil, nil
+	}
+	g := &ui.GoogleOptions{
+		ClientID:     id,
+		ClientSecret: os.Getenv("KUMA_GOOGLE_CLIENT_SECRET"),
+		Domains:      envList("KUMA_GOOGLE_DOMAINS"),
+		AdminEmails:  envList("KUMA_GOOGLE_ADMIN_EMAILS"),
+		ViewerEmails: envList("KUMA_GOOGLE_VIEWER_EMAILS"),
+	}
+	switch {
+	case g.ClientSecret == "":
+		return nil, errors.New("KUMA_GOOGLE_CLIENT_SECRET is required with KUMA_GOOGLE_CLIENT_ID")
+	case len(g.AdminEmails) == 0 && len(g.ViewerEmails) == 0:
+		return nil, errors.New("set KUMA_GOOGLE_ADMIN_EMAILS or KUMA_GOOGLE_VIEWER_EMAILS, the addresses that may log in with Google")
+	case slices.Contains(g.ViewerEmails, "*") && len(g.Domains) == 0:
+		return nil, errors.New("KUMA_GOOGLE_VIEWER_EMAILS=* needs KUMA_GOOGLE_DOMAINS, or anyone with a Google account could log in")
+	}
+	return g, nil
+}
+
+// oidcOptions reads the OpenID Connect login settings, or returns nil when KUMA_OIDC_ISSUER isn't set.
+func oidcOptions() (*ui.OIDCOptions, error) {
+	issuer := strings.TrimRight(strings.TrimSpace(os.Getenv("KUMA_OIDC_ISSUER")), "/")
+	if issuer == "" {
+		return nil, nil
+	}
+	// Groups keep their case: some providers' are ids.
+	groups := func(name string) []string {
+		var out []string
+		for _, v := range strings.Split(os.Getenv(name), ",") {
+			if v = strings.TrimSpace(v); v != "" {
+				out = append(out, v)
+			}
+		}
+		return out
+	}
+	o := &ui.OIDCOptions{
+		Name:         cmp.Or(strings.TrimSpace(os.Getenv("KUMA_OIDC_NAME")), "single sign-on"),
+		Issuer:       issuer,
+		ClientID:     strings.TrimSpace(os.Getenv("KUMA_OIDC_CLIENT_ID")),
+		ClientSecret: os.Getenv("KUMA_OIDC_CLIENT_SECRET"),
+		Scopes:       groups("KUMA_OIDC_SCOPES"),
+		GroupsClaim:  strings.TrimSpace(os.Getenv("KUMA_OIDC_GROUPS_CLAIM")),
+		AdminGroups:  groups("KUMA_OIDC_ADMIN_GROUPS"),
+		ViewerGroups: groups("KUMA_OIDC_VIEWER_GROUPS"),
+		AdminEmails:  envList("KUMA_OIDC_ADMIN_EMAILS"),
+		ViewerEmails: envList("KUMA_OIDC_VIEWER_EMAILS"),
+	}
+	switch {
+	case o.ClientID == "" || o.ClientSecret == "":
+		return nil, errors.New("KUMA_OIDC_CLIENT_ID and KUMA_OIDC_CLIENT_SECRET are required with KUMA_OIDC_ISSUER")
+	case len(o.AdminGroups)+len(o.ViewerGroups)+len(o.AdminEmails)+len(o.ViewerEmails) == 0:
+		return nil, errors.New("set KUMA_OIDC_ADMIN_GROUPS, KUMA_OIDC_VIEWER_GROUPS, KUMA_OIDC_ADMIN_EMAILS or KUMA_OIDC_VIEWER_EMAILS: who may log in")
+	}
+	return o, nil
 }
 
 // githubOptions reads the GitHub login settings, or returns nil when KUMA_GITHUB_CLIENT_ID isn't set.

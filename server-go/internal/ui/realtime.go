@@ -245,7 +245,7 @@ func (s *Server) loginStillValid(ctx context.Context, login *userInfo) bool {
 		s.log.Warn("check realtime session", "error", err)
 		return true
 	}
-	user, allowed, err := s.checkGitHubAccount(ctx, user)
+	user, allowed, err := s.checkSSOAccount(ctx, user)
 	if err != nil {
 		s.log.Warn("check realtime session", "error", err)
 		return true
@@ -363,6 +363,7 @@ func (s *Server) dispatch(c *conn, m inMessage) {
 
 // Close ends every stream, which graceful shutdown would otherwise wait for.
 func (s *Server) Close() {
+	s.stopDeliveries()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, c := range s.conns {

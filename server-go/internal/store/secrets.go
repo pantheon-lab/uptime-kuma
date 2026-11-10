@@ -121,6 +121,36 @@ var secretColumns = []secretColumn{
 		update: `UPDATE proxy SET password = $2 WHERE id = $1::int AND password = $3`,
 	},
 	{
+		name: "status page webhooks", table: "status_page_subscriber", column: "address",
+		list:   `SELECT id::text, address FROM status_page_subscriber WHERE kind = 'webhook'`,
+		update: `UPDATE status_page_subscriber SET address = $2 WHERE id = $1::int AND address = $3`,
+	},
+	{
+		name: "Google tokens", table: "app_user", column: "google_token",
+		list:   `SELECT id::text, google_token FROM app_user WHERE google_token IS NOT NULL AND google_token <> ''`,
+		update: `UPDATE app_user SET google_token = $2 WHERE id = $1::int AND google_token = $3`,
+	},
+	{
+		name: "OpenID Connect tokens", table: "app_user", column: "oidc_token",
+		list:   `SELECT id::text, oidc_token FROM app_user WHERE oidc_token IS NOT NULL AND oidc_token <> ''`,
+		update: `UPDATE app_user SET oidc_token = $2 WHERE id = $1::int AND oidc_token = $3`,
+	},
+	{
+		name: "the OpenID Connect client secret", table: "login_config", column: "oidc_client_secret",
+		list:   `SELECT id::text, oidc_client_secret FROM login_config WHERE oidc_client_secret <> ''`,
+		update: `UPDATE login_config SET oidc_client_secret = $2 WHERE id = $1::int AND oidc_client_secret = $3`,
+	},
+	{
+		name: "the Google client secret", table: "login_config", column: "google_client_secret",
+		list:   `SELECT id::text, google_client_secret FROM login_config WHERE google_client_secret <> ''`,
+		update: `UPDATE login_config SET google_client_secret = $2 WHERE id = $1::int AND google_client_secret = $3`,
+	},
+	{
+		name: "the GitHub client secret", table: "login_config", column: "github_client_secret",
+		list:   `SELECT id::text, github_client_secret FROM login_config WHERE github_client_secret <> ''`,
+		update: `UPDATE login_config SET github_client_secret = $2 WHERE id = $1::int AND github_client_secret = $3`,
+	},
+	{
 		name: "the VAPID private key", table: "app_setting", column: "value", jsonString: true,
 		list:   `SELECT key, value::text FROM app_setting WHERE key = '` + WebpushPrivateKeySetting + `'`,
 		update: `UPDATE app_setting SET value = $2::jsonb WHERE key = $1 AND value = $3::jsonb`,

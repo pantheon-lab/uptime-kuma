@@ -146,10 +146,17 @@ func collectBeats(rows pgx.Rows) ([]Beat, error) {
 // follows the window: 1 minute up to 6h, 5 minutes up to 24h, hourly up to 30
 // days, then daily.
 func (s *Store) Chart(ctx context.Context, monitorID int32, hours int) ([]ChartPoint, error) {
+	now := time.Now()
+	return s.ChartRange(ctx, monitorID, now.Add(-time.Duration(hours)*time.Hour), now)
+}
+
+// ChartRange returns buckets between from and to, oldest first, at the
+// resolution Chart uses for a window of that length.
+func (s *Store) ChartRange(ctx context.Context, monitorID int32, from, to time.Time) ([]ChartPoint, error) {
 	const aggregated = `
 		SELECT bucket, up::bigint, down::bigint, maintenance::bigint,
 		       ping_sum / NULLIF(ping_count, 0), min_ping, max_ping
-		FROM %s WHERE monitor_id = $1 AND bucket >= now() - make_interval(hours => $2)
+		FROM %s WHERE monitor_id = $1 AND bucket >= $2 AND bucket <= $3
 		ORDER BY bucket`
 	const fromRaw = `
 		SELECT time_bucket(INTERVAL '%s', time) AS bucket,
@@ -159,22 +166,22 @@ func (s *Store) Chart(ctx context.Context, monitorID int32, hours int) ([]ChartP
 		       avg(ping) FILTER (WHERE status = 1),
 		       min(ping) FILTER (WHERE status = 1),
 		       max(ping) FILTER (WHERE status = 1)
-		FROM heartbeat WHERE monitor_id = $1 AND time >= now() - make_interval(hours => $2)
+		FROM heartbeat WHERE monitor_id = $1 AND time >= $2 AND time <= $3
 		GROUP BY bucket ORDER BY bucket`
 
 	var query string
-	switch {
-	case hours <= 6:
+	switch span := to.Sub(from); {
+	case span <= 6*time.Hour:
 		query = fmt.Sprintf(fromRaw, "1 minute")
-	case hours <= 24:
+	case span <= 24*time.Hour:
 		query = fmt.Sprintf(fromRaw, "5 minutes")
-	case hours <= 24*30:
+	case span <= 30*24*time.Hour:
 		query = fmt.Sprintf(aggregated, "uptime_hourly")
 	default:
 		query = fmt.Sprintf(aggregated, "uptime_daily")
 	}
 
-	rows, err := s.pool.Query(ctx, query, monitorID, hours)
+	rows, err := s.pool.Query(ctx, query, monitorID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("query chart: %w", err)
 	}

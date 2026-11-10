@@ -22,14 +22,16 @@ on the same port as the API. `/api/v1/` and `/healthz` are the REST API, `/api/a
 On first start, open the UI and create the account, or set `KUMA_INITIAL_ADMIN_USERNAME` and
 `KUMA_INITIAL_ADMIN_PASSWORD` to have it made at start. Setup is only offered for **10 minutes after the
 service starts**, so that a stranger can't claim a server someone forgot to set up; restart the service if
-the window has passed. The account made at setup is an admin, which can do everything.
+the window has passed. The account made at setup is an admin, which can do everything. On a new server, the
+dashboard has a **Getting started** guide to adding the first monitor, notification and status page.
 
 Accounts can also be **viewers**, which can look at monitors, beats, maintenance windows and status pages, but
 can't change anything, and aren't sent credentials. The server enforces this: a viewer's page gets monitors without
 URLs' credentials and query strings, headers, bodies, connection strings, push tokens or passwords, and empty lists
 of notifications, proxies, Docker hosts and remote browsers, and every event that would change something, or read
-settings or API keys, is refused. The UI hides those buttons, and sends a viewer back from settings and forms,
-except Settings > Security, for their own password, two-factor login and GitHub teams.
+settings or API keys, is refused. The UI hides those buttons, shows a **View only** badge, and sends a viewer from settings and forms to the
+nearest page that only shows, saying why. Settings > Security stays open to them, for their own password,
+two-factor login and GitHub teams.
 Accounts other than the setup one come from logging in with GitHub.
 
 **Settings > Accounts** lists every account, for admins: its role, whether it logs in with GitHub or a password, its
@@ -37,6 +39,49 @@ last login and its open sessions. An admin can end an account's sessions, remove
 role; a GitHub account's role follows its teams. Removing a GitHub account lasts only until its next login while it's
 still in the teams. No change may leave no admin who can log in, and admins can't remove or demote themselves. Each
 change is logged with who made it.
+
+### Editing and importing many monitors
+
+To change several monitors at once, tick the box above the monitor list, choose the monitors, then **Actions >
+Edit…**: the interval, retry interval and retries, notifications to add or remove, and tags to add with a value or
+remove. Only what's changed there changes, and a value that one monitor refuses changes none of them.
+
+**Import**, beside Add New Monitor, adds monitors from a CSV or YAML file with the [REST API's fields](#managing-monitors).
+CSV has a header row of field names, and an empty cell leaves the default:
+
+```csv
+name,type,url,interval,hostname,port,acceptedStatusCodes
+Shop,http,https://shop.example.com,60,,,200-299;301
+Database,port,,30,db.internal,5432,
+```
+
+YAML is a list of monitors, or has a `monitors` list. **Check** shows what's wrong with each row, and nothing is added
+until every monitor is valid. Imported monitors get the default notifications.
+
+To export monitors, list them with the REST API and an API key with `monitors:write` (with only
+`monitors:read`, passwords and tokens come redacted). The file imports again as it is:
+
+```bash
+curl -s -H "Authorization: Bearer $KEY" "http://localhost:3002/api/v1/monitors?limit=1000" > monitors.json
+```
+
+A `parentId` is the group's ID on the server it came from, and push tokens must be unique, so importing into the same
+server needs those changed or removed. Notifications and tags aren't in the file.
+
+The Edit Monitor form's **Test** runs one check of the monitor as the form has it, without saving it.
+
+### A prompt for an AI agent
+
+When a monitor is down or pending, its page has **Prompt for an AI agent**, and when any are down the dashboard has
+one for all of them. It writes up the failure in Markdown, to copy or download and give to an agent such as Claude
+Code: what the monitor checks and how often, its state and since when, the latest message, the recent checks and
+status changes, uptime, the certificate, the trace ID of the latest failed check, which leads to its trace in Tempo,
+and commands to reproduce the check, such as `curl`, `dig`, `openssl s_client` or `nc`. For several monitors, it
+asks first whether they share a cause.
+
+It's built in the browser from an allowlist of the monitor's fields, so passwords, tokens, header values, bodies,
+connection strings, push tokens and keys never go in. User names, passwords and query values whose names look like
+secrets are removed from addresses and messages, and the commands say where to put them back.
 
 ### Logging in with GitHub
 
@@ -47,19 +92,98 @@ minutes, so it needs no new request to find out. When GitHub can't be reached, t
 checked again ten minutes later. Two-factor login is left to GitHub, where
 the organization can require it.
 
+Admins set it up under **Settings > Single Sign-On**, and changes apply at once:
+
 1. In the organization's settings, under Developer settings > OAuth Apps, register an app with the callback URL
-   `https://<this server>/api/auth/github/callback`.
-2. Set `KUMA_GITHUB_CLIENT_ID`, `KUMA_GITHUB_CLIENT_SECRET` and `KUMA_GITHUB_ORG`, and the team slugs:
-   `KUMA_GITHUB_ADMIN_TEAMS` for admins and `KUMA_GITHUB_VIEWER_TEAMS` for viewers, comma-separated. A viewer
-   team of `*` lets every member of the organization look.
-3. Once it works, `KUMA_PASSWORD_LOGIN=false` turns the password off, which then only stays as a way in when
-   GitHub is down, after it's turned back on.
+   the page shows: `https://<this server>/api/auth/github/callback`.
+2. Turn on **Allow logging in with GitHub**, and enter the app's client ID and secret, the organization, and the
+   team slugs: admin teams and viewer teams. A viewer team of `*` lets every member of the organization look.
+   For GitHub Enterprise Server, enter its web and API addresses.
+3. Log in with GitHub as an admin. Only then can **Allow logging in with a password** be turned off, and only
+   from that login, so that GitHub login is known to work first. While passwords are off, GitHub's settings
+   can't change: turn passwords back on first, so that a wrong organization or team can't lock everyone out. No
+   change may leave no admin who can log in.
+
+Changing the organization, the teams or the app makes every GitHub account's teams due for a check at its next
+request. Turning GitHub login off ends its accounts' sessions at their next request, and keeps the settings, secret
+included, to turn it on again. The client secret is stored encrypted, like other secrets, and never sent to
+browsers. Other instances of the service read the settings within 30 seconds.
+
+The settings can be set by environment variables instead, for deployments managed as code. When any of
+`KUMA_GITHUB_CLIENT_ID`, `KUMA_GOOGLE_CLIENT_ID`, `KUMA_OIDC_ISSUER` or `KUMA_PASSWORD_LOGIN` is set, those win, and the page shows them read-only:
+`KUMA_GITHUB_CLIENT_ID`, `KUMA_GITHUB_CLIENT_SECRET`, `KUMA_GITHUB_ORG`, `KUMA_GITHUB_ADMIN_TEAMS` and
+`KUMA_GITHUB_VIEWER_TEAMS` (comma-separated), and `KUMA_PASSWORD_LOGIN=false`.
 
 The app asks for the `read:org` scope, to read team membership. Each GitHub user gets an account named `@login` at
 their first login, so password accounts can't start with `@`; `kuma-import` drops a leading `@` from the imported
 account's name, and says so in its report. The token is stored, as the password hashes are, to
 check the teams again; it's never sent to browsers. Setup isn't offered once someone has logged in with GitHub.
-`KUMA_GITHUB_URL` and `KUMA_GITHUB_API_URL` point at a GitHub Enterprise server instead.
+With environment variables, `KUMA_GITHUB_URL` and `KUMA_GITHUB_API_URL` point at a GitHub Enterprise server.
+
+### Logging in with Google
+
+With a Google OAuth client, the login page offers "Log in with Google" too, set up under **Settings > Single
+Sign-On**. Google says who someone is: their verified email and, for a Google Workspace account, its domain. That
+domain comes from Google's `hd` claim, not the email's suffix, so a personal Google account using the same email
+domain doesn't count.
+
+1. In the Google Cloud console, under APIs & Services > Credentials, create an OAuth client ID of type "Web
+   application", with the authorized redirect URI the page shows: `https://<this server>/api/auth/google/callback`.
+   For a Workspace organization, an "Internal" OAuth consent screen keeps everyone else out at Google's end too.
+2. Turn on **Allow logging in with Google**, and enter the client ID and secret, the **admin emails** and
+   **viewer emails**. A viewer email of `*` lets everyone in the listed **Google Workspace domains** view; it needs
+   at least one domain, or anyone with a Google account could log in.
+3. Log in with Google before turning passwords off, as for GitHub. An admin logged in with either GitHub or Google
+   can turn them off, and that provider's settings then can't change until passwords are back on.
+
+Each account is named by its email. If a password account already has that name, the Google login is refused
+rather than taking it over. Google sends a refresh token at the first consent, which is kept encrypted, and once a
+day while the account is used, Google is asked about it again: an account that was suspended or deleted in
+Workspace, or that revoked access, is logged out, and its role follows the lists as they are then. An account
+whose refresh token Google didn't send (because the person had already consented before) is checked against the
+lists only. Changing the lists applies at each account's next request. Two-factor login is left to Google.
+
+With environment variables instead: `KUMA_GOOGLE_CLIENT_ID`, `KUMA_GOOGLE_CLIENT_SECRET`, `KUMA_GOOGLE_DOMAINS`,
+`KUMA_GOOGLE_ADMIN_EMAILS` and `KUMA_GOOGLE_VIEWER_EMAILS` (comma-separated). Setting `KUMA_GOOGLE_CLIENT_ID`
+makes the page read-only, as for GitHub.
+
+### Logging in with OpenID Connect
+
+Any OpenID Connect provider can be the login page's third way in, such as Okta, Microsoft Entra ID, Keycloak,
+Authentik or Auth0, set up under **Settings > Single Sign-On** with a name for its button.
+
+1. In the provider, register a web application (a confidential client) using the authorization code flow, with
+   the redirect URI the page shows: `https://<this server>/api/auth/oidc/callback`.
+2. Enter the provider's **issuer**, the address its `/.well-known/openid-configuration` is under, and press
+   **Check** to read it. Then the client ID and secret, and who may log in: **admin groups** and **viewer groups**,
+   **admin emails** and **viewer emails**. A viewer group of `*` lets everyone the provider logs in view, so it's
+   only for a provider that holds your organization alone.
+3. Log in with it before turning passwords off, as for GitHub and Google.
+
+How it works:
+
+- The login is the authorization code flow with PKCE, a state and a nonce. The client authenticates to the token
+  endpoint with HTTP Basic, or in the form if the provider supports only that. The ID token is verified with the
+  provider's published keys (RS256, RS384, RS512, PS256, PS384, PS512, ES256, ES384, ES512): its signature,
+  issuer, audience, authorized party, expiry and nonce. The discovery document and keys are kept 10 minutes, and
+  the keys are read again for a key id they don't have, such as after the provider rotates them.
+- **Groups** come from the `groups` claim, or another one under **Scopes and claims**, in the ID token or the
+  userinfo endpoint. They compare as the provider writes them: names in Okta or Keycloak, object ids in Entra ID.
+  Some providers send groups only when asked for a scope, such as `groups`, which goes under **Scopes**.
+- **Emails** count only when the provider says they're verified (`email_verified`), both for the email lists
+  and as the account's name: with some providers a user or tenant can set any email. Entra ID doesn't send the
+  claim, so with it, decide roles by groups.
+- **Accounts** are named by their email, or else the preferred username or subject, and keyed by the issuer and
+  subject. A login is refused rather than taking over another account with that name. Changing the issuer logs
+  the old issuer's accounts out.
+- **The daily check:** with a refresh token, which some providers give only for the `offline_access` scope, the
+  provider is asked again once a day while the account is used. A refused refresh token logs it out, new groups
+  apply, and a rotated refresh token is kept. Without one, the settings decide from what the provider said last.
+
+With environment variables instead: `KUMA_OIDC_ISSUER`, `KUMA_OIDC_NAME`, `KUMA_OIDC_CLIENT_ID`,
+`KUMA_OIDC_CLIENT_SECRET`, `KUMA_OIDC_SCOPES`, `KUMA_OIDC_GROUPS_CLAIM`, `KUMA_OIDC_ADMIN_GROUPS`,
+`KUMA_OIDC_VIEWER_GROUPS`, `KUMA_OIDC_ADMIN_EMAILS` and `KUMA_OIDC_VIEWER_EMAILS` (lists comma-separated).
+Setting `KUMA_OIDC_ISSUER` makes the page read-only.
 
 What works in the UI: logging in and out, two-factor login, changing the password, API keys, the dashboard with live beats, uptime and
 response times, the event list, adding, editing, pausing and deleting the monitor types above, charts, notifications (add, edit, test, delete, defaults), maintenance windows with public
@@ -285,6 +409,52 @@ address is shown only if **Show Clickable Link** is on, and without any user nam
 - **Caching:** public answers are kept for up to a minute, and beats for 30 seconds. Changes made in the UI
   clear them at once.
 
+### Incidents, subscribers and coming maintenance
+
+- **Incident templates:** the incident form's **Templates** menu fills it from a saved template or a starter
+  (investigating, identified, monitoring, planned maintenance). **Save as a template** keeps the form, replacing
+  the template with its title. Templates are shared by every page.
+- **Coming maintenance:** a maintenance window linked to the page shows a banner from a week before it starts,
+  with its times in the reader's own time zone.
+- **Subscribers** get a page's incidents when they're posted with **Send to subscribers** ticked, and again when
+  they're resolved. An incident posted without it isn't sent when it's resolved either. While editing the page,
+  **Manage subscribers** sets them up:
+  - **Email:** choose an Email (SMTP) notification to send through, and set **Settings > General > Primary Base
+    URL**, which the emails link to. The page then has a form where visitors subscribe; they confirm from a link
+    in an email before they get anything, and every email has an unsubscribe link and one-click unsubscribe
+    ([RFC 8058](https://www.rfc-editor.org/rfc/rfc8058)). Unconfirmed addresses go after two days. An address is
+    sent at most one confirmation every 10 minutes, and subscribing is limited per address and overall. Emails
+    are in English, and go from the notification's server and sender, without its recipients or templates.
+  - **Webhooks** are added by admins. Each gets a POST of JSON:
+
+    ```json
+    {
+      "event": "incident.created",
+      "statusPage": {
+        "slug": "main",
+        "title": "Main",
+        "url": "https://kuma.example.com/status/main"
+      },
+      "incident": {
+        "id": 7,
+        "title": "Checkout errors",
+        "content": "…",
+        "style": "warning",
+        "active": true,
+        "...": "..."
+      }
+    }
+    ```
+
+    `event` is `incident.created`, `incident.updated` or `incident.resolved`. Webhook addresses are stored
+    encrypted, like other secrets.
+
+  - Messages go out in order, one subscriber at a time, from a queue in the service. The dialog shows when each
+    subscriber was last sent to, and the last error. A message isn't tried again, and one still queued when the
+    service stops isn't sent.
+- The public routes are `POST /api/status-page/<slug>/subscribe` (`{"email": "…"}`), `…/confirm` (`{"token":
+"…"}`) and `…/unsubscribe` (the token in JSON or as `?token=`).
+
 ### Badges
 
 Badges are SVG images in the shields.io style, for READMEs and dashboards. Only monitors on a status page have
@@ -436,6 +606,33 @@ instead, as Cloudflare recommends for containers, and needs no port open:
    chart, set `cloudflared.enabled=true` and `cloudflared.token`, or `cloudflared.existingSecret`.
 
 Then set Trust Proxy under Settings > Reverse Proxy, and `KUMA_BASE_URL` to the public hostname.
+
+### Behind a reverse proxy
+
+The web UI gets its live updates as Server-Sent Events from `GET /api/realtime`, a response that stays open, and
+sends everything else as ordinary requests. It doesn't use WebSockets, so no `Upgrade` headers are needed. The
+proxy must pass the stream on as it comes instead of holding it back: the service sends `X-Accel-Buffering: no`,
+which nginx follows, and Caddy and Traefik pass event streams on at once already. The service writes to the stream
+at least every 25 seconds, so a read timeout of a minute or more is enough. With nginx:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:3002;
+    proxy_http_version 1.1;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-Host $http_host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_read_timeout 120s;
+}
+```
+
+Pass the `Host` header on as the browser sent it, with its port, as `$http_host` does: logging in and changes are
+refused when the browser's `Origin` doesn't match it, and nginx's `$host` leaves the port out.
+
+Then set Trust Proxy under Settings > Reverse Proxy, so that status pages' domains and links use
+`X-Forwarded-Host` and `X-Forwarded-Proto`, and `KUMA_BASE_URL` to the public address. The login cookie is marked
+`Secure` when `X-Forwarded-Proto` is `https`, with or without Trust Proxy.
 
 ## API
 
@@ -780,6 +977,22 @@ Every trace is recorded, and the service decides which to export when each one e
 failures, and a sample of the rest. That way a trace ID on a failed beat always has a trace,
 as long as the backend has kept it (30 days here). Spans never contain URLs, query strings,
 headers or request bodies, and the `kuma_grafana` database role can't read those columns.
+
+## Developing the web UI
+
+`npm run dev`, from the repository's root, serves the web UI with Vite on port 3000 and sends the backend's paths
+(`/api`, `/upload` and the rest) to a backend on `http://127.0.0.1:3001`, or to `KUMA_BACKEND`. Page and backend share
+an origin that way, which the sign-in needs. The backend can be the image, built from the repository's root:
+
+```bash
+docker build -t kuma-dev .
+docker run -d --name kuma-dev --network host -e LISTEN_ADDR=127.0.0.1:3001 \
+  -e DATABASE_URL='postgres://postgres:test@127.0.0.1:55433/kuma_dev?sslmode=disable' \
+  -e ANALYTICS_API_TOKEN="$(openssl rand -hex 24)" kuma-dev
+npm run dev
+```
+
+Vite reloads changes to the web UI; changes to the backend need the image built again.
 
 ## Test
 

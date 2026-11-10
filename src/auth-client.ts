@@ -3,10 +3,8 @@ import { twoFactorClient, usernameClient } from "better-auth/client/plugins";
 import { apiKeyClient } from "@better-auth/api-key/client";
 import { reconnectSocket } from "./mixins/socket";
 
-export const baseURL =
-    process.env.NODE_ENV === "development" || localStorage.dev === "dev"
-        ? location.protocol + "//" + location.hostname + ":3001"
-        : "";
+// The origin that served the page. `npm run dev` proxies the backend's paths to it.
+export const baseURL = "";
 
 export const authClient = createAuthClient({
     baseURL,

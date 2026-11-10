@@ -250,8 +250,10 @@ func (c *Checker) runRealBrowser(ctx context.Context, m monitor.Monitor) monitor
 	if err != nil {
 		return monitor.Result{Msg: browserError(ctx, err, m)}
 	}
-	if err := c.browsers.SaveScreenshot(ctx, m.ID, png); err != nil {
-		return monitor.Result{Msg: "save the screenshot: " + err.Error()}
+	if !isDryRun(ctx) {
+		if err := c.browsers.SaveScreenshot(ctx, m.ID, png); err != nil {
+			return monitor.Result{Msg: "save the screenshot: " + err.Error()}
+		}
 	}
 
 	if response == nil {
