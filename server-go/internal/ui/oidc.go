@@ -528,7 +528,10 @@ func (s *Server) oidcStart(w http.ResponseWriter, r *http.Request) {
 
 // oidcCallback finishes the login the provider sent the browser back from.
 func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
-	o := s.oidc()
+	// One reading of the login settings throughout, which the account's save refuses if they
+	// changed meanwhile.
+	l := s.currentLogin(r.Context())
+	o := l.oidc
 	if o == nil {
 		http.NotFound(w, r)
 		return
@@ -591,7 +594,13 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 		fail("oidc-not-allowed")
 		return
 	}
-	user, err := s.store.SaveOIDCUser(ctx, who, role, tokens.RefreshToken)
+	user, err := s.store.SaveOIDCUser(ctx, who, role, tokens.RefreshToken, l.version)
+	if errors.Is(err, store.ErrLoginChanged) {
+		s.loginStale(ctx, l)
+		s.log.Warn("OpenID Connect login refused: the login settings changed during it", "name", who.Name)
+		fail("login-changed")
+		return
+	}
 	if errors.Is(err, store.ErrUsernameTakenByPassword) {
 		s.log.Warn("OpenID Connect login refused: another account has the name", "name", who.Name)
 		fail("oidc-name-taken")

@@ -88,6 +88,27 @@ export interface PromptOptions {
 }
 
 const SENSITIVE_PARAM = /token|key|secret|pass|auth|sig|session|code|credential|jwt/i;
+// A path segment that looks like a credential: long, and of letters and digits mixed, such as a
+// Slack or Discord webhook's token or a bot token. An id of digits alone, or a word, isn't.
+// A path segment that names the credential after it, such as /token/abc
+const SECRET_LABEL = /^(?:tokens?|keys?|api[-_]?keys?|secrets?|passwords?|passwd|sig|signature|sessions?|jwt)$/i;
+const SECRET_SEGMENT = /^(?=[^/]*[a-z])(?=[^/]*\d)[a-z0-9_:.~-]{20,}$/i;
+
+/**
+ * A path without what looks like credentials: segments after one named like a credential, such
+ * as /token/abc, and segments that look like one
+ * @param {string} path Path, as in an address
+ * @returns {string} Redacted path
+ */
+function redactPath(path: string): string {
+    const segments = path.split("/");
+    return segments
+        .map((segment, i) => {
+            const after = i > 0 && SECRET_LABEL.test(segments[i - 1]) && segment !== "";
+            return after || SECRET_SEGMENT.test(segment) ? "REDACTED" : segment;
+        })
+        .join("/");
+}
 const MAX_MESSAGE = 400;
 
 /**
@@ -107,6 +128,7 @@ export function redactURL(text: string): string {
                 url.searchParams.set(name, "REDACTED");
             }
         }
+        url.pathname = redactPath(url.pathname);
         return url.toString();
     } catch {
         return redactText(text);
@@ -114,13 +136,14 @@ export function redactURL(text: string): string {
 }
 
 /**
- * A message without what looks like credentials: passwords in addresses, sensitive query values
- * and bearer tokens
+ * A message without what looks like credentials: passwords in addresses, credentials in their
+ * paths, sensitive query values and bearer tokens
  * @param {string} text Message
  * @returns {string} Redacted message
  */
 export function redactText(text: string): string {
     return text
+        .replace(/([a-z][a-z0-9+.-]*:\/\/[^/\s?#]*)(\/[^\s?#]*)/gi, (_, start, path) => start + redactPath(path))
         .replace(/([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+(:[^/\s@]*)?@/gi, "$1REDACTED@")
         .replace(
             /([?&][^=&\s]*(?:token|key|secret|pass|auth|sig|session|code|credential|jwt)[^=&\s]*=)[^&\s]+/gi,

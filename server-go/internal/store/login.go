@@ -131,7 +131,11 @@ func (s *Store) SaveLoginConfig(ctx context.Context, c LoginConfig) error {
 		}
 		return list
 	}
-	_, err := s.pool.Exec(ctx, `INSERT INTO login_config (id, github_enabled, github_client_id, github_client_secret,
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, loginLockID); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO login_config (id, github_enabled, github_client_id, github_client_secret,
 			github_org, github_admin_teams, github_viewer_teams, github_web_url, github_api_url, password_login,
 			google_enabled, google_client_id, google_client_secret, google_domains, google_admin_emails, google_viewer_emails,
 			oidc_enabled, oidc_name, oidc_issuer, oidc_client_id, oidc_client_secret, oidc_scopes, oidc_groups_claim,
@@ -152,11 +156,13 @@ func (s *Store) SaveLoginConfig(ctx context.Context, c LoginConfig) error {
 			oidc_admin_groups = EXCLUDED.oidc_admin_groups, oidc_viewer_groups = EXCLUDED.oidc_viewer_groups,
 			oidc_admin_emails = EXCLUDED.oidc_admin_emails, oidc_viewer_emails = EXCLUDED.oidc_viewer_emails,
 			updated_at = now()`,
-		c.GitHubEnabled, c.ClientID, secret, c.Org, nonNil(c.AdminTeams), nonNil(c.ViewerTeams), c.WebURL, c.APIURL,
-		c.PasswordLogin, c.Google.Enabled, c.Google.ClientID, googleSecret, nonNil(c.Google.Domains),
-		nonNil(c.Google.AdminEmails), nonNil(c.Google.ViewerEmails),
-		c.OIDC.Enabled, c.OIDC.Name, c.OIDC.Issuer, c.OIDC.ClientID, oidcSecret, nonNil(c.OIDC.Scopes), c.OIDC.GroupsClaim,
-		nonNil(c.OIDC.AdminGroups), nonNil(c.OIDC.ViewerGroups), nonNil(c.OIDC.AdminEmails), nonNil(c.OIDC.ViewerEmails))
+			c.GitHubEnabled, c.ClientID, secret, c.Org, nonNil(c.AdminTeams), nonNil(c.ViewerTeams), c.WebURL, c.APIURL,
+			c.PasswordLogin, c.Google.Enabled, c.Google.ClientID, googleSecret, nonNil(c.Google.Domains),
+			nonNil(c.Google.AdminEmails), nonNil(c.Google.ViewerEmails),
+			c.OIDC.Enabled, c.OIDC.Name, c.OIDC.Issuer, c.OIDC.ClientID, oidcSecret, nonNil(c.OIDC.Scopes), c.OIDC.GroupsClaim,
+			nonNil(c.OIDC.AdminGroups), nonNil(c.OIDC.ViewerGroups), nonNil(c.OIDC.AdminEmails), nonNil(c.OIDC.ViewerEmails))
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("save login settings: %w", err)
 	}
@@ -232,6 +238,27 @@ var ErrLoginChanged = errors.New("the login settings changed")
 type LoginVersion struct {
 	Env     bool
 	SavedAt *time.Time
+}
+
+// loginLockID serializes saving the login settings, which takes it alone, with saving an account at
+// login, which takes it shared: a login that read the settings before a save either commits before
+// the save, and so before its checks are expired, or sees the save and is refused.
+const loginLockID = 7_331_004
+
+// loginHeld takes the login settings' lock, shared, in tx, and returns ErrLoginChanged when the
+// settings of the version are no longer the saved ones.
+func loginHeld(ctx context.Context, tx pgx.Tx, v LoginVersion) error {
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock_shared($1)`, loginLockID); err != nil {
+		return err
+	}
+	var current bool
+	if err := tx.QueryRow(ctx, `SELECT `+loginCurrent(1), v.Env, v.SavedAt).Scan(&current); err != nil {
+		return err
+	}
+	if !current {
+		return ErrLoginChanged
+	}
+	return nil
 }
 
 // loginCurrent is SQL that's true while the settings of version $n, $n+1 are still the saved ones.

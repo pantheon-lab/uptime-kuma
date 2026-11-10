@@ -890,7 +890,9 @@ Asked for during U3: when a monitor fails, write up the failure for an AI agent,
   `openssl s_client`, `nc`, `ping`, `traceroute`, `docker` and `grpcurl`. For several monitors, it asks first whether
   they share a cause.
 - Secrets stay out: only an allowlist of fields goes in, header names without values, a database's host and port
-  without its connection string, and addresses and messages without credentials or secret-looking query values.
+  without its connection string, and addresses and messages without credentials, secret-looking query values or
+  secret-looking path segments: one after a segment such as `token` or `key`, and long ones of letters and digits
+  mixed, such as a Slack, Discord or Telegram token. A long id of letters and digits, such as a UUID, is hidden too.
 - The server now sends a failed beat's trace ID to the UI (`traceId`), which it already stored. An all-zero one,
   from a check that wasn't traced, isn't given.
 
@@ -967,7 +969,9 @@ Gamedig and Tailscale ping in 4f, which need a game server and a Tailscale peer.
   or 365 days, newest first, each with when it began, how long it lasted or that it's going on, and its first error,
   with how many there were and how long it was down in all. `getMonitorOutages(monitorID, days)` finds them in the
   status changes the events list has, from a change to DOWN until the next to UP or MAINTENANCE; PENDING doesn't end
-  one. It lists the newest 100, and reads up to 5,000 changes. The list reloads when the monitor's status changes.
+  one. It lists the newest 100, and reads every change, 5,000 at a time, up to 200,000; past that, outages are
+  counted from the oldest change read, and the card says from when. The list reloads when the monitor's status
+  changes.
 - **An outage on the chart:** each has a button that shows it on the chart, with a quarter of its length, and at
   least 15 minutes, either side (`src/outage-range.ts`).
 - **The uptime figures** (24 hours, 30 days, 1 year) are buttons that show their period on the chart.
@@ -1327,5 +1331,11 @@ A review of the branch found ten faults, all fixed, each with a test:
 - **OpenID Connect names:** two logins taking one name at once gave a generic failure instead of "name taken".
 - **Testing a monitor:** each test with new client certificate or proxy settings kept a transport for good. A
   test's isn't kept now, and the kept ones are bounded.
+
+- **Logins during a settings change:** a GitHub, Google or OpenID Connect login that read the settings before an
+  admin changed them could save the old role after the change expired every account's check, and keep it for a
+  day. A login now uses one reading of the settings throughout, and its account's save takes a lock that saving
+  the settings takes alone, then checks the settings are still those: if not, nothing is saved and the person is
+  asked to log in again.
 
 Not tested: several instances against one database, for the login settings fix (the store's part is tested).

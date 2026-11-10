@@ -56,7 +56,7 @@ func TestLoginConfig(t *testing.T) {
 	if ok, _ := s.AdminCanLogIn(ctx, LoginMethods{Password: true}); !ok {
 		t.Fatal("the password admin didn't count")
 	}
-	gh, err := s.SaveGitHubUser(ctx, 7, "alice", RoleAdmin, "token", []string{"sre"})
+	gh, err := s.SaveGitHubUser(ctx, 7, "alice", RoleAdmin, "token", []string{"sre"}, LoginVersion{Env: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,11 +90,11 @@ func TestGoogleAccounts(t *testing.T) {
 	if _, err := s.CreateFirstUser(ctx, "Ann@Example.com", "salt:hash"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SaveGoogleUser(ctx, GoogleUser{Sub: "s-ann", Email: "ann@example.com"}, RoleAdmin, "r1"); err != ErrUsernameTakenByPassword {
+	if _, err := s.SaveGoogleUser(ctx, GoogleUser{Sub: "s-ann", Email: "ann@example.com"}, RoleAdmin, "r1", LoginVersion{Env: true}); err != ErrUsernameTakenByPassword {
 		t.Fatalf("took over a password account: %v", err)
 	}
 
-	bob, err := s.SaveGoogleUser(ctx, GoogleUser{Sub: "s-bob", Email: "Bob@Example.com", Domain: "example.com"}, RoleViewer, "refresh-1")
+	bob, err := s.SaveGoogleUser(ctx, GoogleUser{Sub: "s-bob", Email: "Bob@Example.com", Domain: "example.com"}, RoleViewer, "refresh-1", LoginVersion{Env: true})
 	if err != nil || bob.Username != "bob@example.com" || *bob.GoogleSub != "s-bob" || *bob.GoogleDomain != "example.com" || !bob.SSO() {
 		t.Fatalf("bob: %+v %v", bob, err)
 	}
@@ -107,7 +107,7 @@ func TestGoogleAccounts(t *testing.T) {
 		t.Fatalf("stored token: %q", stored)
 	}
 	// A later login without a refresh token keeps the one there is, and updates the role.
-	again, err := s.SaveGoogleUser(ctx, GoogleUser{Sub: "s-bob", Email: "bob@example.com", Domain: "example.com"}, RoleAdmin, "")
+	again, err := s.SaveGoogleUser(ctx, GoogleUser{Sub: "s-bob", Email: "bob@example.com", Domain: "example.com"}, RoleAdmin, "", LoginVersion{Env: true})
 	if err != nil || again.ID != bob.ID || again.Role != RoleAdmin {
 		t.Fatalf("again: %+v %v", again, err)
 	}
@@ -134,12 +134,12 @@ func TestGoogleAccounts(t *testing.T) {
 		t.Fatal("still checked")
 	}
 	// A Google account without a token has none.
-	carol, _ := s.SaveGoogleUser(ctx, GoogleUser{Sub: "s-carol", Email: "carol@example.com"}, RoleViewer, "")
+	carol, _ := s.SaveGoogleUser(ctx, GoogleUser{Sub: "s-carol", Email: "carol@example.com"}, RoleViewer, "", LoginVersion{Env: true})
 	if _, err := s.GoogleToken(ctx, carol.ID); err != ErrNotFound {
 		t.Fatalf("carol's token: %v", err)
 	}
 	// The email moving to someone else renames the old account.
-	dave, err := s.SaveGoogleUser(ctx, GoogleUser{Sub: "s-dave", Email: "carol@example.com"}, RoleViewer, "")
+	dave, err := s.SaveGoogleUser(ctx, GoogleUser{Sub: "s-dave", Email: "carol@example.com"}, RoleViewer, "", LoginVersion{Env: true})
 	if err != nil || dave.ID == carol.ID {
 		t.Fatalf("dave: %+v %v", dave, err)
 	}
@@ -173,16 +173,16 @@ func TestOIDCAccounts(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A Google account's name isn't taken over either.
-	if _, err := s.SaveGoogleUser(ctx, GoogleUser{Sub: "g1", Email: "sam@example.com"}, RoleViewer, ""); err != nil {
+	if _, err := s.SaveGoogleUser(ctx, GoogleUser{Sub: "g1", Email: "sam@example.com"}, RoleViewer, "", LoginVersion{Env: true}); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"Admin@example.com", "sam@example.com"} {
-		if _, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp x" + name, Name: name}, RoleAdmin, ""); err != ErrUsernameTakenByPassword {
+		if _, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp x" + name, Name: name}, RoleAdmin, "", LoginVersion{Env: true}); err != ErrUsernameTakenByPassword {
 			t.Fatalf("%s taken over: %v", name, err)
 		}
 	}
 	o := OIDCUser{Key: "https://idp u1", Name: "Ops@Example.com", Email: "ops@example.com", Groups: []string{"Admins"}}
-	ops, err := s.SaveOIDCUser(ctx, o, RoleAdmin, "refresh-1")
+	ops, err := s.SaveOIDCUser(ctx, o, RoleAdmin, "refresh-1", LoginVersion{Env: true})
 	if err != nil || ops.Username != "ops@example.com" || *ops.OIDCSub != "https://idp u1" || ops.OIDCGroups[0] != "Admins" || !ops.SSO() {
 		t.Fatalf("ops: %+v %v", ops, err)
 	}
@@ -208,7 +208,7 @@ func TestOIDCAccounts(t *testing.T) {
 	if ok, _ := s.AdminCanLogIn(ctx, LoginMethods{OIDC: true}); ok {
 		t.Fatal("a viewer counted as an admin")
 	}
-	if _, err := s.SaveOIDCUser(ctx, o, RoleAdmin, ""); err != nil {
+	if _, err := s.SaveOIDCUser(ctx, o, RoleAdmin, "", LoginVersion{Env: true}); err != nil {
 		t.Fatal(err)
 	}
 	if ok, _ := s.AdminCanLogIn(ctx, LoginMethods{OIDC: true}); !ok {
@@ -244,22 +244,22 @@ func TestOIDCAccounts(t *testing.T) {
 
 	// A name that isn't a verified email, such as a preferred username a user can set, can't take
 	// another account's.
-	pat, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp u2", Name: "pat"}, RoleViewer, "")
+	pat, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp u2", Name: "pat"}, RoleViewer, "", LoginVersion{Env: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp u3", Name: "Pat"}, RoleViewer, ""); err != ErrUsernameTakenByPassword {
+	if _, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp u3", Name: "Pat"}, RoleViewer, "", LoginVersion{Env: true}); err != ErrUsernameTakenByPassword {
 		t.Fatalf("a preferred username took another account's: %v", err)
 	}
 	if u, _ := s.UserByID(ctx, pat.ID); u.Username != "pat" {
 		t.Fatalf("renamed to %q", u.Username)
 	}
 	// A verified email moves to its new owner, and the account that had it is renamed.
-	lee, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp u4", Name: "lee@example.com", Email: "lee@example.com"}, RoleViewer, "")
+	lee, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp u4", Name: "lee@example.com", Email: "lee@example.com"}, RoleViewer, "", LoginVersion{Env: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp u5", Name: "lee@example.com", Email: "lee@example.com"}, RoleViewer, ""); err != nil {
+	if _, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp u5", Name: "lee@example.com", Email: "lee@example.com"}, RoleViewer, "", LoginVersion{Env: true}); err != nil {
 		t.Fatal(err)
 	}
 	if u, _ := s.UserByID(ctx, lee.ID); u.Username != fmt.Sprintf("lee@example.com#%d", lee.ID) {
@@ -270,7 +270,7 @@ func TestOIDCAccounts(t *testing.T) {
 func TestLoginVersion(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
-	gh, err := s.SaveGitHubUser(ctx, 9, "alice", RoleAdmin, "token", []string{"sre"})
+	gh, err := s.SaveGitHubUser(ctx, 9, "alice", RoleAdmin, "token", []string{"sre"}, LoginVersion{Env: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,5 +307,49 @@ func TestLoginVersion(t *testing.T) {
 	}
 	if err := s.SetGitHubChecked(ctx, gh.ID, RoleViewer, nil, LoginVersion{Env: true}); err != nil {
 		t.Fatal(err)
+	}
+
+	// A login whose settings were replaced while it ran saves no account, for each provider.
+	if _, err := s.SaveGitHubUser(ctx, 10, "bob", RoleAdmin, "token", nil, v1); !errors.Is(err, ErrLoginChanged) {
+		t.Fatalf("GitHub login with replaced settings: %v", err)
+	}
+	if _, err := s.SaveGoogleUser(ctx, GoogleUser{Sub: "g-bob", Email: "bob@example.com"}, RoleAdmin, "", v1); !errors.Is(err, ErrLoginChanged) {
+		t.Fatalf("Google login with replaced settings: %v", err)
+	}
+	if _, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp bob", Name: "bob"}, RoleAdmin, "", v1); !errors.Is(err, ErrLoginChanged) {
+		t.Fatalf("OpenID Connect login with replaced settings: %v", err)
+	}
+	var accounts int
+	_ = s.pool.QueryRow(ctx, `SELECT count(*) FROM app_user`).Scan(&accounts)
+	if accounts != 1 {
+		t.Fatalf("accounts saved with replaced settings: %d", accounts)
+	}
+
+	// A save of the settings waits for a login saving its account, so that the expiry after the
+	// save reaches the account: the login holds the lock until it commits.
+	current := LoginVersion{SavedAt: saved.UpdatedAt}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := loginHeld(ctx, tx, current); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- s.SaveLoginConfig(ctx, LoginConfig{PasswordLogin: true}) }()
+	select {
+	case err := <-done:
+		t.Fatalf("the settings were saved during a login's save: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	// And a login that then saves with the settings it read before is refused.
+	if _, err := s.SaveGitHubUser(ctx, 10, "bob", RoleAdmin, "token", nil, current); !errors.Is(err, ErrLoginChanged) {
+		t.Fatalf("a login after the save: %v", err)
 	}
 }

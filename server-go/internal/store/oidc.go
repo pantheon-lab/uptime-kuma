@@ -23,8 +23,9 @@ type OIDCUser struct {
 func oidcTokenAAD(userID int32) string { return secretAAD("app_user", "oidc_token", userID) }
 
 // SaveOIDCUser makes or updates the account of a provider's user at login, with a role. A new
-// refresh token replaces the kept one; an empty one keeps it.
-func (s *Store) SaveOIDCUser(ctx context.Context, o OIDCUser, role, refreshToken string) (User, error) {
+// refresh token replaces the kept one; an empty one keeps it. It returns ErrLoginChanged, saving
+// nothing, when the login settings of the version changed since.
+func (s *Store) SaveOIDCUser(ctx context.Context, o OIDCUser, role, refreshToken string, v LoginVersion) (User, error) {
 	name := strings.ToLower(o.Name)
 	groups := o.Groups
 	if groups == nil {
@@ -32,6 +33,9 @@ func (s *Store) SaveOIDCUser(ctx context.Context, o OIDCUser, role, refreshToken
 	}
 	var user User
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := loginHeld(ctx, tx, v); err != nil {
+			return err
+		}
 		// A verified email can move to someone else: the account that had it keeps its id, renamed.
 		// Any other name, such as a preferred username that a user can set, can't take one.
 		if o.Email != "" && name == strings.ToLower(o.Email) {

@@ -558,9 +558,12 @@ func TestTOTPMatchesBetterAuthForImportedKeys(t *testing.T) {
 	}
 }
 
-func (f *fakeStore) SaveGitHubUser(_ context.Context, githubID int64, login, role, token string, teams []string) (store.User, error) {
+func (f *fakeStore) SaveGitHubUser(_ context.Context, githubID int64, login, role, token string, teams []string, _ store.LoginVersion) (store.User, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.loginChanged {
+		return store.User{}, store.ErrLoginChanged
+	}
 	now := time.Now()
 	for i, u := range f.users {
 		if u.GitHubID != nil && *u.GitHubID == githubID {
@@ -665,7 +668,7 @@ func (f *fakeStore) ExpireGoogleChecks(context.Context) error {
 	return nil
 }
 
-func (f *fakeStore) SaveGoogleUser(_ context.Context, g store.GoogleUser, role, token string) (store.User, error) {
+func (f *fakeStore) SaveGoogleUser(_ context.Context, g store.GoogleUser, role, token string, _ store.LoginVersion) (store.User, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	now := time.Now()
@@ -728,7 +731,7 @@ func (f *fakeStore) ExpireOIDCChecks(context.Context) error {
 	return nil
 }
 
-func (f *fakeStore) SaveOIDCUser(_ context.Context, o store.OIDCUser, role, token string) (store.User, error) {
+func (f *fakeStore) SaveOIDCUser(_ context.Context, o store.OIDCUser, role, token string, _ store.LoginVersion) (store.User, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	now := time.Now()

@@ -374,13 +374,17 @@ func (s *Store) ImportWebpushKeys(ctx context.Context, public, private string) (
 const GitHubAccountPrefix = "@"
 
 // SaveGitHubUser makes or updates the account of a GitHub user at login, with the role their
-// teams give. The token is kept to check the teams again later.
-func (s *Store) SaveGitHubUser(ctx context.Context, githubID int64, login, role, token string, teams []string) (User, error) {
+// teams give under the login settings of the version. The token is kept to check the teams again
+// later. It returns ErrLoginChanged, saving nothing, when the settings changed since.
+func (s *Store) SaveGitHubUser(ctx context.Context, githubID int64, login, role, token string, teams []string, v LoginVersion) (User, error) {
 	if teams == nil {
 		teams = []string{}
 	}
 	var user User
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := loginHeld(ctx, tx, v); err != nil {
+			return err
+		}
 		// GitHub logins can be renamed and taken by someone else: the account that had the name
 		// before keeps its id, under a name that says so.
 		if _, err := tx.Exec(ctx, `

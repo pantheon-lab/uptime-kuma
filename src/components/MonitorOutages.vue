@@ -51,6 +51,10 @@
                 </button>
             </li>
         </ol>
+        <p v-if="partialFrom" class="form-text mb-1" data-testid="outages-partial">
+            {{ $t("outagesPartial") }}
+            <Datetime :value="partialFrom" />
+        </p>
         <p v-if="count > outages.length" class="form-text mb-0">
             {{ $t("outagesMore", { shown: outages.length }) }}
         </p>
@@ -82,6 +86,8 @@ export default {
             outages: [],
             count: null,
             downtimeSeconds: 0,
+            // Set when the monitor changed too often to read every change: outages are from then
+            partialFrom: null,
         };
     },
     watch: {
@@ -110,6 +116,7 @@ export default {
                     this.outages = res.outages;
                     this.count = res.count;
                     this.downtimeSeconds = res.downtimeSeconds;
+                    this.partialFrom = res.partialFrom ?? null;
                 } else {
                     this.$root.toastError(res.msg);
                 }

@@ -4,17 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/monitor"
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/store"
 )
 
-const (
-	// maxOutagesShown bounds the outages one answer lists, newest first.
-	maxOutagesShown = 100
-	// maxOutageEvents bounds the status changes read to find them.
-	maxOutageEvents = 5000
+// maxOutagesShown bounds the outages one answer lists, newest first.
+const maxOutagesShown = 100
+
+// The status changes read to find outages, which tests lower.
+var (
+	// outageEventBatch is how many status changes are read at a time to find them.
+	outageEventBatch = 5000
+	// maxOutageEvents bounds the status changes read in all. Past it, outages are found from the
+	// oldest read, and the answer says so, rather than joined across the changes left out.
+	maxOutageEvents = 200_000
 )
 
 // outage is a time a monitor was down: from a status change to DOWN until the next change to
@@ -70,9 +76,22 @@ func (s *Server) monitorOutages(ctx context.Context, args []json.RawMessage) (re
 	}
 	now := s.now()
 	since := now.Add(-time.Duration(days.value) * 24 * time.Hour)
-	newestFirst, err := s.store.ImportantBeats(ctx, &id, store.EventFilter{Since: &since, IncludeCleared: true}, 0, maxOutageEvents)
-	if err != nil {
-		return nil, err
+	var newestFirst []store.Beat
+	for {
+		batch, err := s.store.ImportantBeats(ctx, &id, store.EventFilter{Since: &since, IncludeCleared: true},
+			len(newestFirst), outageEventBatch)
+		if err != nil {
+			return nil, err
+		}
+		newestFirst = append(newestFirst, batch...)
+		if len(batch) < outageEventBatch || len(newestFirst) >= maxOutageEvents {
+			break
+		}
+	}
+	// Too many to read: the days are taken to start at the oldest change read.
+	partial := len(newestFirst) >= maxOutageEvents
+	if partial {
+		since = newestFirst[len(newestFirst)-1].Time
 	}
 	// The status the monitor had as the days began: down then means an outage that began before.
 	before, err := s.store.ImportantBeats(ctx, &id, store.EventFilter{Before: &since, IncludeCleared: true}, 0, 1)
@@ -87,7 +106,8 @@ func (s *Server) monitorOutages(ctx context.Context, args []json.RawMessage) (re
 		changes = append(changes, newestFirst[i])
 	}
 
-	outages := findOutages(changes)
+	// An outage that ended as the days began, such as at the oldest change read, isn't in them.
+	outages := slices.DeleteFunc(findOutages(changes), func(o outage) bool { return o.End != nil && !o.End.After(since) })
 	var downtime time.Duration
 	list := make([]map[string]any, 0, min(len(outages), maxOutagesShown))
 	for i := len(outages) - 1; i >= 0; i-- {
@@ -121,7 +141,12 @@ func (s *Server) monitorOutages(ctx context.Context, args []json.RawMessage) (re
 		}
 		list = append(list, item)
 	}
-	return ok("outages", list, "count", len(outages), "downtimeSeconds", int64(downtime.Seconds()), "days", days.value), nil
+	var from any
+	if partial {
+		from = since.UTC().Format(beatTimeFormat)
+	}
+	return ok("outages", list, "count", len(outages), "downtimeSeconds", int64(downtime.Seconds()), "days", days.value,
+		"partialFrom", from), nil
 }
 
 // chartRange answers getMonitorChartRange(monitorID, from, to), with times in RFC 3339: the

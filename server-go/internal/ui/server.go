@@ -31,7 +31,7 @@ type Store interface {
 	UserByID(ctx context.Context, id int32) (store.User, error)
 	SetPassword(ctx context.Context, userID int32, passwordHash string, keep []byte) error
 	UpgradePasswordHash(ctx context.Context, userID int32, old, hash string) error
-	SaveGitHubUser(ctx context.Context, githubID int64, login, role, token string, teams []string) (store.User, error)
+	SaveGitHubUser(ctx context.Context, githubID int64, login, role, token string, teams []string, v store.LoginVersion) (store.User, error)
 	GitHubToken(ctx context.Context, userID int32) (string, error)
 	SetGitHubChecked(ctx context.Context, userID int32, role string, teams []string, v store.LoginVersion) error
 	LoginChanged(ctx context.Context, v store.LoginVersion) (bool, error)
@@ -42,11 +42,11 @@ type Store interface {
 	ExpireGitHubChecks(ctx context.Context) error
 	LastSSOLogin(ctx context.Context, kind string) (string, *time.Time, error)
 	ExpireGoogleChecks(ctx context.Context) error
-	SaveGoogleUser(ctx context.Context, g store.GoogleUser, role, refreshToken string) (store.User, error)
+	SaveGoogleUser(ctx context.Context, g store.GoogleUser, role, refreshToken string, v store.LoginVersion) (store.User, error)
 	GoogleToken(ctx context.Context, userID int32) (string, error)
 	SetGoogleChecked(ctx context.Context, userID int32, g store.GoogleUser, role string, v store.LoginVersion) error
 	ExpireOIDCChecks(ctx context.Context) error
-	SaveOIDCUser(ctx context.Context, o store.OIDCUser, role, refreshToken string) (store.User, error)
+	SaveOIDCUser(ctx context.Context, o store.OIDCUser, role, refreshToken string, v store.LoginVersion) (store.User, error)
 	OIDCToken(ctx context.Context, userID int32) (string, error)
 	SetOIDCChecked(ctx context.Context, userID int32, o store.OIDCUser, role, refreshToken string, v store.LoginVersion) error
 	EndOtherUserSessions(ctx context.Context, userID int32, keep []byte) error

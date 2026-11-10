@@ -168,3 +168,41 @@ func TestClearEventsNeedsAMonitorOrAll(t *testing.T) {
 		}
 	}
 }
+
+func TestOutagesReadInBatches(t *testing.T) {
+	s, fs, _ := newTestServer(t)
+	now := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
+	s.now = func() time.Time { return now }
+	call := eventCaller(t, s, 1)
+	day := 24 * time.Hour
+	batch, most := outageEventBatch, maxOutageEvents
+	t.Cleanup(func() { outageEventBatch, maxOutageEvents = batch, most })
+	outageEventBatch = 2
+	fs.important = []store.Beat{ // newest first
+		{Time: now.Add(-2 * day), Status: 0}, {Time: now.Add(-4 * day), Status: 1}, {Time: now.Add(-5 * day), Status: 0},
+		{Time: now.Add(-9 * day), Status: 1}, {Time: now.Add(-10 * day), Status: 0},
+	}
+
+	// Every change is read, a batch at a time: three outages, the newest ongoing.
+	maxOutageEvents = 100
+	r := call("getMonitorOutages", 1, 30)
+	if r["count"] != 3 || r["partialFrom"] != nil || r["downtimeSeconds"] != int64((1*day+1*day+2*day).Seconds()) {
+		t.Fatalf("all read: %v", r)
+	}
+
+	// Too many to read: outages from the oldest read on, said to be so, and none joined across
+	// the changes left out. The oldest read is the up 9 days ago, so the outage before it is out.
+	maxOutageEvents = 4
+	r = call("getMonitorOutages", 1, 30)
+	if r["count"] != 2 || r["partialFrom"] != now.Add(-9*day).UTC().Format(beatTimeFormat) ||
+		r["downtimeSeconds"] != int64((1*day+2*day).Seconds()) {
+		t.Fatalf("partial: %v", r)
+	}
+	// The oldest read is a down 5 days ago: the outage it starts counts from there, not before.
+	maxOutageEvents = 3
+	fs.important = fs.important[:3]
+	r = call("getMonitorOutages", 1, 30)
+	if list := r["outages"].([]map[string]any); r["count"] != 2 || list[1]["beganBefore"] != false {
+		t.Fatalf("partial from a down: %v", r)
+	}
+}

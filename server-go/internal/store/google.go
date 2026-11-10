@@ -26,10 +26,14 @@ func googleTokenAAD(userID int32) string { return secretAAD("app_user", "google_
 // SaveGoogleUser makes or updates the account of a Google user at login, named by their email,
 // with a role. A new refresh token replaces the kept one; an empty one keeps it, since Google sends
 // one only when asked to.
-func (s *Store) SaveGoogleUser(ctx context.Context, g GoogleUser, role, refreshToken string) (User, error) {
+// It returns ErrLoginChanged, saving nothing, when the login settings of the version changed since.
+func (s *Store) SaveGoogleUser(ctx context.Context, g GoogleUser, role, refreshToken string, v LoginVersion) (User, error) {
 	email := strings.ToLower(g.Email)
 	var user User
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := loginHeld(ctx, tx, v); err != nil {
+			return err
+		}
 		// An email can move to someone else: the Google account that had it keeps its id, under a
 		// name that says so. A password account with the name isn't taken over.
 		if _, err := tx.Exec(ctx, `

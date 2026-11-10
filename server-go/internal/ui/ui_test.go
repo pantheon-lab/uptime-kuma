@@ -28,7 +28,9 @@ import (
 
 // fakeStore keeps accounts, sessions and monitors in memory. Other methods return nothing.
 type fakeStore struct {
-	mu           sync.Mutex
+	mu sync.Mutex
+	// loginChanged makes account saves at login refuse, as when the settings changed meanwhile.
+	loginChanged bool
 	loginConfig  *store.LoginConfig
 	googleTokens map[int32]string
 	oidcTokens   map[int32]string
@@ -248,11 +250,15 @@ func (f *fakeStore) LatestBeatPerMonitor(context.Context) ([]store.Beat, error) 
 func (f *fakeStore) BeatsSince(context.Context, int32, time.Time, int) ([]store.Beat, error) {
 	return nil, nil
 }
-func (f *fakeStore) ImportantBeats(_ context.Context, _ *int32, filter store.EventFilter, _, limit int) ([]store.Beat, error) {
+func (f *fakeStore) ImportantBeats(_ context.Context, _ *int32, filter store.EventFilter, offset, limit int) ([]store.Beat, error) {
 	var out []store.Beat
 	for _, b := range f.important {
-		if (filter.Since == nil || !b.Time.Before(*filter.Since)) && (filter.Before == nil || b.Time.Before(*filter.Before)) && len(out) < limit {
-			out = append(out, b)
+		if (filter.Since == nil || !b.Time.Before(*filter.Since)) && (filter.Before == nil || b.Time.Before(*filter.Before)) {
+			if offset > 0 {
+				offset--
+			} else if len(out) < limit {
+				out = append(out, b)
+			}
 		}
 	}
 	return out, nil

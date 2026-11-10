@@ -145,7 +145,10 @@ func (s *Server) googleStart(w http.ResponseWriter, r *http.Request) {
 
 // googleCallback finishes the login Google sent the browser back from.
 func (s *Server) googleCallback(w http.ResponseWriter, r *http.Request) {
-	g := s.google()
+	// One reading of the login settings throughout, which the account's save refuses if they
+	// changed meanwhile.
+	l := s.currentLogin(r.Context())
+	g := l.google
 	if g == nil {
 		http.NotFound(w, r)
 		return
@@ -200,7 +203,13 @@ func (s *Server) googleCallback(w http.ResponseWriter, r *http.Request) {
 		fail("google-not-allowed")
 		return
 	}
-	user, err := s.store.SaveGoogleUser(ctx, who, role, tokens.RefreshToken)
+	user, err := s.store.SaveGoogleUser(ctx, who, role, tokens.RefreshToken, l.version)
+	if errors.Is(err, store.ErrLoginChanged) {
+		s.loginStale(ctx, l)
+		s.log.Warn("Google login refused: the login settings changed during it", "email", who.Email)
+		fail("login-changed")
+		return
+	}
 	if errors.Is(err, store.ErrUsernameTakenByPassword) {
 		s.log.Warn("Google login refused: a password account has the email as its name", "email", who.Email)
 		fail("google-name-taken")

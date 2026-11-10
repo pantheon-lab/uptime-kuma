@@ -88,9 +88,11 @@ func (s *Server) githubStart(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, strings.TrimRight(g.WebURL, "/")+"/login/oauth/authorize?"+query.Encode(), http.StatusFound)
 }
 
-// githubCallback finishes the login GitHub sent the browser back from.
+// githubCallback finishes the login GitHub sent the browser back from, with one reading of the
+// login settings throughout, which the account's save refuses if they changed meanwhile.
 func (s *Server) githubCallback(w http.ResponseWriter, r *http.Request) {
-	g := s.github()
+	l := s.currentLogin(r.Context())
+	g := l.github
 	if g == nil {
 		http.NotFound(w, r)
 		return
@@ -117,13 +119,13 @@ func (s *Server) githubCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	token, err := s.githubExchange(ctx, r.URL.Query().Get("code"), parts[1])
+	token, err := s.githubExchange(ctx, g, r.URL.Query().Get("code"), parts[1])
 	if err != nil {
 		s.log.Warn("GitHub login failed", "error", err)
 		fail("github-failed")
 		return
 	}
-	id, login, role, teams, err := s.githubRole(ctx, token)
+	id, login, role, teams, err := s.githubRole(ctx, g, token)
 	if err != nil {
 		s.log.Warn("GitHub login failed", "error", err)
 		fail("github-failed")
@@ -134,7 +136,14 @@ func (s *Server) githubCallback(w http.ResponseWriter, r *http.Request) {
 		fail("github-not-allowed")
 		return
 	}
-	user, err := s.store.SaveGitHubUser(ctx, id, login, role, token, teams)
+	user, err := s.store.SaveGitHubUser(ctx, id, login, role, token, teams, l.version)
+	if errors.Is(err, store.ErrLoginChanged) {
+		// An admin changed the login settings during the login: it's tried again with the new ones.
+		s.loginStale(ctx, l)
+		s.log.Warn("GitHub login refused: the login settings changed during it", "github", login)
+		fail("login-changed")
+		return
+	}
 	if err != nil {
 		s.log.Error("GitHub login", "error", err)
 		fail("github-failed")
@@ -158,8 +167,7 @@ func randomToken() string {
 }
 
 // githubExchange trades the code GitHub gave the browser for a token.
-func (s *Server) githubExchange(ctx context.Context, code, verifier string) (string, error) {
-	g := s.github()
+func (s *Server) githubExchange(ctx context.Context, g *GitHubOptions, code, verifier string) (string, error) {
 	if code == "" {
 		return "", errors.New("no code")
 	}
@@ -194,8 +202,7 @@ func (s *Server) githubExchange(ctx context.Context, code, verifier string) (str
 // githubRole asks GitHub who the token's user is, which of the organization's teams they're in,
 // and what those make them: RoleAdmin, RoleViewer, or "" for someone who may not log in. A token
 // GitHub refuses is "", and a GitHub that can't be reached is errGitHubUnavailable.
-func (s *Server) githubRole(ctx context.Context, token string) (int64, string, string, []string, error) {
-	g := s.github()
+func (s *Server) githubRole(ctx context.Context, g *GitHubOptions, token string) (int64, string, string, []string, error) {
 	var user struct {
 		ID    int64  `json:"id"`
 		Login string `json:"login"`
@@ -329,7 +336,7 @@ func (s *Server) recheckGitHub(ctx context.Context, user store.User) string {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	_, _, role, teams, err := s.githubRole(ctx, token)
+	_, _, role, teams, err := s.githubRole(ctx, l.github, token)
 	if err != nil {
 		s.log.Warn("check GitHub teams", "username", user.Username, "error", err)
 		failed = true

@@ -174,6 +174,7 @@ export default {
                 "oidc-expired": this.$t("oidcLoginExpired"),
                 "oidc-failed": this.$t("oidcLoginFailed"),
                 "oidc-name-taken": this.$t("oidcLoginNameTaken"),
+                "login-changed": this.$t("ssoLoginChanged"),
             };
             return code ? messages[code] || this.$t("githubLoginFailed") : "";
         },

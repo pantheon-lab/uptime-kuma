@@ -216,6 +216,53 @@ describe("redaction", () => {
         assert.strictEqual(redactURL("not a url ?token=abc"), "not a url ?token=REDACTED");
     });
 
+    test("credentials in an address's path", () => {
+        // Made-up tokens, put together so that no whole webhook address is in the code for secret
+        // scanners to take for a real one
+        const slack = [
+            "https:/",
+            "hooks.slack" + ".com",
+            "services",
+            "T0AB12CD3",
+            "B0EF45GH6",
+            "zz9xy8wv7ut6sr5qp4on3ml2",
+        ].join("/");
+        // Slack's and Discord's webhooks, a bot token, and one named by the segment before it
+        assert.strictEqual(redactURL(slack), slack.replace(/[^/]+$/, "REDACTED"));
+        assert.strictEqual(
+            redactURL("https://discord.com/api/webhooks/123456789012345678/Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Qr9St0"),
+            "https://discord.com/api/webhooks/123456789012345678/REDACTED"
+        );
+        assert.strictEqual(
+            redactURL("https://api.telegram.org/bot1234:zz9xy8wv7ut6sr5qp4on3ml2/getMe"),
+            "https://api.telegram.org/REDACTED/getMe"
+        );
+        assert.strictEqual(
+            redactURL("https://h.example/token/short1/status"),
+            "https://h.example/token/REDACTED/status"
+        );
+        // Ordinary paths stay as they are
+        for (const plain of [
+            "https://h.example/auth/login",
+            "https://h.example/api/v2/health-check",
+            "https://h.example/orders/12345678901234567890",
+        ]) {
+            assert.strictEqual(redactURL(plain), plain);
+        }
+        // In a message, and in the curl commands
+        assert.strictEqual(
+            redactText("POST https://h.example/hooks/aZ9xY8wV7uT6sR5qP4oN3mL2?x=1 failed"),
+            "POST https://h.example/hooks/REDACTED?x=1 failed"
+        );
+        const [cmd] = reproduceCommands({
+            id: 1,
+            name: "w",
+            type: "http",
+            url: slack,
+        });
+        assert.ok(cmd.includes("/B0EF45GH6/REDACTED'") && !cmd.includes("zz9xy8"), cmd);
+    });
+
     test("messages", () => {
         assert.strictEqual(
             redactText("dial mongodb://admin:pw@m:27017 failed"),

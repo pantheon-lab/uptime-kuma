@@ -431,12 +431,12 @@ func TestRoles(t *testing.T) {
 func TestGitHubAccounts(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
-	alice, err := s.SaveGitHubUser(ctx, 101, "alice", RoleViewer, "token-1", nil)
+	alice, err := s.SaveGitHubUser(ctx, 101, "alice", RoleViewer, "token-1", nil, LoginVersion{Env: true})
 	if err != nil || alice.Username != "@alice" || alice.Role != RoleViewer || alice.GitHubID == nil || *alice.GitHubID != 101 {
 		t.Fatalf("first login: %+v %v", alice, err)
 	}
 	// Logging in again updates the same account.
-	again, err := s.SaveGitHubUser(ctx, 101, "alice", RoleAdmin, "token-2", nil)
+	again, err := s.SaveGitHubUser(ctx, 101, "alice", RoleAdmin, "token-2", nil, LoginVersion{Env: true})
 	if err != nil || again.ID != alice.ID || again.Role != RoleAdmin {
 		t.Fatalf("second login: %+v %v", again, err)
 	}
@@ -444,10 +444,10 @@ func TestGitHubAccounts(t *testing.T) {
 		t.Fatalf("token %q %v", token, err)
 	}
 	// Alice renames herself, and someone else takes "alice".
-	if _, err := s.SaveGitHubUser(ctx, 101, "alice2", RoleAdmin, "token-3", nil); err != nil {
+	if _, err := s.SaveGitHubUser(ctx, 101, "alice2", RoleAdmin, "token-3", nil, LoginVersion{Env: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SaveGitHubUser(ctx, 102, "alice2", RoleViewer, "token-4", nil); err != nil {
+	if _, err := s.SaveGitHubUser(ctx, 102, "alice2", RoleViewer, "token-4", nil, LoginVersion{Env: true}); err != nil {
 		t.Fatalf("a login another account had: %v", err)
 	}
 	old, err := s.UserByUsername(ctx, fmt.Sprintf("@alice2#%d", alice.ID))
@@ -459,7 +459,7 @@ func TestGitHubAccounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SaveGitHubUser(ctx, 103, "Alice2", RoleViewer, "token-5", nil); err != nil {
+	if _, err := s.SaveGitHubUser(ctx, 103, "Alice2", RoleViewer, "token-5", nil, LoginVersion{Env: true}); err != nil {
 		t.Fatal(err)
 	}
 	if renamed, err := s.UserByID(ctx, second.ID); err != nil || renamed.Username != fmt.Sprintf("@alice2#%d", second.ID) {
