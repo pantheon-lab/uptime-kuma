@@ -262,7 +262,7 @@ export function reproduceCommands(m: PromptMonitor): string[] {
 
     if (["http", "keyword", "json-query", "real-browser", "websocket-upgrade"].includes(m.type) && m.url) {
         const url = commandURL(m.url);
-        const method = (m.method || "GET").toUpperCase();
+        const method = shellQuote((m.method || "GET").toUpperCase());
         const insecure = m.ignoreTls ? " -k" : "";
         commands.push(
             `curl -sS -o /dev/null -w 'status %{http_code}, dns %{time_namelookup}s, connect %{time_connect}s, tls %{time_appconnect}s, total %{time_total}s\\n' -X ${method}${insecure} --max-time ${timeout} ${shellQuote(url)}`
@@ -305,9 +305,11 @@ export function reproduceCommands(m: PromptMonitor): string[] {
         commands.push(`traceroute ${shellQuote(m.hostname)}`);
         hostChecks(m.hostname);
     } else if (m.type === "dns" && m.hostname) {
-        const server = m.dns_resolve_server ? ` @${m.dns_resolve_server}` : "";
-        commands.push(`dig${server} ${shellQuote(m.hostname)} ${m.dns_resolve_type || "A"}`);
-        commands.push(`dig +trace ${shellQuote(m.hostname)} ${m.dns_resolve_type || "A"}`);
+        // An imported monitor's resolver and record type aren't checked, so they're quoted too
+        const server = m.dns_resolve_server ? ` @${shellQuote(m.dns_resolve_server)}` : "";
+        const recordType = shellQuote(m.dns_resolve_type || "A");
+        commands.push(`dig${server} ${shellQuote(m.hostname)} ${recordType}`);
+        commands.push(`dig +trace ${shellQuote(m.hostname)} ${recordType}`);
     } else if (m.type === "docker" && m.docker_container) {
         commands.push("# On the Docker host the monitor uses:");
         commands.push(`docker ps -a --filter name=${shellQuote(m.docker_container)}`);

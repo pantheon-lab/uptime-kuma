@@ -29,9 +29,9 @@ const (
 
 var (
 	errLoginFromEnv = errors.New("Login is set by environment variables (KUMA_GITHUB_*, KUMA_GOOGLE_*, KUMA_OIDC_*, KUMA_PASSWORD_LOGIN), so it can't be changed here.")                                                                                                     //nolint:staticcheck // Shown to users.
-	errNoLogin      = errors.New("Turn on password login or GitHub login: with neither, nobody could log in.")                                                                                                                                                               //nolint:staticcheck // Shown to users.
+	errNoLogin      = errors.New("Turn on password login or a single sign-on provider: with none, nobody could log in.")                                                                                                                                                     //nolint:staticcheck // Shown to users.
 	errPasswordOff  = errors.New("Password login can only be off while you're logged in as an admin with single sign-on, with that provider's settings as you logged in with them. Save its settings with password login on, log in with it, then turn password login off.") //nolint:staticcheck // Shown to users.
-	errNoAdminLeft  = errors.New("No admin could log in after this change. Keep a way in for an admin: a password, or GitHub.")                                                                                                                                              //nolint:staticcheck // Shown to users.
+	errNoAdminLeft  = errors.New("No admin could log in after this change. Keep a way in for an admin: a password, or a single sign-on provider.")                                                                                                                           //nolint:staticcheck // Shown to users.
 )
 
 // loginState is how people log in now.

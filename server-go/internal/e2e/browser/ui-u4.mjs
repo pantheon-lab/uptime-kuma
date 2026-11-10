@@ -141,7 +141,11 @@ await step("a bad value in folded Advanced opens it, and isn't saved", async () 
     await page.getByTestId("friendly-name-input").fill("bad redirects");
     await page.getByTestId("url-input").fill("https://example.com");
     await page.locator("#maxRedirects").fill("-1");
-    await page.getByTestId("advanced-toggle").click();
+    // Fold it, whatever the earlier step left open
+    const toggle = page.getByTestId("advanced-toggle");
+    if ((await toggle.getAttribute("aria-expanded")) === "true") {
+        await toggle.click();
+    }
     expect(!(await page.locator("#maxRedirects").isVisible()), "still shown after folding");
     await page.getByTestId("save-button").click();
     await page.waitForTimeout(800);

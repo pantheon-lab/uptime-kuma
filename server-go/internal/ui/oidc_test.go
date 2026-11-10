@@ -47,6 +47,8 @@ type fakeIdP struct {
 	rotate bool
 	// issuerInDoc replaces the discovery document's issuer.
 	issuerInDoc string
+	// tokenEndpoint replaces the discovery document's token endpoint.
+	tokenEndpoint string
 }
 
 func b64int(i *big.Int) string { return base64.RawURLEncoding.EncodeToString(i.Bytes()) }
@@ -108,7 +110,11 @@ func (f *fakeIdP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if f.issuerInDoc != "" {
 			iss = f.issuerInDoc
 		}
-		reply(200, map[string]any{"issuer": iss, "authorization_endpoint": f.srv.URL + "/authorize", "token_endpoint": f.srv.URL + "/token",
+		token := f.srv.URL + "/token"
+		if f.tokenEndpoint != "" {
+			token = f.tokenEndpoint
+		}
+		reply(200, map[string]any{"issuer": iss, "authorization_endpoint": f.srv.URL + "/authorize", "token_endpoint": token,
 			"userinfo_endpoint": f.srv.URL + "/userinfo", "jwks_uri": f.srv.URL + "/jwks",
 			"token_endpoint_auth_methods_supported": []string{"client_secret_basic"}})
 	case "/jwks":
@@ -443,6 +449,21 @@ func TestOIDCVerifyIDToken(t *testing.T) {
 	if _, err := discover(context.Background(), o.client(), o.Issuer); err == nil {
 		t.Error("another issuer's discovery document was accepted")
 	}
+	idp.issuerInDoc = ""
+	// An endpoint that would get the client secret or tokens in clear text is refused, but for
+	// this machine's.
+	for endpoint, want := range map[string]bool{
+		"http://idp.example/token":  false,
+		"http://localhost:1/token":  true,
+		"https://idp.example/token": true,
+		"/token":                    false,
+	} {
+		idp.tokenEndpoint = endpoint
+		if _, err := discover(context.Background(), o.client(), o.Issuer); (err == nil) != want {
+			t.Errorf("token endpoint %s: %v", endpoint, err)
+		}
+	}
+	idp.tokenEndpoint = ""
 }
 
 func TestOIDCRole(t *testing.T) {

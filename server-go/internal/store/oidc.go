@@ -32,14 +32,17 @@ func (s *Store) SaveOIDCUser(ctx context.Context, o OIDCUser, role, refreshToken
 	}
 	var user User
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		// A name can move to someone else: the account that had it keeps its id, renamed.
-		if _, err := tx.Exec(ctx, `UPDATE app_user SET username = username || '#' || id
-			WHERE lower(username) = $1 AND oidc_sub IS NOT NULL AND oidc_sub <> $2`, name, o.Key); err != nil {
-			return err
+		// A verified email can move to someone else: the account that had it keeps its id, renamed.
+		// Any other name, such as a preferred username that a user can set, can't take one.
+		if o.Email != "" && name == strings.ToLower(o.Email) {
+			if _, err := tx.Exec(ctx, `UPDATE app_user SET username = username || '#' || id
+				WHERE lower(username) = $1 AND oidc_sub IS NOT NULL AND oidc_sub <> $2`, name, o.Key); err != nil {
+				return err
+			}
 		}
 		var taken bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM app_user WHERE lower(username) = $1 AND oidc_sub IS NULL)`,
-			name).Scan(&taken); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM app_user WHERE lower(username) = $1
+			AND (oidc_sub IS NULL OR oidc_sub <> $2))`, name, o.Key).Scan(&taken); err != nil {
 			return err
 		}
 		if taken {

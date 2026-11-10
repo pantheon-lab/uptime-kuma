@@ -51,6 +51,29 @@ describe("planToasts()", () => {
         assert.deepStrictEqual(plans[1], { kind: "info", text: "[cdn] pending", monitorIDs: [4] });
     });
 
+    test("pending and maintenance beats together are grouped too", () => {
+        const plans = planToasts(
+            [beat(1, 3), beat(2, 3), beat(3, 3), beat(4, 2), beat(5, 2), beat(10, 9, "odd")],
+            monitorList,
+            none,
+            t
+        );
+        assert.deepStrictEqual(plans, [
+            {
+                kind: "info",
+                text: 'toastMonitorsPending {"count":2,"names":"cdn, dns"}',
+                monitorIDs: [4, 5],
+            },
+            {
+                kind: "info",
+                text: 'toastMonitorsMaintenance {"count":3,"names":"api, db, web"}',
+                monitorIDs: [1, 2, 3],
+            },
+            // A status without a grouped message keeps a pop-up each
+            { kind: "info", text: "[backend] odd", monitorIDs: [10] },
+        ]);
+    });
+
     test("a short group lists every name", () => {
         const plans = planToasts([beat(1, 1), beat(4, 1)], monitorList, none, t);
         assert.deepStrictEqual(plans, [

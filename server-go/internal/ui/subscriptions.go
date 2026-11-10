@@ -303,6 +303,19 @@ func validEmail(raw string) (string, bool) {
 	return addr.Address, true
 }
 
+// shownAddress is a subscriber's address as admins see it: a webhook's path and query can hold
+// a token, so only its scheme and host are shown, as the URL is kept sealed.
+func shownAddress(sub store.Subscriber) string {
+	if sub.Kind != store.SubscriberWebhook {
+		return sub.Address
+	}
+	u, err := url.Parse(sub.Address)
+	if err != nil || u.Host == "" {
+		return "webhook"
+	}
+	return u.Scheme + "://" + u.Host + "/…"
+}
+
 func subscriberJSON(sub store.Subscriber) map[string]any {
 	var lastSent any
 	if sub.LastSentAt != nil {
@@ -311,7 +324,7 @@ func subscriberJSON(sub store.Subscriber) map[string]any {
 	return map[string]any{
 		"id":           sub.ID,
 		"kind":         sub.Kind,
-		"address":      sub.Address,
+		"address":      shownAddress(sub),
 		"confirmed":    sub.Confirmed,
 		"createdDate":  sub.CreatedAt.UTC().Format(beatTimeFormat),
 		"lastSentDate": lastSent,

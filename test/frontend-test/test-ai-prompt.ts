@@ -97,13 +97,35 @@ describe("buildMonitorPrompt()", () => {
         assert.ok(prompt.includes("```sh\ncurl -sS"));
         assert.ok(prompt.includes("2>&1 | head -n 80"), "the second curl keeps the body");
         assert.ok(prompt.includes("If it isn't found there, they aren't exported"));
-        assert.ok(prompt.includes("-X POST"));
+        assert.ok(prompt.includes("-X 'POST'"));
         assert.ok(prompt.includes("openssl s_client -connect 'api.example.com:443'"));
         assert.ok(prompt.includes("--proxy"));
     });
 });
 
 describe("reproduceCommands()", () => {
+    test("quotes an imported monitor's values, which aren't checked", () => {
+        const dns = reproduceCommands({
+            id: 1,
+            name: "d",
+            type: "dns",
+            hostname: "example.com",
+            dns_resolve_type: "A; id",
+            dns_resolve_server: "1.1.1.1; id #",
+        });
+        assert.strictEqual(dns[0], "dig @'1.1.1.1; id #' 'example.com' 'A; id'");
+        assert.strictEqual(dns[1], "dig +trace 'example.com' 'A; id'");
+        const http = reproduceCommands({
+            id: 1,
+            name: "w",
+            type: "websocket-upgrade",
+            url: "wss://example.com/ws",
+            method: "get $(id)",
+        });
+        assert.ok(http[0].includes("-X 'GET $(ID)'"), http[0]);
+        assert.ok(http[1].includes("-X 'GET $(ID)'"), http[1]);
+    });
+
     test("by type", () => {
         assert.deepStrictEqual(
             reproduceCommands({ id: 1, name: "p", type: "port", hostname: "db.internal", port: 5432, timeout: 10 }),
@@ -117,7 +139,7 @@ describe("reproduceCommands()", () => {
                 hostname: "example.com",
                 dns_resolve_type: "MX",
                 dns_resolve_server: "1.1.1.1",
-            })[0] === "dig @1.1.1.1 'example.com' MX"
+            })[0] === "dig @'1.1.1.1' 'example.com' 'MX'"
         );
         assert.ok(
             reproduceCommands({ id: 1, name: "c", type: "docker", docker_container: "web" })[1].startsWith(

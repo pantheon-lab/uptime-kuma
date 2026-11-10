@@ -12,9 +12,9 @@
     </div>
     <!-- Proto service name data -->
     <div class="my-3">
-        <label for="protobuf" class="form-label">{{ $t("Proto Service Name") }}</label>
+        <label for="grpc-service-name" class="form-label">{{ $t("Proto Service Name") }}</label>
         <input
-            id="name"
+            id="grpc-service-name"
             v-model="monitor.grpcServiceName"
             type="text"
             class="form-control"
@@ -25,9 +25,9 @@
 
     <!-- Proto method data -->
     <div class="my-3">
-        <label for="protobuf" class="form-label">{{ $t("Proto Method") }}</label>
+        <label for="grpc-method" class="form-label">{{ $t("Proto Method") }}</label>
         <input
-            id="name"
+            id="grpc-method"
             v-model="monitor.grpcMethod"
             type="text"
             class="form-control"

@@ -583,7 +583,11 @@ export default {
             let downData = []; // Down Data for Bar Chart, y-axis is number of down datapoints in this period
             let colorData = []; // Color Data for Bar Chart
 
-            const period = parseInt(this.chartPeriodHrs);
+            // A custom range's period is its length
+            const period =
+                this.chartPeriodHrs === "custom" && this.customRange
+                    ? (this.customRange.to.getTime() - this.customRange.from.getTime()) / 3600000
+                    : parseInt(this.chartPeriodHrs);
             let aggregatePoints = period > 6 ? 12 : 4;
 
             let aggregateBuffer = [];

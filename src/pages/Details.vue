@@ -764,10 +764,6 @@ export default {
         },
 
         /**
-         * Request that this monitor is paused
-         * @returns {void}
-         */
-        /**
          * Show a period on the chart, from the uptime figures
          * @param {number} hours The period
          * @returns {void}
@@ -806,6 +802,10 @@ export default {
             this.$nextTick(() => tryNow(0));
         },
 
+        /**
+         * Request that this monitor is paused
+         * @returns {void}
+         */
         pauseMonitor() {
             this.$root.getSocket().emit("pauseMonitor", this.monitor.id, (res) => {
                 if (res.ok) {

@@ -158,8 +158,14 @@ func discover(ctx context.Context, client *http.Client, issuer string) (*oidcDis
 	if d.AuthorizationEndpoint == "" || d.TokenEndpoint == "" || d.JWKSURI == "" {
 		return nil, errors.New("the discovery document has no authorization, token or keys endpoint")
 	}
+	// The token and userinfo endpoints get the client secret, codes and tokens: https only, as
+	// for the issuer, but for a provider on this machine.
 	for _, u := range []string{d.AuthorizationEndpoint, d.TokenEndpoint, d.JWKSURI, d.UserinfoEndpoint} {
-		if parsed, err := url.Parse(u); u != "" && (err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http")) {
+		if u == "" {
+			continue
+		}
+		parsed, err := url.Parse(u)
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && !(parsed.Scheme == "http" && localHost(parsed.Hostname()))) {
 			return nil, fmt.Errorf("the discovery document has an invalid address: %q", u)
 		}
 	}
@@ -705,6 +711,11 @@ func (s *Server) checkOIDCIssuer(ctx context.Context, args []json.RawMessage) (r
 
 // oidcIssuerURL checks an issuer's address: https, or http on this machine, for trying a provider
 // locally.
+// localHost is whether a host is this machine, where a provider may use plain http for testing.
+func localHost(host string) bool {
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
 func oidcIssuerURL(raw string) (string, error) {
 	raw = strings.TrimRight(strings.TrimSpace(raw), "/")
 	if raw == "" {
@@ -714,9 +725,7 @@ func oidcIssuerURL(raw string) (string, error) {
 	if err != nil || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
 		return "", errors.New("Enter the issuer's https:// address.") //nolint:staticcheck // Shown to users.
 	}
-	host := u.Hostname()
-	local := host == "localhost" || host == "127.0.0.1" || host == "::1"
-	if u.Scheme != "https" && !(u.Scheme == "http" && local) {
+	if u.Scheme != "https" && !(u.Scheme == "http" && localHost(u.Hostname())) {
 		return "", errors.New("The issuer's address must start with https://.") //nolint:staticcheck // Shown to users.
 	}
 	return raw, nil

@@ -294,7 +294,11 @@ func TestStatusPageSubscriptions(t *testing.T) {
 	var failing map[string]any
 	for _, s := range subs {
 		m := s.(map[string]any)
-		if strings.HasSuffix(m["address"].(string), "/fail") {
+		// A webhook's path isn't shown, as it can hold a token.
+		if m["kind"] == "webhook" && m["address"] != hook.srv.URL+"/…" {
+			t.Fatalf("webhook shown as %v", m["address"])
+		}
+		if m["lastError"] != "" {
 			failing = m
 		} else if m["lastError"] != "" || m["lastSentDate"] == nil {
 			t.Fatalf("delivered subscriber: %v", m)

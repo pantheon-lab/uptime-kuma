@@ -785,7 +785,7 @@ Known limits:
   from the imported statistics on both sides, so it checks the copy there; after it, it checks the beats.
 - Monitors' own settings aren't compared, only their history.
 
-## UI enhancements (planned)
+## UI enhancements (done)
 
 The web UI is upstream's, with the pages added here. These make it easier to use day to day. Each is a pull request
 of its own, in this order, and none changes what the server stores unless it says so.
@@ -1038,8 +1038,8 @@ Monitor form's snapshot of every type was as in U4.
 
 Known limits:
 
-- A bulk edit or import that fails while writing, such as on a database error, leaves the monitors before it
-  changed or added. Each monitor is checked first, so a value can't cause that.
+- An import that fails while writing, such as on a database error, leaves the monitors before it added. Each
+  monitor is checked first, so a value can't cause that. A bulk edit is one transaction.
 - The import takes the REST API's fields: not notifications or tags by name, nor a group by name.
 - A browser monitor's Test takes a screenshot that isn't kept.
 

@@ -282,6 +282,8 @@ await step("the editor's Subscribers dialog turns on email and adds a webhook", 
     await dialog.getByTestId("subscribers-webhook-url").fill(`http://127.0.0.1:${hookServer.address().port}/status`);
     await dialog.getByRole("button", { name: "Add" }).click();
     await dialog.getByTestId("subscriber").first().waitFor();
+    const shown = await dialog.getByTestId("subscriber").first().innerText();
+    expect(!shown.includes("/status") && shown.includes("127.0.0.1"), `webhook shown as: ${shown}`);
     const count = await dialog.getByTestId("subscribers-count").innerText();
     expect(count.includes("1 confirmed, 0 waiting"), `count: ${count}`);
     await admin.screenshot({ path: path.join(shots, "u9-subscribers-dialog.png") });

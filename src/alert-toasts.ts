@@ -32,6 +32,15 @@ export interface ToastPlan {
 
 const DOWN = 0;
 const UP = 1;
+const PENDING = 2;
+const MAINTENANCE = 3;
+// The message for several monitors that changed to a status together
+const GROUPED_KEYS: Record<number, string> = {
+    [DOWN]: "toastMonitorsDown",
+    [UP]: "toastMonitorsUp",
+    [PENDING]: "toastMonitorsPending",
+    [MAINTENANCE]: "toastMonitorsMaintenance",
+};
 const MUTED_KEY = "toastMuted";
 // Names listed in a grouped pop-up before "and N more"
 const NAMES_SHOWN = 3;
@@ -128,22 +137,25 @@ export function planToasts(
 
     const byStatus = new Map<number, ImportantBeat[]>();
     for (const beat of latest.values()) {
-        const key = beat.status === DOWN || beat.status === UP ? beat.status : -1;
-        if (!byStatus.has(key)) {
-            byStatus.set(key, []);
+        if (!byStatus.has(beat.status)) {
+            byStatus.set(beat.status, []);
         }
-        byStatus.get(key)!.push(beat);
+        byStatus.get(beat.status)!.push(beat);
     }
 
     const plans: ToastPlan[] = [];
-    for (const status of [DOWN, UP, -1]) {
+    // Down first, then up, pending, maintenance, and any other status
+    const order = [DOWN, UP, PENDING, MAINTENANCE];
+    const statuses = [...order, ...[...byStatus.keys()].filter((status) => !order.includes(status))];
+    for (const status of statuses) {
         const group = byStatus.get(status);
         if (!group) {
             continue;
         }
         const kind = status === DOWN ? "error" : status === UP ? "success" : "info";
         const name = (beat: ImportantBeat) => monitorList[beat.monitorID]?.name ?? String(beat.monitorID);
-        if (status === -1 || group.length === 1) {
+        const groupedKey = GROUPED_KEYS[status];
+        if (!groupedKey || group.length === 1) {
             // As before grouping: "[api] [DOWN] connection refused"
             for (const beat of group) {
                 const label = status === DOWN ? " [DOWN]" : status === UP ? " [Up]" : "";
@@ -154,7 +166,7 @@ export function planToasts(
         const names = listNames(group.map(name), t);
         plans.push({
             kind,
-            text: t(status === DOWN ? "toastMonitorsDown" : "toastMonitorsUp", { count: group.length, names }),
+            text: t(groupedKey, { count: group.length, names }),
             monitorIDs: group.map((beat) => beat.monitorID),
         });
     }

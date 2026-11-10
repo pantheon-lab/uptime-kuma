@@ -26,7 +26,7 @@
                         :placeholder="$t('commandPalettePlaceholder')"
                         @keydown.down.prevent="move(1)"
                         @keydown.up.prevent="move(-1)"
-                        @keydown.enter.prevent="choose(results[selected])"
+                        @keydown.enter="onEnter"
                     />
                 </div>
                 <div class="modal-body p-2">
@@ -148,6 +148,19 @@ export default {
         this.modal?.dispose();
     },
     methods: {
+        /**
+         * Go to the selected command, unless Enter only ends an IME composition
+         * @param {KeyboardEvent} e The key press
+         * @returns {void}
+         */
+        onEnter(e) {
+            if (e.isComposing) {
+                return;
+            }
+            e.preventDefault();
+            this.choose(this.results[this.selected]);
+        },
+
         /**
          * Open the palette, or close it when it's open
          * @returns {void}

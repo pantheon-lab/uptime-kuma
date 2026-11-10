@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -239,6 +240,30 @@ func TestOIDCAccounts(t *testing.T) {
 	_ = s.pool.QueryRow(ctx, `SELECT oidc_client_secret FROM login_config`).Scan(&stored)
 	if !secrets.IsSealed(stored) {
 		t.Fatalf("secret stored as %q", stored)
+	}
+
+	// A name that isn't a verified email, such as a preferred username a user can set, can't take
+	// another account's.
+	pat, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp u2", Name: "pat"}, RoleViewer, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp u3", Name: "Pat"}, RoleViewer, ""); err != ErrUsernameTakenByPassword {
+		t.Fatalf("a preferred username took another account's: %v", err)
+	}
+	if u, _ := s.UserByID(ctx, pat.ID); u.Username != "pat" {
+		t.Fatalf("renamed to %q", u.Username)
+	}
+	// A verified email moves to its new owner, and the account that had it is renamed.
+	lee, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp u4", Name: "lee@example.com", Email: "lee@example.com"}, RoleViewer, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SaveOIDCUser(ctx, OIDCUser{Key: "https://idp u5", Name: "lee@example.com", Email: "lee@example.com"}, RoleViewer, ""); err != nil {
+		t.Fatal(err)
+	}
+	if u, _ := s.UserByID(ctx, lee.ID); u.Username != fmt.Sprintf("lee@example.com#%d", lee.ID) {
+		t.Fatalf("the old owner is %q", u.Username)
 	}
 }
 

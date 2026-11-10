@@ -61,6 +61,10 @@ import { UP } from "../util";
 
 // Monitors in one prompt at most, so that it stays readable
 const MAX_MONITORS = 20;
+// Status changes the prompt has for each monitor
+const EVENTS_PER_MONITOR = 10;
+// How long the dialog waits for a monitor's status changes, in milliseconds
+const EVENTS_TIMEOUT = 10000;
 
 export default {
     data() {
@@ -118,23 +122,23 @@ export default {
         },
 
         /**
-         * The monitors' recent status changes, in one request
+         * The monitors' recent status changes, asked for each monitor so that one that flaps
+         * can't push out the others'. A monitor whose answer doesn't come in time has none.
          * @param {number[]} ids Monitors
          * @returns {Promise<object[]>} Events
          */
-        loadEvents(ids) {
-            return new Promise((resolve) => {
-                this.$root
-                    .getSocket()
-                    .emit(
-                        "monitorImportantHeartbeatListPaged",
-                        null,
-                        0,
-                        Math.min(100, ids.length * 10),
-                        { monitorIDs: ids },
-                        (res) => resolve(res?.ok ? res.data : [])
-                    );
-            });
+        async loadEvents(ids) {
+            const one = (id) =>
+                new Promise((resolve) => {
+                    const timer = setTimeout(() => resolve([]), EVENTS_TIMEOUT);
+                    this.$root
+                        .getSocket()
+                        .emit("monitorImportantHeartbeatListPaged", id, 0, EVENTS_PER_MONITOR, (res) => {
+                            clearTimeout(timer);
+                            resolve(res?.ok ? res.data : []);
+                        });
+                });
+            return (await Promise.all(ids.map(one))).flat();
         },
 
         /**

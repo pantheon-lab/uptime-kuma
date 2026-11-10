@@ -36,6 +36,30 @@ await select.waitFor();
 const types = await select.locator("option").evaluateAll((os) => os.map((o) => o.value).filter(Boolean));
 
 /**
+ * Wait until the form has stopped adding or removing fields: the same count for two animation frames
+ * @returns {Promise<void>}
+ */
+const settled = () =>
+    page.evaluate(
+        () =>
+            new Promise((resolve) => {
+                let last = -1;
+                let same = 0;
+                const tick = () => {
+                    const n = document.querySelectorAll("form input, form select, form textarea").length;
+                    same = n === last ? same + 1 : 0;
+                    last = n;
+                    if (same >= 2) {
+                        resolve();
+                    } else {
+                        requestAnimationFrame(tick);
+                    }
+                };
+                requestAnimationFrame(tick);
+            })
+    );
+
+/**
  * The visible fields of the form, in order
  * @returns {Promise<object[]>} Fields
  */
@@ -180,16 +204,20 @@ const snapshot = {};
 for (const type of types) {
     await page.goto("/add");
     await page.getByTestId("monitor-type-select").selectOption(type);
-    await page.waitForTimeout(400);
+    await page.waitForFunction((t) => document.querySelector('[data-testid="monitor-type-select"]')?.value === t, type);
+    await settled();
     // The folded Advanced section, where the form has one
     const advanced = page.getByTestId("advanced-toggle");
     if ((await advanced.count()) > 0 && (await advanced.getAttribute("aria-expanded")) === "false") {
         await advanced.click();
-        await page.waitForTimeout(200);
+        await page.waitForFunction(
+            () => document.querySelector('[data-testid="advanced-toggle"]')?.getAttribute("aria-expanded") === "true"
+        );
+        await settled();
     }
     const before = await fields();
     const filled = await fillAll();
-    await page.waitForTimeout(300);
+    await settled();
     snapshot[type] = { fields: before, filled, monitor: await formMonitor() };
     process.stdout.write(`${type}:${before.length} `);
 }
