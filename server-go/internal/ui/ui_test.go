@@ -238,6 +238,20 @@ func (f *fakeStore) SetMonitorActive(_ context.Context, id int32, active bool) (
 	return m, nil
 }
 
+func (f *fakeStore) SetMonitorsActive(_ context.Context, ids []int32, active bool) ([]monitor.Monitor, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var changed []monitor.Monitor
+	for _, id := range ids {
+		if m, ok := f.monitors[id]; ok {
+			m.Active = active
+			f.monitors[id] = m
+			changed = append(changed, m)
+		}
+	}
+	return changed, nil
+}
+
 func (f *fakeStore) DeleteMonitor(_ context.Context, id int32) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -461,3 +461,66 @@ func TestEditingAGroupSendsTheMonitorsInIt(t *testing.T) {
 		t.Fatalf("the monitor in the renamed group wasn't sent with its new path: %s", sent)
 	}
 }
+
+func TestSetMonitorsActiveSendsOneUpdate(t *testing.T) {
+	s, fs, _ := newTestServer(t)
+	ctx := context.Background()
+	c := &conn{userID: 1, admin: true, username: "a", out: make(chan []byte, 256), done: make(chan struct{})}
+	s.mu.Lock()
+	s.conns["admin"] = c
+	s.mu.Unlock()
+	sched := s.scheduler.(*fakeScheduler)
+	group := addFakeMonitor(fs, "Shop", monitor.TypeGroup)
+	child := monitor.New()
+	child.Name, child.Type, child.URL, child.ParentID = "API", monitor.TypeHTTP, "https://api.example.com", &group
+	child, _ = fs.CreateMonitor(ctx, child)
+	other := addFakeMonitor(fs, "Site", monitor.TypeHTTP)
+	for _, id := range []int32{group, child.ID, other} {
+		m := fs.monitors[id]
+		m.Active = false
+		fs.monitors[id] = m
+	}
+	call := func(args ...any) reply {
+		raws := make([]json.RawMessage, len(args))
+		for i, a := range args {
+			raws[i], _ = json.Marshal(a)
+		}
+		r, _ := s.handle(ctx, c, "setMonitorsActive", raws)
+		return r.(reply)
+	}
+
+	r := call([]int32{group, other, group}, true)
+	if r["ok"] != true || r["count"] != 2 {
+		t.Fatalf("resume: %v", r)
+	}
+	if !fs.monitors[group].Active || !fs.monitors[other].Active || fs.monitors[child.ID].Active {
+		t.Errorf("active: group %v, other %v, child %v", fs.monitors[group].Active, fs.monitors[other].Active, fs.monitors[child.ID].Active)
+	}
+	if len(sched.upserted) != 2 {
+		t.Errorf("the scheduler got %d monitors, want 2", len(sched.upserted))
+	}
+
+	// One update, with the group's monitor too: it shows as paused while its group is.
+	var updates []string
+	for len(c.out) > 0 {
+		if frame := string(<-c.out); strings.Contains(frame, `"updateMonitorIntoList"`) {
+			updates = append(updates, frame)
+		}
+	}
+	if len(updates) != 1 {
+		t.Fatalf("%d list updates, want 1", len(updates))
+	}
+	for _, id := range []int32{group, child.ID, other} {
+		if !strings.Contains(updates[0], `"`+strconv.Itoa(int(id))+`":{`) {
+			t.Errorf("monitor %d isn't in the update", id)
+		}
+	}
+
+	if r := call([]int32{}, true); r["ok"] != false {
+		t.Errorf("nothing chosen: %v", r)
+	}
+	if r, _ := s.handle(ctx, &conn{userID: 2, out: make(chan []byte, 8), done: make(chan struct{})}, "setMonitorsActive",
+		[]json.RawMessage{json.RawMessage(`[1]`), json.RawMessage(`false`)}); r.(reply)["ok"] != false {
+		t.Errorf("a viewer paused monitors: %v", r)
+	}
+}

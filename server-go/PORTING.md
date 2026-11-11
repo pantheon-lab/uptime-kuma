@@ -1020,6 +1020,12 @@ Not tested: a range of more than 30 days, which reads the daily statistics; the 
   after a restart a paused group's monitors stay stopped. Moving a monitor into or out of a paused group, or
   deleting the group, applies the same rule. Clearing a group's data suspends only the group (`Suspend`), so it
   doesn't start the monitors in it.
+- **Pausing or resuming many monitors is one request.** The list's Actions sent `pauseMonitor` or `resumeMonitor`
+  once per monitor, and the server answered each with its own list update, after loading the whole monitor tree
+  twice. A connection's events run in order, so with a database a millisecond away 190 monitors took seconds, and
+  the list re-sorted itself monitor by monitor, paused ones moving up one at a time. `setMonitorsActive(ids,
+  active)` changes them in one statement and sends one update, with the monitors in the groups among them. The
+  toast now waits for the answer, and says what failed.
 - **Exporting the selected monitors** (`src/components/ExportMonitorsDialog.vue`), from Export… in the list's Actions
   menu. `exportMonitors(ids, {groups, children})` returns them in the REST API's format with their credentials, so
   only admins can. `groups` adds the groups they're in up to the top, and `children` everything in a chosen group;

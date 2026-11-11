@@ -709,11 +709,7 @@ export default {
                 return;
             }
 
-            this.bulkActionInProgress = true;
-            activeMonitors.forEach((id) => this.$root.getSocket().emit("pauseMonitor", id, () => {}));
-            this.$root.toastSuccess(this.$t("pausedMonitorsMsg", activeMonitors.length));
-            this.bulkActionInProgress = false;
-            this.cancelSelectMode();
+            this.setSelectedActive(activeMonitors, false);
         },
         /**
          * Resume each selected monitor
@@ -733,11 +729,25 @@ export default {
                 return;
             }
 
+            this.setSelectedActive(inactiveMonitors, true);
+        },
+        /**
+         * Pause or resume monitors in one request, so the list changes once rather than per monitor
+         * @param {string[]} ids Monitors to change
+         * @param {boolean} active Resume them, or pause them
+         * @returns {void}
+         */
+        setSelectedActive(ids, active) {
             this.bulkActionInProgress = true;
-            inactiveMonitors.forEach((id) => this.$root.getSocket().emit("resumeMonitor", id, () => {}));
-            this.$root.toastSuccess(this.$t("resumedMonitorsMsg", inactiveMonitors.length));
-            this.bulkActionInProgress = false;
-            this.cancelSelectMode();
+            this.$root.getSocket().emit("setMonitorsActive", ids.map(Number), active, (res) => {
+                this.bulkActionInProgress = false;
+                if (!res?.ok) {
+                    this.$root.toastError(res?.msg ?? this.$t("bulkActionFailedMsg"));
+                    return;
+                }
+                this.$root.toastSuccess(this.$t(active ? "resumedMonitorsMsg" : "pausedMonitorsMsg", res.count));
+                this.cancelSelectMode();
+            });
         },
         /**
          * Delete each selected monitor
