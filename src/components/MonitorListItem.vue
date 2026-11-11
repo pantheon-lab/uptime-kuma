@@ -12,12 +12,12 @@
             @drop.prevent="onDrop"
         >
             <!-- Checkbox -->
-            <div v-if="isSelectMode" class="select-input-wrapper">
+            <div v-if="selectable" class="select-input-wrapper">
                 <input
                     class="form-check-input select-input"
                     type="checkbox"
                     :data-testid="'monitor-select-' + monitor.id"
-                    :aria-label="$t('Check/Uncheck')"
+                    :aria-label="$t('selectMonitorAria', [monitor.name])"
                     :checked="isSelected(monitor.id)"
                     @click.stop="toggleSelection"
                 />
@@ -80,7 +80,7 @@
                     :key="index"
                     :monitor="item"
                     :children-by-parent="childrenByParent"
-                    :isSelectMode="isSelectMode"
+                    :selectable="selectable"
                     :isSelected="isSelected"
                     :select="select"
                     :deselect="deselect"
@@ -117,8 +117,8 @@ export default {
             type: Object,
             default: null,
         },
-        /** If the user is in select mode */
-        isSelectMode: {
+        /** Whether the monitor has a box to choose it for the list's actions */
+        selectable: {
             type: Boolean,
             default: false,
         },
@@ -186,12 +186,6 @@ export default {
                 c["col-xl-6"] = true;
             }
             return c;
-        },
-    },
-    watch: {
-        isSelectMode() {
-            // TODO: Resize the heartbeat bar, but too slow
-            // this.$refs.heartbeatBar.resize();
         },
     },
     beforeMount() {

@@ -133,10 +133,12 @@ type Updates interface {
 	Recheck()
 }
 
-// Scheduler runs checks. Upsert starts, restarts or stops a monitor as its Active field says.
+// Scheduler runs checks. Upsert starts, restarts or stops a monitor as its Active field, and its
+// groups', say. Remove forgets a deleted monitor, and Suspend stops one until its next Upsert.
 type Scheduler interface {
 	Upsert(m monitor.Monitor)
 	Remove(ctx context.Context, id int32) error
+	Suspend(ctx context.Context, id int32) error
 }
 
 // Beats delivers new beats as they are stored.

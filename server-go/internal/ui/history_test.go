@@ -82,13 +82,13 @@ func TestMonitorHistoryEvents(t *testing.T) {
 	})
 
 	t.Run("clear a monitor", func(t *testing.T) {
-		sched.removed, sched.upserted = nil, nil
+		sched.suspended, sched.upserted = nil, nil
 		if r := call("clearHeartbeats", 1); r["ok"] != true {
 			t.Fatalf("clear: %v", r)
 		}
-		if !slices.Equal(fs.cleared, []int32{1}) || !slices.Equal(sched.removed, []int32{1}) ||
+		if !slices.Equal(fs.cleared, []int32{1}) || !slices.Equal(sched.suspended, []int32{1}) ||
 			len(sched.upserted) != 1 || sched.upserted[0].ID != 1 {
-			t.Fatalf("cleared %v, removed %v, upserted %v", fs.cleared, sched.removed, sched.upserted)
+			t.Fatalf("cleared %v, suspended %v, upserted %v", fs.cleared, sched.suspended, sched.upserted)
 		}
 		if r := call("clearHeartbeats", 99); r["ok"] != false || len(fs.cleared) != 1 {
 			t.Fatalf("unknown monitor: %v", r)
@@ -96,13 +96,13 @@ func TestMonitorHistoryEvents(t *testing.T) {
 	})
 
 	t.Run("clear everything", func(t *testing.T) {
-		sched.removed, sched.upserted, fs.cleared = nil, nil, nil
+		sched.suspended, sched.upserted, fs.cleared = nil, nil, nil
 		if r := call("clearStatistics"); r["ok"] != true {
 			t.Fatalf("clear: %v", r)
 		}
-		slices.Sort(sched.removed)
-		if !slices.Equal(fs.cleared, []int32{0}) || !slices.Equal(sched.removed, []int32{1, 2}) || len(sched.upserted) != 2 {
-			t.Fatalf("cleared %v, removed %v, upserted %d", fs.cleared, sched.removed, len(sched.upserted))
+		slices.Sort(sched.suspended)
+		if !slices.Equal(fs.cleared, []int32{0}) || !slices.Equal(sched.suspended, []int32{1, 2}) || len(sched.upserted) != 2 {
+			t.Fatalf("cleared %v, suspended %v, upserted %d", fs.cleared, sched.suspended, len(sched.upserted))
 		}
 	})
 

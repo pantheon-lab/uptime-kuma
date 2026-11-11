@@ -22,22 +22,16 @@
                 </div>
 
                 <div class="filters-group">
+                    <!-- None ticked: tick every monitor shown. Some or all: untick them -->
                     <input
-                        v-if="$root.canEdit && !selectMode"
-                        v-model="selectMode"
-                        class="form-check-input"
-                        data-testid="select-mode-toggle"
-                        type="checkbox"
-                        :aria-label="$t('selectAllMonitorsAria')"
-                        @change="selectAll = selectMode"
-                    />
-                    <input
-                        v-else-if="$root.canEdit"
-                        v-model="selectAll"
+                        v-if="$root.canEdit"
                         class="form-check-input"
                         data-testid="select-all-toggle"
                         type="checkbox"
-                        :aria-label="selectAll ? $t('deselectAllMonitorsAria') : $t('selectAllMonitorsAria')"
+                        :checked="selectMode"
+                        :indeterminate="selectMode && !allMatchingSelected"
+                        :aria-label="selectMode ? $t('deselectAllMonitorsAria') : $t('selectAllMonitorsAria')"
+                        @change="toggleSelectAll"
                     />
 
                     <MonitorListFilter
@@ -51,7 +45,7 @@
             </div>
 
             <!-- Line 2: Cancel + Actions (shown when selection mode is active) -->
-            <div v-if="selectMode && selectedMonitorCount > 0" class="selection-row">
+            <div v-if="selectMode" class="selection-row">
                 <button class="btn btn-outline-normal" @click="cancelSelectMode">
                     {{ $t("Cancel") }}
                 </button>
@@ -78,6 +72,17 @@
                                 >
                                     <font-awesome-icon icon="edit" class="me-2" />
                                     {{ $t("bulkEditAction") }}
+                                </a>
+                            </li>
+                            <li>
+                                <a
+                                    class="dropdown-item"
+                                    href="#"
+                                    data-testid="bulk-export"
+                                    @click.prevent="$refs.exportDialog.show(Object.keys(selectedMonitors))"
+                                >
+                                    <font-awesome-icon icon="download" class="me-2" />
+                                    {{ $t("exportMonitorsAction") }}
                                 </a>
                             </li>
                             <li>
@@ -142,7 +147,7 @@
                 :ref="(el) => setRowRef(el, item.id)"
                 :monitor="item"
                 :children-by-parent="childrenByParent"
-                :isSelectMode="selectMode"
+                :selectable="$root.canEdit"
                 :isSelected="isSelected"
                 :select="select"
                 :deselect="deselect"
@@ -154,6 +159,7 @@
     </div>
 
     <BulkEditDialog ref="bulkEditDialog" @saved="cancelSelectMode" />
+    <ExportMonitorsDialog ref="exportDialog" />
 
     <Confirm ref="confirmPause" :yes-text="$t('Yes')" :no-text="$t('No')" @yes="pauseSelected">
         {{ $t("pauseMonitorMsg") }}
@@ -161,12 +167,20 @@
 
     <Confirm ref="confirmDelete" btn-style="btn-danger" :yes-text="$t('Yes')" :no-text="$t('No')" @yes="deleteSelected">
         {{ $t("deleteMonitorsMsg") }}
+        <!-- By name, because ticked monitors stay ticked when the filters hide them -->
+        <ul class="delete-list mt-2 mb-0" data-testid="bulk-delete-list">
+            <li v-for="m in selectedForDelete" :key="m.id">
+                {{ m.path }}
+                <span v-if="!filterFunc(m)" class="text-muted">({{ $t("hiddenByFilters") }})</span>
+            </li>
+        </ul>
     </Confirm>
 </template>
 
 <script>
 import BulkEditDialog from "../components/BulkEditDialog.vue";
 import Confirm from "../components/Confirm.vue";
+import ExportMonitorsDialog from "../components/ExportMonitorsDialog.vue";
 import MonitorListItem from "../components/MonitorListItem.vue";
 import MonitorListFilter from "./MonitorListFilter.vue";
 import { getMonitorRelativeURL } from "../util.ts";
@@ -175,6 +189,7 @@ import { computeListWindow, computeRowMetrics } from "../monitor-list-window";
 export default {
     components: {
         BulkEditDialog,
+        ExportMonitorsDialog,
         Confirm,
         MonitorListItem,
         MonitorListFilter,
@@ -188,9 +203,6 @@ export default {
     data() {
         return {
             searchText: "",
-            selectMode: false,
-            selectAll: false,
-            disableSelectAllWatcher: false,
             selectedMonitors: {},
             windowTop: 0,
             bulkActionInProgress: false,
@@ -292,7 +304,7 @@ export default {
             let listHeaderHeight = 58 + 10;
 
             // Only add extra height when selection row is visible
-            if (this.selectMode && this.selectedMonitorCount > 0) {
+            if (this.selectMode) {
                 listHeaderHeight += 42;
             }
 
@@ -303,6 +315,53 @@ export default {
 
         selectedMonitorCount() {
             return Object.keys(this.selectedMonitors).length;
+        },
+
+        /**
+         * The ticked monitors with their paths, for the delete confirmation. The paths come from the
+         * groups as they are now, so a group renamed or moved meanwhile shows its new name.
+         * @returns {{id: number, path: string}[]} Monitors, by path
+         */
+        selectedForDelete() {
+            const list = this.$root.monitorList;
+            return Object.keys(this.selectedMonitors)
+                .map((id) => list[id])
+                .filter(Boolean)
+                .map((m) => {
+                    const names = [m.name];
+                    const seen = new Set([m.id]);
+                    for (let p = list[m.parent]; p && !seen.has(p.id); p = list[p.parent]) {
+                        seen.add(p.id);
+                        names.unshift(p.name);
+                    }
+                    return { ...m, path: names.join(" / ") };
+                })
+                .sort((a, b) => a.path.localeCompare(b.path));
+        },
+
+        // Monitors are being chosen once one is ticked
+        selectMode() {
+            return this.selectedMonitorCount > 0;
+        },
+
+        /**
+         * Every monitor that matches the filters and search, in groups too. A group shown only
+         * because something in it matches isn't one: ticking it would pause or delete the rest.
+         * @returns {object[]} Monitors
+         */
+        matchingMonitors() {
+            return Object.values(this.$root.monitorList).filter(this.matchesFilters);
+        },
+
+        // The monitors' ids: deleting one from the list changes it, though the list stays the same object
+        monitorIds() {
+            return Object.keys(this.$root.monitorList);
+        },
+
+        allMatchingSelected() {
+            return (
+                this.matchingMonitors.length > 0 && this.matchingMonitors.every((m) => m.id in this.selectedMonitors)
+            );
         },
 
         /**
@@ -350,37 +409,13 @@ export default {
         },
     },
     watch: {
-        searchText() {
-            for (let monitor of this.sortedMonitorList) {
-                if (!this.selectedMonitors[monitor.id]) {
-                    if (this.selectAll) {
-                        this.disableSelectAllWatcher = true;
-                        this.selectAll = false;
-                    }
-                    break;
+        // A monitor deleted meanwhile, here or elsewhere, is no longer chosen
+        monitorIds(ids) {
+            const present = new Set(ids);
+            for (const id of Object.keys(this.selectedMonitors)) {
+                if (!present.has(id)) {
+                    delete this.selectedMonitors[id];
                 }
-            }
-        },
-        selectAll() {
-            if (!this.disableSelectAllWatcher) {
-                this.selectedMonitors = {};
-
-                if (this.selectAll) {
-                    this.sortedMonitorList.forEach((item) => {
-                        this.selectedMonitors[item.id] = true;
-                    });
-                } else {
-                    // Exit select mode when unchecking "select all"
-                    this.selectMode = false;
-                }
-            } else {
-                this.disableSelectAllWatcher = false;
-            }
-        },
-        selectMode() {
-            if (!this.selectMode) {
-                this.selectAll = false;
-                this.selectedMonitors = {};
             }
         },
         filterState: {
@@ -632,8 +667,22 @@ export default {
          * @returns {void}
          */
         cancelSelectMode() {
-            this.selectMode = false;
             this.selectedMonitors = {};
+        },
+        /**
+         * The header's box: with none ticked, tick every monitor shown; otherwise untick them all
+         * @returns {void}
+         */
+        toggleSelectAll() {
+            if (this.selectMode) {
+                this.selectedMonitors = {};
+                return;
+            }
+            const selected = {};
+            for (const m of this.matchingMonitors) {
+                selected[m.id] = true;
+            }
+            this.selectedMonitors = selected;
         },
         /**
          * Show dialog to confirm pause
@@ -651,7 +700,9 @@ export default {
                 return;
             }
 
-            const activeMonitors = Object.keys(this.selectedMonitors).filter((id) => this.$root.monitorList[id].active);
+            const activeMonitors = Object.keys(this.selectedMonitors).filter(
+                (id) => this.$root.monitorList[id]?.active
+            );
 
             if (activeMonitors.length === 0) {
                 this.$root.toastError(this.$t("noMonitorsPausedMsg"));
@@ -674,7 +725,7 @@ export default {
             }
 
             const inactiveMonitors = Object.keys(this.selectedMonitors).filter(
-                (id) => !this.$root.monitorList[id].active
+                (id) => this.$root.monitorList[id] && !this.$root.monitorList[id].active
             );
 
             if (inactiveMonitors.length === 0) {
@@ -745,7 +796,14 @@ export default {
                     return true;
                 }
             }
-
+            return this.matchesFilters(monitor);
+        },
+        /**
+         * Whether a monitor itself matches the filters and search, whatever is in it
+         * @param {object} monitor Monitor to check
+         * @returns {boolean} Does it match
+         */
+        matchesFilters(monitor) {
             // filter by search text
             // finds monitor name, tag name or tag value
             let searchTextMatch = true;
@@ -1076,5 +1134,11 @@ export default {
             margin-top: 0.25rem;
         }
     }
+}
+
+.delete-list {
+    max-height: 240px;
+    overflow-y: auto;
+    padding-left: 1.25rem;
 }
 </style>

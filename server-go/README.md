@@ -58,15 +58,24 @@ Database,port,,30,db.internal,5432,
 YAML is a list of monitors, or has a `monitors` list. **Check** shows what's wrong with each row, and nothing is added
 until every monitor is valid. Imported monitors get the default notifications.
 
-To export monitors, list them with the REST API and an API key with `monitors:write` (with only
-`monitors:read`, passwords and tokens come redacted). The file imports again as it is:
+To export monitors, tick the box above the monitor list, choose them, then **Actions > Export…**. It saves YAML or
+JSON that **Import** reads back, here or on another server. The groups the monitors are in can come along, and so can
+everything in a chosen group; a monitor whose group isn't exported loses its `parentId`. The file holds the
+monitors' passwords, tokens and keys, and only admins can export.
+
+The REST API can also export monitors. An API key with `monitors:write` includes credentials in the export.
+With `monitors:read` alone, passwords and tokens are redacted, so they won't be imported:
 
 ```bash
 curl -s -H "Authorization: Bearer $KEY" "http://localhost:3002/api/v1/monitors?limit=1000" > monitors.json
 ```
 
-A `parentId` is the group's ID on the server it came from, and push tokens must be unique, so importing into the same
-server needs those changed or removed. Notifications and tags aren't in the file.
+A `parentId` names a group in the same file by its `id`, or else a group on the server importing it. Groups in the
+file are added first, with new IDs, and the monitors in them follow.
+
+Push tokens must be unique. If the original push monitors still exist on this server, **Check** refuses their
+exported file here, because their `pushToken` values are already in use. Remove each `pushToken` from the file to
+get a new one. The file doesn't include notifications or tags.
 
 The Edit Monitor form's **Test** runs one check of the monitor as the form has it, without saving it.
 

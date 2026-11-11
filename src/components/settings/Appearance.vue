@@ -76,6 +76,7 @@
             </div>
             <div class="form-text">{{ $t("appIconHint") }}</div>
         </div>
+        <AppearancePreview class="my-4" />
         <div class="my-4">
             <label class="form-label">{{ $t("Theme - Heartbeat Bar") }}</label>
             <div>
@@ -173,8 +174,12 @@
 
 <script>
 import { appIcons } from "../../app-icon.js";
+import AppearancePreview from "./AppearancePreview.vue";
 
 export default {
+    components: {
+        AppearancePreview,
+    },
     data() {
         return {
             appIcons,

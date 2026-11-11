@@ -508,9 +508,10 @@ func (f *fakeStore) DeleteHolidayOverride(_ context.Context, country, date strin
 }
 
 type fakeScheduler struct {
-	mu       sync.Mutex
-	upserted []monitor.Monitor
-	removed  []int32
+	mu        sync.Mutex
+	upserted  []monitor.Monitor
+	removed   []int32
+	suspended []int32
 }
 
 func (f *fakeScheduler) Upsert(m monitor.Monitor) {
@@ -523,6 +524,13 @@ func (f *fakeScheduler) Remove(_ context.Context, id int32) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.removed = append(f.removed, id)
+	return nil
+}
+
+func (f *fakeScheduler) Suspend(_ context.Context, id int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.suspended = append(f.suspended, id)
 	return nil
 }
 

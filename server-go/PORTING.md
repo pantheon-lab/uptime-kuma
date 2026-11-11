@@ -1011,8 +1011,20 @@ Not tested: a range of more than 30 days, which reads the daily statistics; the 
   default, lists take values separated by `;` and `headers` takes JSON (`src/monitor-import.ts`); YAML or JSON is a
   list, or a map with a `monitors` list. Check runs `importMonitors(monitors, true)`, which shows each row as ready or
   what's wrong with it; Import adds them, only once all are valid. They get the default notifications, as from the
-  REST API, and `parentId` puts one in a group. Up to 1,000 at once. The web UI reads js-yaml, now a direct
-  dependency.
+  REST API, and `parentId` puts one in a group: a group in the same file by its `id`, or else one on the server.
+  Groups in the file are added before what's in them, and Check refuses a loop of groups, an `id` twice, and a push
+  token in use or twice in the file. Up to 1,000 at once. The web UI reads js-yaml, now a direct dependency.
+- **A paused group stops the monitors in it.** The list already showed them as paused, but the scheduler kept
+  checking them, writing beats and alerting. It now checks a monitor only while it and every group above it are
+  active: pausing a group stops everything in it however deep, resuming it starts what's active in it at once, and
+  after a restart a paused group's monitors stay stopped. Moving a monitor into or out of a paused group, or
+  deleting the group, applies the same rule. Clearing a group's data suspends only the group (`Suspend`), so it
+  doesn't start the monitors in it.
+- **Exporting the selected monitors** (`src/components/ExportMonitorsDialog.vue`), from Export… in the list's Actions
+  menu. `exportMonitors(ids, {groups, children})` returns them in the REST API's format with their credentials, so
+  only admins can. `groups` adds the groups they're in up to the top, and `children` everything in a chosen group;
+  a monitor whose group isn't exported loses its `parentId`, so the file is complete on its own. Groups come before
+  what's in them. The UI saves it as YAML or JSON (`src/monitor-export.ts`), and logs who exported how many.
 - **Test in the Edit Monitor form** runs one check of the monitor as the form has it, saved or not, and shows the
   status, the time it took and the message beside Save. `testMonitor(monitor)` runs the server's checker as the
   first check of a new monitor, so a failure is DOWN whatever the retries, and upside-down mode applies. It's cut to
