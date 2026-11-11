@@ -633,7 +633,12 @@ func (s *Server) editMonitor(ctx context.Context, args []json.RawMessage) (reply
 	}
 	s.maintenance.Changed() // It may have moved to another group.
 	s.scheduler.Upsert(updated)
-	s.broadcastMonitors(ctx, updated.ID)
+	// The monitors in a group show its name in their path, so a renamed or moved group sends them too.
+	ids := []int32{updated.ID}
+	if tree, err := s.monitorTree(ctx); err == nil {
+		ids = append(ids, tree.descendants(updated.ID)...)
+	}
+	s.broadcastMonitors(ctx, ids...)
 	s.log.Info("monitor changed from the web UI", "monitor", updated.ID)
 	r := okI18n("Saved.", "monitorID", updated.ID)
 	if note != "" {

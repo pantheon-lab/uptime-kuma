@@ -170,7 +170,7 @@
         <!-- By name, because ticked monitors stay ticked when the filters hide them -->
         <ul class="delete-list mt-2 mb-0" data-testid="bulk-delete-list">
             <li v-for="m in selectedForDelete" :key="m.id">
-                {{ m.pathName || m.name }}
+                {{ m.path }}
                 <span v-if="!filterFunc(m)" class="text-muted">({{ $t("hiddenByFilters") }})</span>
             </li>
         </ul>
@@ -318,14 +318,25 @@ export default {
         },
 
         /**
-         * The ticked monitors, by their path, for the delete confirmation
-         * @returns {object[]} Monitors
+         * The ticked monitors with their paths, for the delete confirmation. The paths come from the
+         * groups as they are now, so a group renamed or moved meanwhile shows its new name.
+         * @returns {{id: number, path: string}[]} Monitors, by path
          */
         selectedForDelete() {
+            const list = this.$root.monitorList;
             return Object.keys(this.selectedMonitors)
-                .map((id) => this.$root.monitorList[id])
+                .map((id) => list[id])
                 .filter(Boolean)
-                .sort((a, b) => (a.pathName || a.name).localeCompare(b.pathName || b.name));
+                .map((m) => {
+                    const names = [m.name];
+                    const seen = new Set([m.id]);
+                    for (let p = list[m.parent]; p && !seen.has(p.id); p = list[p.parent]) {
+                        seen.add(p.id);
+                        names.unshift(p.name);
+                    }
+                    return { ...m, path: names.join(" / ") };
+                })
+                .sort((a, b) => a.path.localeCompare(b.path));
         },
 
         // Monitors are being chosen once one is ticked

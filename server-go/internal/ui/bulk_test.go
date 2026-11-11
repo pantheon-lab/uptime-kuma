@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -422,5 +423,41 @@ func TestExportMonitors(t *testing.T) {
 	}
 	if r := caller(t, s, false)("exportMonitors", []int32{api}); r["ok"] != false {
 		t.Errorf("a viewer exported credentials: %v", r)
+	}
+}
+
+func TestEditingAGroupSendsTheMonitorsInIt(t *testing.T) {
+	s, fs, _ := newTestServer(t)
+	ctx := context.Background()
+	c := &conn{userID: 1, admin: true, out: make(chan []byte, 256), done: make(chan struct{})}
+	s.mu.Lock()
+	s.conns["test"] = c
+	s.mu.Unlock()
+	group := addFakeMonitor(fs, "Shop", monitor.TypeGroup)
+	child := monitor.New()
+	child.Name, child.Type, child.URL, child.ParentID = "API", monitor.TypeHTTP, "https://api.example.com", &group
+	child, _ = fs.CreateMonitor(ctx, child)
+
+	tree, err := s.monitorTree(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	form := tree.monitorJSON(tree.byID[group])
+	form["name"] = "Store"
+	raw, _ := json.Marshal(form)
+	r, _ := s.handle(ctx, c, "editMonitor", []json.RawMessage{raw})
+	if r.(reply)["ok"] != true {
+		t.Fatalf("edit: %v", r)
+	}
+
+	// The update is an SSE frame of ["updateMonitorIntoList", {id: monitor}].
+	sent := ""
+	for len(c.out) > 0 {
+		if frame := string(<-c.out); strings.Contains(frame, `"updateMonitorIntoList"`) {
+			sent += frame
+		}
+	}
+	if !strings.Contains(sent, `"`+strconv.Itoa(int(child.ID))+`":{`) || !strings.Contains(sent, `"pathName":"Store / API"`) {
+		t.Fatalf("the monitor in the renamed group wasn't sent with its new path: %s", sent)
 	}
 }
