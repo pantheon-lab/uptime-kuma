@@ -184,6 +184,7 @@ import ExportMonitorsDialog from "../components/ExportMonitorsDialog.vue";
 import MonitorListItem from "../components/MonitorListItem.vue";
 import MonitorListFilter from "./MonitorListFilter.vue";
 import { getMonitorRelativeURL } from "../util.ts";
+import { monitorPath } from "../monitor-path";
 import { computeListWindow, computeRowMetrics } from "../monitor-list-window";
 
 export default {
@@ -327,15 +328,7 @@ export default {
             return Object.keys(this.selectedMonitors)
                 .map((id) => list[id])
                 .filter(Boolean)
-                .map((m) => {
-                    const names = [m.name];
-                    const seen = new Set([m.id]);
-                    for (let p = list[m.parent]; p && !seen.has(p.id); p = list[p.parent]) {
-                        seen.add(p.id);
-                        names.unshift(p.name);
-                    }
-                    return { ...m, path: names.join(" / ") };
-                })
+                .map((m) => ({ ...m, path: monitorPath(list, m) }))
                 .sort((a, b) => a.path.localeCompare(b.path));
         },
 
