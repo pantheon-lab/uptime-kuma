@@ -645,7 +645,7 @@ func TestSyncAppliesWhatChangedInTheDatabase(t *testing.T) {
 	// would check it again at once.
 	paused.Active = true
 	added := monitor.Monitor{ID: 4, Active: true, Interval: 1}
-	s.Sync([]monitor.Monitor{steady, paused, added}, s.Generation())
+	s.Sync([]monitor.Monitor{steady, paused, added}, s.Generation(), nil)
 	waitFor(t, "the resumed and the added monitor", func() bool { return checker.count(2) >= 1 && checker.count(4) >= 1 })
 	if running(3) {
 		t.Error("a monitor no longer in the database is still running")
@@ -678,7 +678,7 @@ func TestSyncLeavesNewerChangesAlone(t *testing.T) {
 	if err := s.Remove(context.Background(), 2); err != nil {
 		t.Fatal(err)
 	}
-	s.Sync(snapshot, since)
+	s.Sync(snapshot, since, nil)
 	if running(1) {
 		t.Error("an older snapshot resumed a monitor paused after it was read")
 	}
@@ -687,7 +687,7 @@ func TestSyncLeavesNewerChangesAlone(t *testing.T) {
 	}
 
 	// A snapshot read after the changes applies.
-	s.Sync([]monitor.Monitor{{ID: 1, Active: true, Interval: 1}}, s.Generation())
+	s.Sync([]monitor.Monitor{{ID: 1, Active: true, Interval: 1}}, s.Generation(), nil)
 	waitFor(t, "the resumed monitor", func() bool { return checker.count(1) >= 1 })
 }
 
@@ -699,7 +699,7 @@ func TestSyncInstallsGroupsBeforeStartingAnything(t *testing.T) {
 	// The child comes first, and its new group, paused, is only further down the snapshot.
 	child := monitor.Monitor{ID: 11, Active: true, Interval: 1, ParentID: &groupID}
 	group := monitor.Monitor{ID: groupID, Type: monitor.TypeGroup, Active: false, Interval: 3600}
-	s.Sync([]monitor.Monitor{child, group}, s.Generation())
+	s.Sync([]monitor.Monitor{child, group}, s.Generation(), nil)
 	time.Sleep(300 * time.Millisecond)
 	if n := checker.count(11); n != 0 {
 		t.Errorf("a monitor in a paused group was checked %d times", n)
@@ -776,7 +776,7 @@ func TestSyncStopsAPausedGroupsMonitorsBeforeWaiting(t *testing.T) {
 	synced := make(chan struct{})
 	go func() {
 		defer close(synced)
-		s.Sync([]monitor.Monitor{slow, child, group}, s.Generation())
+		s.Sync([]monitor.Monitor{slow, child, group}, s.Generation(), nil)
 	}()
 	select {
 	case <-cancelled:
@@ -803,5 +803,25 @@ func TestSyncStopsAPausedGroupsMonitorsBeforeWaiting(t *testing.T) {
 	time.Sleep(1200 * time.Millisecond)
 	if n := beatsOf(2); n != before {
 		t.Errorf("a monitor in the paused group recorded %d beats after the reload", n-before)
+	}
+}
+
+func TestSyncContinuesFromTheSavedState(t *testing.T) {
+	sink := &fakeSink{}
+	checker := checkFunc(func(context.Context, monitor.Monitor) monitor.Result { return monitor.Result{OK: true} })
+	s := New(checker, sink, 10, quiet)
+	defer s.Stop()
+
+	// An import resumed two monitors: one was up in the source, the other has no saved state.
+	s.Sync([]monitor.Monitor{{ID: 1, Active: true, Interval: 3600}, {ID: 2, Active: true, Interval: 3600}},
+		s.Generation(), map[int32]monitor.Previous{1: {Status: monitor.StatusUp}})
+	waitFor(t, "both first checks", func() bool { return len(sink.snapshot()) >= 2 })
+	for _, b := range sink.snapshot() {
+		switch {
+		case b.MonitorID == 1 && b.Important:
+			t.Error("up after up, as saved, was taken for a change: every resumed monitor would alert")
+		case b.MonitorID == 2 && !b.Important:
+			t.Error("a monitor without a saved state didn't start a new history")
+		}
 	}
 }

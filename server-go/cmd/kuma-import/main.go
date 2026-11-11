@@ -83,14 +83,17 @@ func run(apply, activate bool, log *slog.Logger) error {
 
 	start := time.Now()
 	report, err := importer.Run(ctx, options)
-	if err != nil {
-		return err
-	}
 	if db, ok := options.Target.(*store.Store); ok && db != nil {
-		// A running service picks up what was written: its scheduler and its open pages.
-		if err := db.NotifyImported(ctx); err != nil {
+		// A running service picks up what was written, its scheduler and its open pages, after a
+		// failed import too, which may have written part of it. Even when the import was cancelled.
+		notifyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		if err := db.NotifyImported(notifyCtx); err != nil {
 			log.Warn("tell the service about the import; restart it to see what was imported", "error", err)
 		}
+		cancel()
+	}
+	if err != nil {
+		return err
 	}
 	log.Info("finished", "duration", time.Since(start).Round(time.Millisecond))
 	encoder := json.NewEncoder(os.Stdout)

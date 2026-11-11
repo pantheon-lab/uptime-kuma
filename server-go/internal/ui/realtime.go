@@ -390,9 +390,15 @@ func (s *Server) Reload(ctx context.Context) error {
 		}
 	}
 	s.mu.Unlock()
+	var listErr error
 	for _, c := range conns {
-		s.afterLogin(ctx, c)
+		if err := s.afterLogin(ctx, c); err != nil && listErr == nil {
+			listErr = fmt.Errorf("send a page its monitor list: %w", err)
+		}
 		s.sendDashboardLists(ctx, c)
+	}
+	if listErr != nil {
+		return listErr
 	}
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("send the lists: %w", err)

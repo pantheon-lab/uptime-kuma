@@ -100,16 +100,17 @@ func (s *Server) onConnect(c *conn, login *userInfo) {
 	}
 	c.emit("session", login.username, role)
 	s.setLogin(c, login)
-	s.afterLogin(ctx, c)
+	_ = s.afterLogin(ctx, c) // Logged; the page asks again when it reconnects.
 }
 
-func (s *Server) afterLogin(ctx context.Context, c *conn) {
+func (s *Server) afterLogin(ctx context.Context, c *conn) error {
 	if !c.admin {
-		s.afterViewerLogin(ctx, c)
-		return
+		return s.afterViewerLogin(ctx, c)
 	}
-	if err := s.sendMonitorList(ctx, c); err != nil {
-		s.log.Error("send monitor list", "error", err)
+	// The monitor list's failure is returned, so that a reload tries again; the others are only logged.
+	listErr := s.sendMonitorList(ctx, c)
+	if listErr != nil {
+		s.log.Error("send monitor list", "error", listErr)
 	}
 	c.emit("info", s.info(ctx, true))
 	if list, err := s.maintenanceList(ctx); err != nil {
@@ -126,13 +127,14 @@ func (s *Server) afterLogin(ctx context.Context, c *conn) {
 	c.emit("monitorTypeList", monitorTypeList())
 	if s.pages == nil {
 		c.emit("statusPageList", map[string]any{})
-		return
+		return listErr
 	}
 	if list, err := s.statusPageList(ctx); err != nil {
 		s.log.Error("send status page list", "error", err)
 	} else {
 		c.emit("statusPageList", list)
 	}
+	return listErr
 }
 
 // monitorTypeList tells the form which types take conditions, and on what.
