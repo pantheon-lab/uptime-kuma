@@ -22,22 +22,16 @@
                 </div>
 
                 <div class="filters-group">
+                    <!-- None ticked: tick every monitor shown. Some or all: untick them -->
                     <input
-                        v-if="$root.canEdit && !selectMode"
-                        v-model="selectMode"
-                        class="form-check-input"
-                        data-testid="select-mode-toggle"
-                        type="checkbox"
-                        :aria-label="$t('selectAllMonitorsAria')"
-                        @change="selectAll = selectMode"
-                    />
-                    <input
-                        v-else-if="$root.canEdit"
-                        v-model="selectAll"
+                        v-if="$root.canEdit"
                         class="form-check-input"
                         data-testid="select-all-toggle"
                         type="checkbox"
-                        :aria-label="selectAll ? $t('deselectAllMonitorsAria') : $t('selectAllMonitorsAria')"
+                        :checked="selectMode"
+                        :indeterminate="selectMode && !allVisibleSelected"
+                        :aria-label="selectMode ? $t('deselectAllMonitorsAria') : $t('selectAllMonitorsAria')"
+                        @change="toggleSelectAll"
                     />
 
                     <MonitorListFilter
@@ -51,7 +45,7 @@
             </div>
 
             <!-- Line 2: Cancel + Actions (shown when selection mode is active) -->
-            <div v-if="selectMode && selectedMonitorCount > 0" class="selection-row">
+            <div v-if="selectMode" class="selection-row">
                 <button class="btn btn-outline-normal" @click="cancelSelectMode">
                     {{ $t("Cancel") }}
                 </button>
@@ -153,7 +147,7 @@
                 :ref="(el) => setRowRef(el, item.id)"
                 :monitor="item"
                 :children-by-parent="childrenByParent"
-                :isSelectMode="selectMode"
+                :selectable="$root.canEdit"
                 :isSelected="isSelected"
                 :select="select"
                 :deselect="deselect"
@@ -202,9 +196,6 @@ export default {
     data() {
         return {
             searchText: "",
-            selectMode: false,
-            selectAll: false,
-            disableSelectAllWatcher: false,
             selectedMonitors: {},
             windowTop: 0,
             bulkActionInProgress: false,
@@ -306,7 +297,7 @@ export default {
             let listHeaderHeight = 58 + 10;
 
             // Only add extra height when selection row is visible
-            if (this.selectMode && this.selectedMonitorCount > 0) {
+            if (this.selectMode) {
                 listHeaderHeight += 42;
             }
 
@@ -317,6 +308,23 @@ export default {
 
         selectedMonitorCount() {
             return Object.keys(this.selectedMonitors).length;
+        },
+
+        // Monitors are being chosen once one is ticked
+        selectMode() {
+            return this.selectedMonitorCount > 0;
+        },
+
+        /**
+         * Every monitor the filters and search show, in groups too
+         * @returns {object[]} Monitors
+         */
+        visibleMonitors() {
+            return Object.values(this.$root.monitorList).filter(this.filterFunc);
+        },
+
+        allVisibleSelected() {
+            return this.visibleMonitors.length > 0 && this.visibleMonitors.every((m) => m.id in this.selectedMonitors);
         },
 
         /**
@@ -364,37 +372,12 @@ export default {
         },
     },
     watch: {
-        searchText() {
-            for (let monitor of this.sortedMonitorList) {
-                if (!this.selectedMonitors[monitor.id]) {
-                    if (this.selectAll) {
-                        this.disableSelectAllWatcher = true;
-                        this.selectAll = false;
-                    }
-                    break;
+        // A monitor deleted meanwhile, here or elsewhere, is no longer chosen
+        "$root.monitorList"(list) {
+            for (const id of Object.keys(this.selectedMonitors)) {
+                if (!(id in list)) {
+                    delete this.selectedMonitors[id];
                 }
-            }
-        },
-        selectAll() {
-            if (!this.disableSelectAllWatcher) {
-                this.selectedMonitors = {};
-
-                if (this.selectAll) {
-                    this.sortedMonitorList.forEach((item) => {
-                        this.selectedMonitors[item.id] = true;
-                    });
-                } else {
-                    // Exit select mode when unchecking "select all"
-                    this.selectMode = false;
-                }
-            } else {
-                this.disableSelectAllWatcher = false;
-            }
-        },
-        selectMode() {
-            if (!this.selectMode) {
-                this.selectAll = false;
-                this.selectedMonitors = {};
             }
         },
         filterState: {
@@ -646,8 +629,22 @@ export default {
          * @returns {void}
          */
         cancelSelectMode() {
-            this.selectMode = false;
             this.selectedMonitors = {};
+        },
+        /**
+         * The header's box: with none ticked, tick every monitor shown; otherwise untick them all
+         * @returns {void}
+         */
+        toggleSelectAll() {
+            if (this.selectMode) {
+                this.selectedMonitors = {};
+                return;
+            }
+            const selected = {};
+            for (const m of this.visibleMonitors) {
+                selected[m.id] = true;
+            }
+            this.selectedMonitors = selected;
         },
         /**
          * Show dialog to confirm pause
