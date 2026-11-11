@@ -116,6 +116,7 @@ import HeartbeatBar from "../components/HeartbeatBar.vue";
 import Tag from "../components/Tag.vue";
 import Uptime from "../components/Uptime.vue";
 import { getMonitorRelativeURL } from "../util.ts";
+import { rowClickAction } from "../row-click";
 
 export default {
     name: "MonitorListItem",
@@ -401,12 +402,14 @@ export default {
          * @returns {void}
          */
         onRowClick(event, navigate) {
-            if (this.selectMode && this.selectable) {
+            const action = rowClickAction(event, this.selectMode, this.selectable);
+            if (action === "toggle") {
                 event.preventDefault();
                 this.toggleSelection();
-                return;
+            } else if (action === "navigate") {
+                navigate(event);
             }
-            navigate(event);
+            // "browser": the link's own behaviour, such as a new tab
         },
         toggleSelection() {
             if (this.isSelected(this.monitor.id)) {

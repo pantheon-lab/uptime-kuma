@@ -1023,8 +1023,12 @@ Not tested: a range of more than 30 days, which reads the daily statistics; the 
 - **Easier to choose monitors.** Each monitor's box is bigger (1.3rem, as is the header's), in a label as tall as
   the row, so the space around it ticks it too. Once one is ticked, a click anywhere on a row ticks or unticks it
   rather than opening the monitor, and ticked rows are highlighted; the group's open and close button still works.
-  With nothing ticked, rows open their monitor as before. The row is Vue Router's `custom` link, so that the click
-  can be taken over.
+  With nothing ticked, rows open their monitor as before, and Ctrl or Cmd, Shift or a middle click are left to the
+  browser, for a new tab, even while choosing (`src/row-click.ts`). The row is Vue Router's `custom` link, so that
+  the click can be taken over. Tested: the click's decision by unit tests; and in a browser against a built
+  service, by hand-written checks, the box (21 px) and its target (39 by 56 px), ticking from the space around the
+  box, a row click ticking while choosing and opening otherwise, the group button, and the highlight in light and
+  dark mode, and a Ctrl-click opening a new tab while choosing. Not tested: touch screens.
 - **Exporting the selected monitors** (`src/components/ExportMonitorsDialog.vue`), from Export… in the list's Actions
   menu. `exportMonitors(ids, {groups, children})` returns them in the REST API's format with their credentials, so
   only admins can. `groups` adds the groups they're in up to the top, and `children` everything in a chosen group;
