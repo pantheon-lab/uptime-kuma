@@ -1839,7 +1839,7 @@
     "importMonitorsChecked": "The monitor is valid. Import it when you're ready. | All {n} monitors are valid. Import them when you're ready.",
     "exportMonitorsAction": "Export…",
     "exportMonitorsTitle": "Export {n} monitor | Export {n} monitors",
-    "exportMonitorsHelp": "Save these monitors to a file that Import reads back, here or on another server. Notifications and tags aren't in the file: imported monitors get the default notifications. If the original push monitors still exist on this server, importing the file here fails because their pushTokens are already in use. Remove each pushToken from the file to get a new one.",
+    "exportMonitorsHelp": "Save these monitors to a file that Import reads back, here or on another server. Notifications and tags aren't in the file: imported monitors get the default notifications. If the original push monitors still exist on this server, Check refuses the file here, because their pushTokens are already in use. Remove each pushToken from the file to get a new one.",
     "exportMonitorsChildren": "Include the monitors in the selected groups",
     "exportMonitorsGroups": "Include the groups they're in",
     "exportMonitorsGroupsHelp": "The groups come along, and the monitors are put back in them when imported.",
