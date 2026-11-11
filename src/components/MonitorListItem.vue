@@ -4,15 +4,15 @@
             class="draggable-item"
             :data-monitor-id="monitor.id"
             :style="depthMargin"
-            :class="{ 'drag-over': dragOverCount > 0 }"
+            :class="{ 'drag-over': dragOverCount > 0, selectable }"
             @dragstart="onDragStart"
             @dragenter.prevent="onDragEnter"
             @dragleave.prevent="onDragLeave"
             @dragover.prevent
             @drop.prevent="onDrop"
         >
-            <!-- Checkbox -->
-            <div v-if="selectable" class="select-input-wrapper">
+            <!-- Checkbox, in a label as tall as the row, so that the space around the box ticks it too -->
+            <label v-if="selectable" class="select-input-wrapper" @click.stop>
                 <input
                     class="form-check-input select-input"
                     type="checkbox"
@@ -21,55 +21,72 @@
                     :checked="isSelected(monitor.id)"
                     @click.stop="toggleSelection"
                 />
-            </div>
+            </label>
 
-            <router-link :to="monitorURL(monitor.id)" class="item" :class="{ disabled: !monitor.active }">
-                <div class="row">
-                    <div class="small-padding d-flex gap-2 align-items-center" :class="monitorStyle">
-                        <div class="me-1">
-                            <Uptime :monitor="monitor" type="24" :pill="true" />
-                        </div>
-                        <div class="d-flex align-items-center gap-2 flex-fill" style="min-width: 0">
-                            <!-- A button, so that the keyboard opens and closes groups too -->
-                            <button
-                                v-if="hasChildren"
-                                type="button"
-                                class="collapse-padding collapse-button"
-                                data-testid="monitor-collapse"
-                                :aria-expanded="!isCollapsed"
-                                :aria-label="$t(isCollapsed ? 'expandGroup' : 'collapseGroup', [monitor.name])"
-                                @click.prevent.stop="changeCollapsed"
-                            >
-                                <font-awesome-icon
-                                    icon="chevron-down"
-                                    class="animated"
-                                    :class="{ collapsed: isCollapsed }"
-                                />
-                            </button>
-                            <div class="flex-fill text-truncate" style="min-width: 0">
-                                <div class="text-truncate">{{ monitor.name }}</div>
-                                <div v-if="monitor.tags.length > 0" class="tags gap-1">
-                                    <Tag
-                                        v-for="tag in monitor.tags"
-                                        :key="tag"
-                                        :item="tag"
-                                        :size="'sm'"
-                                        :title="tag.name"
+            <!-- While monitors are being chosen, a click anywhere on the row ticks or unticks it -->
+            <router-link v-slot="{ href, navigate, isActive }" :to="monitorURL(monitor.id)" custom>
+                <a
+                    :href="href"
+                    class="item"
+                    :class="{
+                        disabled: !monitor.active,
+                        active: isActive,
+                        selected: selectMode && isSelected(monitor.id),
+                    }"
+                    :data-testid="'monitor-row-' + monitor.id"
+                    @click="onRowClick($event, navigate)"
+                >
+                    <div class="row">
+                        <div class="small-padding d-flex gap-2 align-items-center" :class="monitorStyle">
+                            <div class="me-1">
+                                <Uptime :monitor="monitor" type="24" :pill="true" />
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-fill" style="min-width: 0">
+                                <!-- A button, so that the keyboard opens and closes groups too -->
+                                <button
+                                    v-if="hasChildren"
+                                    type="button"
+                                    class="collapse-padding collapse-button"
+                                    data-testid="monitor-collapse"
+                                    :aria-expanded="!isCollapsed"
+                                    :aria-label="$t(isCollapsed ? 'expandGroup' : 'collapseGroup', [monitor.name])"
+                                    @click.prevent.stop="changeCollapsed"
+                                >
+                                    <font-awesome-icon
+                                        icon="chevron-down"
+                                        class="animated"
+                                        :class="{ collapsed: isCollapsed }"
                                     />
+                                </button>
+                                <div class="flex-fill text-truncate" style="min-width: 0">
+                                    <div class="text-truncate">{{ monitor.name }}</div>
+                                    <div v-if="monitor.tags.length > 0" class="tags gap-1">
+                                        <Tag
+                                            v-for="tag in monitor.tags"
+                                            :key="tag"
+                                            :item="tag"
+                                            :size="'sm'"
+                                            :title="tag.name"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                        <div
+                            v-if="$root.userHeartbeatBar == 'normal'"
+                            :key="$root.userHeartbeatBar"
+                            class="col-3 col-xl-6"
+                        >
+                            <HeartbeatBar ref="heartbeatBar" size="small" :monitor-id="monitor.id" />
+                        </div>
                     </div>
-                    <div v-if="$root.userHeartbeatBar == 'normal'" :key="$root.userHeartbeatBar" class="col-3 col-xl-6">
-                        <HeartbeatBar ref="heartbeatBar" size="small" :monitor-id="monitor.id" />
-                    </div>
-                </div>
 
-                <div v-if="$root.userHeartbeatBar == 'bottom'" class="row">
-                    <div class="col-12 bottom-style">
-                        <HeartbeatBar ref="heartbeatBar" size="small" :monitor-id="monitor.id" />
+                    <div v-if="$root.userHeartbeatBar == 'bottom'" class="row">
+                        <div class="col-12 bottom-style">
+                            <HeartbeatBar ref="heartbeatBar" size="small" :monitor-id="monitor.id" />
+                        </div>
                     </div>
-                </div>
+                </a>
             </router-link>
         </div>
 
@@ -81,6 +98,7 @@
                     :monitor="item"
                     :children-by-parent="childrenByParent"
                     :selectable="selectable"
+                    :select-mode="selectMode"
                     :isSelected="isSelected"
                     :select="select"
                     :deselect="deselect"
@@ -98,6 +116,7 @@ import HeartbeatBar from "../components/HeartbeatBar.vue";
 import Tag from "../components/Tag.vue";
 import Uptime from "../components/Uptime.vue";
 import { getMonitorRelativeURL } from "../util.ts";
+import { rowClickAction } from "../row-click";
 
 export default {
     name: "MonitorListItem",
@@ -126,6 +145,11 @@ export default {
         depth: {
             type: Number,
             default: 0,
+        },
+        /** Whether any monitor is ticked: a click on a row then ticks it rather than opening it */
+        selectMode: {
+            type: Boolean,
+            default: false,
         },
         /** Callback to determine if monitor is selected */
         isSelected: {
@@ -371,6 +395,22 @@ export default {
          * Toggle selection of monitor
          * @returns {void}
          */
+        /**
+         * Open the monitor, or while monitors are being chosen, tick or untick it
+         * @param {MouseEvent} event The click
+         * @param {Function} navigate The link's own navigation
+         * @returns {void}
+         */
+        onRowClick(event, navigate) {
+            const action = rowClickAction(event, this.selectMode, this.selectable);
+            if (action === "toggle") {
+                event.preventDefault();
+                this.toggleSelection();
+            } else if (action === "navigate") {
+                navigate(event);
+            }
+            // "browser": the link's own behaviour, such as a new tab
+        },
         toggleSelection() {
             if (this.isSelected(this.monitor.id)) {
                 this.deselect(this.monitor.id);
@@ -419,14 +459,46 @@ export default {
     transition: all 0.2s $easing-in;
 }
 
+// The box and the space around it, as tall as the row, are one target
+.draggable-item.selectable {
+    display: flex;
+    align-items: stretch;
+
+    .item {
+        flex: 1;
+        min-width: 0;
+    }
+}
+
 .select-input-wrapper {
-    float: left;
-    margin-top: 15px;
-    margin-left: 3px;
-    margin-right: 10px;
-    padding-left: 4px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0 8px 0 10px;
+    cursor: pointer;
     position: relative;
     z-index: 15;
+    border-radius: 10px;
+
+    &:hover {
+        background-color: rgba($primary, 0.08);
+    }
+}
+
+.select-input {
+    width: 1.3rem;
+    height: 1.3rem;
+    margin: 0;
+    cursor: pointer;
+}
+
+.item.selected {
+    background-color: rgba($primary, 0.14);
+}
+
+.dark .item.selected {
+    background-color: rgba($primary, 0.2);
 }
 
 .drag-over {

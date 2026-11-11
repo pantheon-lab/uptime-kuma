@@ -1044,6 +1044,16 @@ active)` changes them in one statement and sends one update, with the monitors i
   with a group's monitors, the store's statement against TimescaleDB, the request's answers and time limit, and in
   a browser, 190 monitors resumed in one list update with the database a millisecond away. Not tested on
   Kubernetes.
+- **Easier to choose monitors.** Each monitor's box is bigger (1.3rem, as is the header's), in a label as tall as
+  the row, so the space around it ticks it too. Once one is ticked, a click anywhere on a row ticks or unticks it
+  rather than opening the monitor, and ticked rows are highlighted; the group's open and close button still works.
+  With nothing ticked, rows open their monitor as before, and Ctrl or Cmd, Shift or a middle click are left to the
+  browser, for a new tab, even while choosing; Enter on a focused row opens it too, since the keyboard ticks with
+  the box (`src/row-click.ts`). The row is Vue Router's `custom` link, so that
+  the click can be taken over. Tested: the click's decision by unit tests; and in a browser against a built
+  service, by hand-written checks, the box (21 px) and its target (39 by 56 px), ticking from the space around the
+  box, a row click ticking while choosing and opening otherwise, the group button, and the highlight in light and
+  dark mode, a Ctrl-click opening a new tab while choosing, and Enter opening the monitor. Not tested: touch screens.
 - **Exporting the selected monitors** (`src/components/ExportMonitorsDialog.vue`), from Export… in the list's Actions
   menu. `exportMonitors(ids, {groups, children})` returns them in the REST API's format with their credentials, so
   only admins can. `groups` adds the groups they're in up to the top, and `children` everything in a chosen group;

@@ -25,7 +25,7 @@
                     <!-- None ticked: tick every monitor shown. Some or all: untick them -->
                     <input
                         v-if="$root.canEdit"
-                        class="form-check-input"
+                        class="form-check-input select-all-input"
                         data-testid="select-all-toggle"
                         type="checkbox"
                         :checked="selectMode"
@@ -148,6 +148,7 @@
                 :monitor="item"
                 :children-by-parent="childrenByParent"
                 :selectable="$root.canEdit"
+                :select-mode="selectMode"
                 :isSelected="isSelected"
                 :select="select"
                 :deselect="deselect"
@@ -1163,5 +1164,14 @@ export default {
     max-height: 240px;
     overflow-y: auto;
     padding-left: 1.25rem;
+}
+
+// As big as each monitor's box
+.select-all-input {
+    width: 1.3rem;
+    height: 1.3rem;
+    flex-shrink: 0;
+    margin: 0 4px 0 2px;
+    cursor: pointer;
 }
 </style>
