@@ -41,6 +41,57 @@
                         @update-filter="updateFilter"
                         @toggle-collapse-all="toggleCollapseAll"
                     />
+
+                    <!-- How the list is sorted; Custom order is set by dragging, for everyone -->
+                    <div class="dropdown">
+                        <button
+                            ref="sortToggle"
+                            type="button"
+                            class="btn btn-outline-normal sort-toggle"
+                            :class="{ 'sort-active': sortState.key !== 'name' || sortState.desc }"
+                            data-testid="sort-toggle"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            :aria-label="$t('sortMonitorsAria', [$t(sortLabels[sortState.key])])"
+                            :title="$t('sortMonitorsAria', [$t(sortLabels[sortState.key])])"
+                        >
+                            <font-awesome-icon :icon="sortIcon" fixed-width />
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end sort-menu">
+                            <li v-for="key in sortKeys" :key="key">
+                                <button
+                                    type="button"
+                                    class="dropdown-item"
+                                    :class="{ active: sortState.key === key }"
+                                    :aria-pressed="sortState.key === key"
+                                    :data-testid="'sort-' + key"
+                                    @click="chooseSort(key)"
+                                >
+                                    {{ $t(sortLabels[key]) }}
+                                </button>
+                            </li>
+                            <li><hr class="dropdown-divider" /></li>
+                            <li>
+                                <button
+                                    type="button"
+                                    class="dropdown-item"
+                                    :disabled="sortState.key === 'custom'"
+                                    :aria-pressed="sortState.desc"
+                                    data-testid="sort-reverse"
+                                    @click.stop="setSort(sortState.key, !sortState.desc)"
+                                >
+                                    <font-awesome-icon
+                                        :icon="sortState.desc ? 'arrow-up-wide-short' : 'arrow-down-wide-short'"
+                                        class="me-2"
+                                    />
+                                    {{ $t("sortReverse") }}
+                                </button>
+                            </li>
+                            <li v-if="sortState.key === 'custom'" class="sort-hint">
+                                {{ $root.canEdit ? $t("sortCustomHint") : $t("sortCustomHintViewer") }}
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </div>
 
@@ -154,6 +205,8 @@
                 :deselect="deselect"
                 :filter-func="filterFunc"
                 :sort-func="sortFunc"
+                :custom-order="sortState.key === 'custom' && $root.canEdit"
+                :reorder="reorderMonitor"
             />
             <div :style="{ height: renderedRows.bottom + 'px' }"></div>
         </div>
@@ -185,6 +238,23 @@ import ExportMonitorsDialog from "../components/ExportMonitorsDialog.vue";
 import MonitorListItem from "../components/MonitorListItem.vue";
 import MonitorListFilter from "./MonitorListFilter.vue";
 import { getMonitorRelativeURL } from "../util.ts";
+import { SORT_KEYS, compareMonitors, moveInOrder, parseSortState } from "../monitor-sort";
+import { Dropdown } from "bootstrap";
+
+// The sort is per browser
+const SORT_STORAGE_KEY = "monitorListSort";
+
+/**
+ * The sort this browser chose before
+ * @returns {object} The sort
+ */
+function loadSort() {
+    try {
+        return parseSortState(window.localStorage.getItem(SORT_STORAGE_KEY));
+    } catch {
+        return parseSortState(null);
+    }
+}
 import { monitorPath } from "../monitor-path";
 import { setMonitorsActive } from "../bulk-active";
 import { computeListWindow, computeRowMetrics } from "../monitor-list-window";
@@ -213,6 +283,15 @@ export default {
             bulkActiveRun: 0,
             // Counts the user's changes to the selection, so that a slow bulk action doesn't clear one made meanwhile
             selectionRevision: 0,
+            sortState: loadSort(),
+            sortKeys: SORT_KEYS,
+            sortLabels: {
+                custom: "sortCustom",
+                name: "sortName",
+                status: "sortStatus",
+                uptime: "sortUptime",
+                added: "sortAdded",
+            },
             filterState: {
                 status: null,
                 active: null,
@@ -318,6 +397,13 @@ export default {
             return {
                 height: `calc(100% - ${listHeaderHeight}px)`,
             };
+        },
+
+        sortIcon() {
+            if (this.sortState.key === "custom") {
+                return "grip-vertical";
+            }
+            return this.sortState.desc ? "arrow-up-wide-short" : "arrow-down-wide-short";
         },
 
         selectedMonitorCount() {
@@ -871,39 +957,80 @@ export default {
             return searchTextMatch && statusMatch && activeMatch && tagsMatch;
         },
         /**
-         * Function used in Array.sort to order monitors in a list.
-         * @param {*} m1 monitor 1
-         * @param {*} m2 monitor 2
-         * @returns {number} -1, 0 or 1
+         * Function used in Array.sort to order monitors in a list, as the sort menu says
+         * @param {object} m1 monitor 1
+         * @param {object} m2 monitor 2
+         * @returns {number} Negative when m1 comes first
          */
         sortFunc(m1, m2) {
             if (!m1 || !m2) {
                 return 0;
             }
-            // A monitor may be added before its name arrives (e.g. optimistic update)
-            const name1 = typeof m1.name === "string" ? m1.name : "";
-            const name2 = typeof m2.name === "string" ? m2.name : "";
-            if (m1.active !== m2.active) {
-                if (m1.active === false) {
-                    return 1;
-                }
-
-                if (m2.active === false) {
-                    return -1;
-                }
+            return compareMonitors(m1, m2, this.sortState, {
+                status: (id) => this.$root.lastHeartbeatList[id]?.status,
+                uptime: (id) => this.$root.uptimeList[`${id}_24`],
+            });
+        },
+        /**
+         * Sort by what was chosen in the menu, and close it
+         * @param {string} key What to sort by
+         * @returns {void}
+         */
+        chooseSort(key) {
+            this.setSort(key, false);
+            Dropdown.getOrCreateInstance(this.$refs.sortToggle).hide();
+        },
+        /**
+         * Sort the list another way, and remember it in this browser
+         * @param {string} key What to sort by
+         * @param {boolean} desc Reversed
+         * @returns {void}
+         */
+        setSort(key, desc) {
+            this.sortState = { key, desc: key === "custom" ? false : desc };
+            try {
+                window.localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(this.sortState));
+            } catch {
+                // Private browsing: it lasts until the page is closed
             }
-
-            if (m1.weight !== m2.weight) {
-                if (m1.weight > m2.weight) {
-                    return -1;
-                }
-
-                if (m1.weight < m2.weight) {
-                    return 1;
-                }
+        },
+        /**
+         * Move a monitor before or after another of the same group, in the custom order, which every
+         * user sees. The list changes at once, and goes back if the server refuses.
+         * @param {number} draggedId The monitor moved
+         * @param {number} targetId The monitor it was dropped on
+         * @param {"before"|"after"} position Where
+         * @returns {void}
+         */
+        reorderMonitor(draggedId, targetId, position) {
+            const list = this.$root.monitorList;
+            const dragged = list[draggedId];
+            const target = list[targetId];
+            if (!dragged || !target || (dragged.parent ?? null) !== (target.parent ?? null)) {
+                return;
             }
-
-            return name1.localeCompare(name2);
+            const parent = target.parent ?? null;
+            const siblings = [...(this.childrenByParent.get(parent) ?? [])].sort(this.sortFunc).map((m) => m.id);
+            const order = moveInOrder(siblings, draggedId, targetId, position);
+            if (!order) {
+                return;
+            }
+            const before = new Map(order.map((id) => [id, list[id]?.sortOrder ?? 0]));
+            order.forEach((id, i) => {
+                if (list[id]) {
+                    list[id].sortOrder = i + 1;
+                }
+            });
+            this.$root.getSocket().emit("setMonitorOrder", parent, order, (res) => {
+                if (!res?.ok) {
+                    for (const [id, sortOrder] of before) {
+                        if (list[id]) {
+                            list[id].sortOrder = sortOrder;
+                        }
+                    }
+                    this.$root.toastError(res?.msg ?? this.$t("sortSaveFailed"));
+                }
+            });
         },
     },
 };
@@ -1173,5 +1300,25 @@ export default {
     flex-shrink: 0;
     margin: 0 4px 0 2px;
     cursor: pointer;
+}
+
+.sort-toggle {
+    transition: none !important;
+
+    &.sort-active {
+        border-color: $primary;
+        color: $primary;
+    }
+}
+
+.sort-menu .dropdown-item.active {
+    font-weight: 600;
+}
+
+.sort-hint {
+    max-width: 240px;
+    padding: 6px 16px 2px;
+    font-size: 12px;
+    color: $secondary-text;
 }
 </style>

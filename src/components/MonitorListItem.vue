@@ -4,11 +4,17 @@
             class="draggable-item"
             :data-monitor-id="monitor.id"
             :style="depthMargin"
-            :class="{ 'drag-over': dragOverCount > 0, selectable }"
+            :class="{
+                'drag-over': dragOverCount > 0 && dropAt === 'into',
+                'drop-before': dragOverCount > 0 && dropAt === 'before',
+                'drop-after': dragOverCount > 0 && dropAt === 'after',
+                selectable,
+            }"
             @dragstart="onDragStart"
+            @dragend="onDragEnd"
             @dragenter.prevent="onDragEnter"
             @dragleave.prevent="onDragLeave"
-            @dragover.prevent
+            @dragover.prevent="onDragOver"
             @drop.prevent="onDrop"
         >
             <!-- Checkbox, in a label as tall as the row, so that the space around the box ticks it too -->
@@ -105,6 +111,8 @@
                     :depth="depth + 1"
                     :filter-func="filterFunc"
                     :sort-func="sortFunc"
+                    :custom-order="customOrder"
+                    :reorder="reorder"
                 />
             </div>
         </transition>
@@ -116,6 +124,10 @@ import HeartbeatBar from "../components/HeartbeatBar.vue";
 import Tag from "../components/Tag.vue";
 import Uptime from "../components/Uptime.vue";
 import { getMonitorRelativeURL } from "../util.ts";
+import { dropPosition } from "../monitor-sort";
+
+// The monitor being dragged, for the rows it passes over
+let currentDragId = null;
 import { rowClickAction } from "../row-click";
 
 export default {
@@ -176,11 +188,23 @@ export default {
             type: Function,
             default: () => {},
         },
+        /** Whether the list is in the custom order, which dragging a row above or below another sets */
+        customOrder: {
+            type: Boolean,
+            default: false,
+        },
+        /** Moves a monitor before or after another: reorder(draggedId, targetId, "before" or "after") */
+        reorder: {
+            type: Function,
+            default: () => {},
+        },
     },
     data() {
         return {
             isCollapsed: true,
             dragOverCount: 0,
+            // Where a drag over this row would drop: "before", "after" or "into" a group
+            dropAt: "into",
         };
     },
     computed: {
@@ -262,6 +286,8 @@ export default {
                 event.preventDefault();
                 return;
             }
+            // dragover can't read the drag's data, so the rows it passes over find the monitor here
+            currentDragId = this.monitor.id;
             try {
                 event.dataTransfer.setData("text/monitor-id", String(this.monitor.id));
                 event.dataTransfer.effectAllowed = "move";
@@ -270,24 +296,68 @@ export default {
             }
         },
 
-        onDragEnter(event) {
-            if (this.monitor.type !== "group") {
+        onDragEnd() {
+            currentDragId = null;
+        },
+
+        /**
+         * Whether the monitor being dragged can be put before or after this one: in the custom
+         * order, among the monitors of the same group
+         * @returns {boolean} Whether it can
+         */
+        canReorderHere() {
+            if (!this.customOrder || currentDragId == null || currentDragId === this.monitor.id) {
+                return false;
+            }
+            const dragged = this.$root.monitorList[currentDragId];
+            return !!dragged && (dragged.parent ?? null) === (this.monitor.parent ?? null);
+        },
+
+        onDragEnter() {
+            if (this.monitor.type !== "group" && !this.canReorderHere()) {
                 return;
             }
-
             this.dragOverCount++;
         },
 
-        onDragLeave(event) {
-            if (this.monitor.type !== "group") {
+        onDragLeave() {
+            if (this.dragOverCount > 0) {
+                this.dragOverCount--;
+            }
+        },
+
+        /**
+         * Show where the monitor would land: a line above or below this row, or this group outlined
+         * @param {DragEvent} event The drag
+         * @returns {void}
+         */
+        onDragOver(event) {
+            if (this.dragOverCount === 0) {
                 return;
             }
-
-            this.dragOverCount = Math.max(0, this.dragOverCount - 1);
+            const isGroup = this.monitor.type === "group";
+            if (!this.canReorderHere()) {
+                this.dropAt = "into";
+                return;
+            }
+            const rect = event.currentTarget.getBoundingClientRect();
+            this.dropAt = dropPosition(event.clientY - rect.top, rect.height, isGroup);
         },
 
         async onDrop(event) {
+            // Where it lands comes from the drop itself: the last dragover may not have been where it ended
+            let at = "into";
+            if (this.canReorderHere()) {
+                const rect = event.currentTarget.getBoundingClientRect();
+                at = dropPosition(event.clientY - rect.top, rect.height, this.monitor.type === "group");
+            }
             this.dragOverCount = 0;
+            this.dropAt = "into";
+
+            if ((at === "before" || at === "after") && this.canReorderHere()) {
+                this.reorder(currentDragId, this.monitor.id, at);
+                return;
+            }
 
             // Only groups accept drops
             if (this.monitor.type !== "group") {
@@ -536,5 +606,31 @@ export default {
 .bottom-style {
     margin-left: -10px;
     margin-top: 5px;
+}
+
+// Where a dragged monitor would land in the custom order
+.drop-before,
+.drop-after {
+    position: relative;
+
+    &::after {
+        content: "";
+        position: absolute;
+        left: 8px;
+        right: 8px;
+        height: 3px;
+        border-radius: 2px;
+        background-color: $primary;
+        pointer-events: none;
+        z-index: 20;
+    }
+}
+
+.drop-before::after {
+    top: -2px;
+}
+
+.drop-after::after {
+    bottom: -2px;
 }
 </style>

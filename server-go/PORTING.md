@@ -1054,6 +1054,21 @@ active)` changes them in one statement and sends one update, with the monitors i
   service, by hand-written checks, the box (21 px) and its target (39 by 56 px), ticking from the space around the
   box, a row click ticking while choosing and opening otherwise, the group button, and the highlight in light and
   dark mode, a Ctrl-click opening a new tab while choosing, and Enter opening the monitor. Not tested: touch screens.
+- **A resizable, sortable monitor list.** The dashboard's list has an edge to drag (`src/pages/Dashboard.vue`), or
+  move with the arrow keys, Home and End; Enter or a double click resets it. It stays between 280 pixels and what
+  leaves the monitor's page 360, at most 70% of the row, and is remembered per browser (`src/panel-width.ts`). The
+  list's bars follow as it's dragged. A sort menu beside the filters (`src/monitor-sort.ts`) sorts by name (numbers
+  in order), status (down, pending, maintenance, up, then no beat), the last 24 hours' uptime (unknown last), or
+  recently added, each reversible, with paused monitors last; it's remembered per browser. **Custom order** is
+  everyone's: an admin drags a monitor above or below another of the same group, a line showing where, and
+  `setMonitorOrder(parentId, ids)` stores it in the new `monitor.sort_order` column, in one transaction that
+  refuses monitors from another group. The order is the REST API's and the export's `sortOrder`; editing a monitor
+  keeps it, and the scheduler ignores it, so reordering restarts no check. A group's middle still takes a monitor
+  into it. Tested: the sorts, moves and widths by unit tests; `setMonitorOrder` against TimescaleDB and through the
+  event; and in a browser against a built service, the edge (default, dragged, its limits, kept after a reload, the
+  keys, the reset), each sort, and dragging in custom order, kept on the server and after a reload, near the rows'
+  edges too, with a group's middle still taking a monitor in. Not tested: touch screens, where HTML drag and drop
+  doesn't start, and reordering from the keyboard, which isn't possible.
 - **Exporting the selected monitors** (`src/components/ExportMonitorsDialog.vue`), from Export… in the list's Actions
   menu. `exportMonitors(ids, {groups, children})` returns them in the REST API's format with their credentials, so
   only admins can. `groups` adds the groups they're in up to the top, and `children` everything in a chosen group;

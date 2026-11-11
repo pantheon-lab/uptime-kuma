@@ -63,6 +63,10 @@ import {
     faCalendarAlt,
     faEnvelope,
     faFileAlt,
+    faSort,
+    faArrowDownWideShort,
+    faArrowUpWideShort,
+    faGripVertical,
 } from "@fortawesome/free-solid-svg-icons";
 
 library.add(
@@ -123,6 +127,10 @@ library.add(
     faCalendarAlt,
     faEnvelope,
     faFileAlt,
+    faSort,
+    faArrowDownWideShort,
+    faArrowUpWideShort,
+    faGripVertical,
 );
 
 export { FontAwesomeIcon };
