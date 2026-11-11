@@ -49,7 +49,7 @@ func (s *Server) retentionChange(ctx context.Context, toSave map[string]json.Raw
 // them. Their first beat then starts a new history, and counts as important.
 func (s *Server) stopForClear(ctx context.Context, ids []int32) error {
 	for _, id := range ids {
-		if err := s.scheduler.Remove(ctx, id); err != nil {
+		if err := s.scheduler.Suspend(ctx, id); err != nil {
 			return err
 		}
 	}

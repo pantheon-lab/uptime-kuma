@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -58,7 +59,7 @@ type runner struct {
 	limiter   *rate.Limiter
 }
 
-// Scheduler owns one goroutine per active monitor. A semaphore bounds how many
+// Scheduler owns one goroutine per monitor that is active and in no paused group. A semaphore bounds how many
 // checks run at once, so a burst can't exhaust sockets or memory.
 type Scheduler struct {
 	checker Checker
@@ -77,6 +78,11 @@ type Scheduler struct {
 	mu      sync.Mutex
 	stopped bool
 	runners map[int32]*runner
+	// monitors is every monitor the scheduler was given, paused ones too, so that pausing or
+	// resuming a group stops or starts the monitors in it.
+	monitors map[int32]monitor.Monitor
+	// suspended monitors stay stopped, whatever their groups do, until their next Upsert.
+	suspended map[int32]bool
 	// pushRunners finds the runner of an active push monitor by its token.
 	pushRunners map[string]*runner
 
@@ -100,6 +106,8 @@ func New(checker Checker, sink Sink, concurrency int, log *slog.Logger) *Schedul
 		slots:   make(chan struct{}, concurrency),
 		runners: make(map[int32]*runner),
 
+		monitors:    make(map[int32]monitor.Monitor),
+		suspended:   make(map[int32]bool),
 		pushRunners: make(map[string]*runner),
 		last:        make(map[int32]*monitor.Previous),
 	}
@@ -145,16 +153,19 @@ func (s *Scheduler) Start(monitors []monitor.Monitor, previous map[int32]monitor
 	s.stateMu.Unlock()
 	for _, m := range monitors {
 		s.rememberGroup(m)
+		s.monitors[m.ID] = m
 	}
 	for _, m := range monitors {
-		if m.Active {
+		if s.shouldRunLocked(m.ID) {
 			delay := time.Duration(rand.Int64N(int64(m.Interval)*int64(time.Second) + 1))
 			s.startLocked(m, delay)
 		}
 	}
 }
 
-// Upsert applies a new or changed monitor. An active monitor is checked immediately.
+// Upsert applies a new or changed monitor. A monitor that is active, and in no paused group,
+// is checked immediately. A group's change reaches the monitors in it: pausing it stops
+// them, and resuming it starts those that are active.
 func (s *Scheduler) Upsert(m monitor.Monitor) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -162,11 +173,67 @@ func (s *Scheduler) Upsert(m monitor.Monitor) {
 		return
 	}
 	s.rememberGroup(m)
+	s.monitors[m.ID] = m
+	delete(s.suspended, m.ID)
 	s.stopRunnerLocked(m.ID)
-	if m.Active {
+	if s.shouldRunLocked(m.ID) {
 		s.startLocked(m, 0)
 	} else {
 		telemetry.Metrics().ForgetMonitor(m.ID)
+	}
+	s.applyToDescendantsLocked(m.ID)
+}
+
+// shouldRunLocked says whether a monitor is active and every group above it is too.
+func (s *Scheduler) shouldRunLocked(id int32) bool {
+	m, known := s.monitors[id]
+	if !known || !m.Active || s.suspended[id] {
+		return false
+	}
+	seen := map[int32]bool{id: true}
+	for p := m.ParentID; p != nil && !seen[*p]; {
+		parent, known := s.monitors[*p]
+		if !known {
+			// Deleted: the database has already taken the monitor out of it.
+			return true
+		}
+		if !parent.Active {
+			return false
+		}
+		seen[*p] = true
+		p = parent.ParentID
+	}
+	return true
+}
+
+// applyToDescendantsLocked starts or stops the monitors below a group whose state may have
+// changed. Those already in the right state are left alone, so their timing doesn't change.
+func (s *Scheduler) applyToDescendantsLocked(id int32) {
+	children := make(map[int32][]int32)
+	for _, m := range s.monitors {
+		if m.ParentID != nil {
+			children[*m.ParentID] = append(children[*m.ParentID], m.ID)
+		}
+	}
+	seen := map[int32]bool{id: true}
+	queue := slices.Clone(children[id])
+	for len(queue) > 0 {
+		child := queue[0]
+		queue = queue[1:]
+		if seen[child] {
+			continue
+		}
+		seen[child] = true
+		queue = append(queue, children[child]...)
+
+		_, running := s.runners[child]
+		switch run := s.shouldRunLocked(child); {
+		case run && !running:
+			s.startLocked(s.monitors[child], 0)
+		case !run && running:
+			s.stopRunnerLocked(child)
+			telemetry.Metrics().ForgetMonitor(child)
+		}
 	}
 }
 
@@ -192,12 +259,35 @@ func (s *Scheduler) groupName(m monitor.Monitor) string {
 func (s *Scheduler) Remove(ctx context.Context, id int32) error {
 	s.mu.Lock()
 	s.stopRunnerLocked(id)
+	delete(s.suspended, id)
+	// The monitors in a deleted group leave it, as the database's ON DELETE SET NULL does,
+	// so a paused group's monitors start again if they're active themselves.
+	delete(s.monitors, id)
+	if !s.stopped {
+		s.applyToDescendantsLocked(id)
+	}
 	s.stateMu.Lock()
 	delete(s.last, id)
 	s.stateMu.Unlock()
 	s.mu.Unlock()
 	s.groupNames.Delete(id)
 	telemetry.Metrics().ForgetMonitor(id)
+	if err := s.sink.Flush(ctx); err != nil {
+		return fmt.Errorf("flush beats: %w", err)
+	}
+	return nil
+}
+
+// Suspend stops a monitor until its next Upsert, while its data is changed, and writes out its
+// queued beats. Unlike Remove, the monitors in a group stay as they are.
+func (s *Scheduler) Suspend(ctx context.Context, id int32) error {
+	s.mu.Lock()
+	s.stopRunnerLocked(id)
+	s.suspended[id] = true
+	s.stateMu.Lock()
+	delete(s.last, id)
+	s.stateMu.Unlock()
+	s.mu.Unlock()
 	if err := s.sink.Flush(ctx); err != nil {
 		return fmt.Errorf("flush beats: %w", err)
 	}

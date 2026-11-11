@@ -493,3 +493,88 @@ func TestPushUnderMaintenanceIsNotAnAlert(t *testing.T) {
 		t.Errorf("a recovery alerted: %d", notifier.count.Load())
 	}
 }
+
+// countingChecker counts checks by monitor.
+type countingChecker struct {
+	mu     sync.Mutex
+	checks map[int32]int
+}
+
+func (c *countingChecker) Run(_ context.Context, m monitor.Monitor) monitor.Result {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.checks == nil {
+		c.checks = map[int32]int{}
+	}
+	c.checks[m.ID]++
+	return monitor.Result{OK: true}
+}
+
+func (c *countingChecker) count(id int32) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.checks[id]
+}
+
+func TestPausedGroupStopsTheMonitorsInIt(t *testing.T) {
+	checker := &countingChecker{}
+	s := New(checker, &fakeSink{}, 10, quiet)
+	defer s.Stop()
+	parent := func(id int32) *int32 { return &id }
+	group := monitor.Monitor{ID: 1, Type: monitor.TypeGroup, Active: true, Interval: 3600}
+	sub := monitor.Monitor{ID: 2, Type: monitor.TypeGroup, Active: true, Interval: 3600, ParentID: parent(1)}
+	child := monitor.Monitor{ID: 3, Active: true, Interval: 1, ParentID: parent(2)}
+	pausedChild := monitor.Monitor{ID: 4, Active: false, Interval: 1, ParentID: parent(1)}
+	other := monitor.Monitor{ID: 5, Active: true, Interval: 1}
+
+	// After a restart, the monitors of a paused group aren't checked.
+	group.Active = false
+	s.Start([]monitor.Monitor{child, sub, group, pausedChild, other}, nil)
+	waitFor(t, "the monitor outside the group", func() bool { return checker.count(5) >= 2 })
+	if n := checker.count(3); n != 0 {
+		t.Fatalf("a monitor in a paused group was checked %d times after a restart", n)
+	}
+
+	// Resuming the group starts what's active in it, however deep, at once.
+	group.Active = true
+	s.Upsert(group)
+	waitFor(t, "the monitor in the resumed group", func() bool { return checker.count(3) >= 1 })
+	if n := checker.count(4); n != 0 {
+		t.Errorf("a paused monitor started with its group: %d checks", n)
+	}
+
+	// Pausing the group stops them.
+	group.Active = false
+	s.Upsert(group)
+	before := checker.count(3)
+	time.Sleep(1300 * time.Millisecond)
+	if n := checker.count(3); n != before {
+		t.Errorf("a monitor in a paused group kept running: %d checks, then %d", before, n)
+	}
+
+	// Moving the monitor out of the paused group starts it.
+	child.ParentID = nil
+	s.Upsert(child)
+	waitFor(t, "the monitor out of the group", func() bool { return checker.count(3) > before })
+
+	// Back in, it stops; a paused group's data being cleared doesn't start it; and
+	// deleting the paused group lets it run again, outside any group.
+	child.ParentID = parent(2)
+	s.Upsert(child)
+	if err := s.Suspend(context.Background(), 1); err != nil {
+		t.Fatal(err)
+	}
+	s.Upsert(group)
+	before = checker.count(3)
+	time.Sleep(1300 * time.Millisecond)
+	if n := checker.count(3); n != before {
+		t.Errorf("a monitor in a paused group ran after the group was suspended: %d checks, then %d", before, n)
+	}
+	if err := s.Remove(context.Background(), 1); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the monitor once its group is deleted", func() bool { return checker.count(3) > before })
+	if n := checker.count(4); n != 0 {
+		t.Errorf("a paused monitor started when its group was deleted: %d checks", n)
+	}
+}
