@@ -478,7 +478,9 @@ func TestReloadSendsOpenPagesTheirLists(t *testing.T) {
 	if _, err := fs.CreateMonitor(ctx, m); err != nil {
 		t.Fatal(err)
 	}
-	s.Reload(ctx)
+	if err := s.Reload(ctx); err != nil {
+		t.Fatal(err)
+	}
 
 	read := func(c *conn) string {
 		out := ""
@@ -499,5 +501,11 @@ func TestReloadSendsOpenPagesTheirLists(t *testing.T) {
 	}
 	if got := read(anonymous); got != "" {
 		t.Errorf("a page that isn't logged in was sent: %.300s", got)
+	}
+	// Out of time: it fails, so that the listener tries again.
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	if err := s.Reload(cancelled); err == nil {
+		t.Error("a reload that ran out of time succeeded")
 	}
 }

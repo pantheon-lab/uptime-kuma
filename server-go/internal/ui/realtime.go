@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -373,7 +374,14 @@ func (s *Server) Close() {
 
 // Reload sends every open page its lists again, as at login, after something outside this
 // server changed the data, such as kuma-import.
-func (s *Server) Reload(ctx context.Context) {
+//
+// It fails, so that the caller tries again, when the monitors can't be read, which the lists all
+// depend on, or when ctx ends before every page has them. A single other list that fails is logged
+// and left as the page has it.
+func (s *Server) Reload(ctx context.Context) error {
+	if _, err := s.monitorTree(ctx); err != nil {
+		return fmt.Errorf("read the monitors to send: %w", err)
+	}
 	s.mu.Lock()
 	conns := make([]*conn, 0, len(s.conns))
 	for _, c := range s.conns {
@@ -386,6 +394,10 @@ func (s *Server) Reload(ctx context.Context) {
 		s.afterLogin(ctx, c)
 		s.sendDashboardLists(ctx, c)
 	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("send the lists: %w", err)
+	}
+	return nil
 }
 
 // broadcast sends a frame to every logged-in connection.

@@ -706,27 +706,38 @@ func TestSyncInstallsGroupsBeforeStartingAnything(t *testing.T) {
 	}
 }
 
-// slowChecker checks one monitor slowly, ignoring cancellation as a stuck check would, and the
-// others at once, counting each.
+// slowChecker holds one monitor's check until released, ignoring cancellation as a stuck check
+// would, and checks the others at once, counting each. started is closed when the held check begins.
 type slowChecker struct {
 	countingChecker
-	slow  int32
-	delay time.Duration
+	slow    int32
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
 }
 
-// Run waits on the slow monitor, then counts the check.
+// Run holds the slow monitor's check, then counts the check.
 func (c *slowChecker) Run(ctx context.Context, m monitor.Monitor) monitor.Result {
 	if m.ID == c.slow {
-		time.Sleep(c.delay)
+		c.once.Do(func() { close(c.started) })
+		<-c.release
 	}
 	return c.countingChecker.Run(ctx, m)
 }
 
 func TestSyncStopsAPausedGroupsMonitorsBeforeWaiting(t *testing.T) {
-	checker := &slowChecker{slow: 3, delay: 1500 * time.Millisecond}
+	checker := &slowChecker{slow: 3, started: make(chan struct{}), release: make(chan struct{})}
 	sink := &fakeSink{}
 	s := New(checker, sink, 10, quiet)
 	defer s.Stop()
+	released := false
+	release := func() {
+		if !released {
+			released = true
+			close(checker.release)
+		}
+	}
+	defer release()
 	groupID := int32(1)
 	group := monitor.Monitor{ID: groupID, Type: monitor.TypeGroup, Active: true, Interval: 3600}
 	child := monitor.Monitor{ID: 2, Active: true, Interval: 1, ParentID: &groupID}
@@ -735,12 +746,9 @@ func TestSyncStopsAPausedGroupsMonitorsBeforeWaiting(t *testing.T) {
 		s.Upsert(m)
 	}
 	waitFor(t, "the child's first check", func() bool { return checker.count(2) >= 1 })
-	// The slow monitor is in the middle of its check, so stopping it waits for that.
-	time.Sleep(100 * time.Millisecond)
+	// The slow monitor is in the middle of its check, so stopping it waits until it's released.
+	<-checker.started
 
-	// The group is paused, and the slow monitor changed, the slow one first in the snapshot.
-	group.Active = false
-	slow.Name = "slower"
 	beatsOf := func(id int32) int {
 		n := 0
 		for _, b := range sink.snapshot() {
@@ -750,10 +758,25 @@ func TestSyncStopsAPausedGroupsMonitorsBeforeWaiting(t *testing.T) {
 		}
 		return n
 	}
+	// The group is paused, and the slow monitor changed, the slow one first in the snapshot.
+	group.Active = false
+	slow.Name = "slower"
 	before := beatsOf(2)
-	s.Sync([]monitor.Monitor{slow, child, group}, s.Generation())
+	synced := make(chan struct{})
+	go func() {
+		defer close(synced)
+		s.Sync([]monitor.Monitor{slow, child, group}, s.Generation())
+	}()
+	// Longer than the child's interval: it would check again, were it still running.
+	time.Sleep(1300 * time.Millisecond)
 	if n := beatsOf(2); n != before {
 		t.Errorf("a monitor in the paused group recorded %d beats while a slow check was stopped", n-before)
+	}
+	release()
+	select {
+	case <-synced:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Sync didn't return once the slow check ended")
 	}
 	time.Sleep(1200 * time.Millisecond)
 	if n := beatsOf(2); n != before {

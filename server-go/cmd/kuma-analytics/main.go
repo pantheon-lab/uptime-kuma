@@ -365,8 +365,7 @@ func run(log *slog.Logger) error {
 			return fmt.Errorf("reload monitors: %w", err)
 		}
 		sched.Sync(monitors, since)
-		uiServer.Reload(ctx)
-		return nil
+		return uiServer.Reload(ctx)
 	})
 	go uiServer.Run(ctx, hub)
 	certService.OnChange(uiServer.BroadcastCertInfo)
