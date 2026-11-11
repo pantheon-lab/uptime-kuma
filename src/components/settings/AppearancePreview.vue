@@ -43,33 +43,12 @@
 </template>
 
 <script>
-import dayjs from "dayjs";
 import HeartbeatBar from "../HeartbeatBar.vue";
-import { DOWN, MAINTENANCE, PENDING, UP } from "../../util.ts";
+import { previewBeats } from "../../appearance-preview";
+import { DOWN, MAINTENANCE, PENDING } from "../../util.ts";
 
 // Made-up monitors: ids no real monitor has, so the bars never ask the server for history
 const PREVIEW_IDS = [-1, -2, -3];
-
-/**
- * Beats every minute up to now, oldest first, in the server's format
- * @param {number} count How many
- * @param {{[ago: number]: number}} statuses Status of some beats, by how many minutes ago
- * @returns {object[]} Beats
- */
-function makeBeats(count, statuses) {
-    const now = dayjs.utc().subtract(20, "seconds");
-    const beats = [];
-    for (let ago = count - 1; ago >= 0; ago--) {
-        const status = statuses[ago] ?? UP;
-        beats.push({
-            status,
-            time: now.subtract(ago, "minutes").format("YYYY-MM-DD HH:mm:ss.SSS"),
-            msg: status === DOWN ? "Connection refused" : "",
-            ping: status === UP ? 40 + ((ago * 7) % 30) : null,
-        });
-    }
-    return beats;
-}
 
 /**
  * What the Appearance settings change, drawn with made-up monitors: the list's heartbeat bars,
@@ -80,6 +59,9 @@ export default {
         HeartbeatBar,
     },
     data() {
+        // A little before now, as the newest beat of a real monitor would be
+        const now = new Date(Date.now() - 20_000);
+        const makeBeats = (count, statuses) => previewBeats(now, count, statuses, this.$t("appearancePreviewDownMsg"));
         return {
             rows: [
                 {

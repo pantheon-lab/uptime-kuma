@@ -29,7 +29,7 @@
                         data-testid="select-all-toggle"
                         type="checkbox"
                         :checked="selectMode"
-                        :indeterminate="selectMode && !allVisibleSelected"
+                        :indeterminate="selectMode && !allMatchingSelected"
                         :aria-label="selectMode ? $t('deselectAllMonitorsAria') : $t('selectAllMonitorsAria')"
                         @change="toggleSelectAll"
                     />
@@ -316,15 +316,23 @@ export default {
         },
 
         /**
-         * Every monitor the filters and search show, in groups too
+         * Every monitor that matches the filters and search, in groups too. A group shown only
+         * because something in it matches isn't one: ticking it would pause or delete the rest.
          * @returns {object[]} Monitors
          */
-        visibleMonitors() {
-            return Object.values(this.$root.monitorList).filter(this.filterFunc);
+        matchingMonitors() {
+            return Object.values(this.$root.monitorList).filter(this.matchesFilters);
         },
 
-        allVisibleSelected() {
-            return this.visibleMonitors.length > 0 && this.visibleMonitors.every((m) => m.id in this.selectedMonitors);
+        // The monitors' ids: deleting one from the list changes it, though the list stays the same object
+        monitorIds() {
+            return Object.keys(this.$root.monitorList);
+        },
+
+        allMatchingSelected() {
+            return (
+                this.matchingMonitors.length > 0 && this.matchingMonitors.every((m) => m.id in this.selectedMonitors)
+            );
         },
 
         /**
@@ -373,9 +381,10 @@ export default {
     },
     watch: {
         // A monitor deleted meanwhile, here or elsewhere, is no longer chosen
-        "$root.monitorList"(list) {
+        monitorIds(ids) {
+            const present = new Set(ids);
             for (const id of Object.keys(this.selectedMonitors)) {
-                if (!(id in list)) {
+                if (!present.has(id)) {
                     delete this.selectedMonitors[id];
                 }
             }
@@ -641,7 +650,7 @@ export default {
                 return;
             }
             const selected = {};
-            for (const m of this.visibleMonitors) {
+            for (const m of this.matchingMonitors) {
                 selected[m.id] = true;
             }
             this.selectedMonitors = selected;
@@ -662,7 +671,9 @@ export default {
                 return;
             }
 
-            const activeMonitors = Object.keys(this.selectedMonitors).filter((id) => this.$root.monitorList[id].active);
+            const activeMonitors = Object.keys(this.selectedMonitors).filter(
+                (id) => this.$root.monitorList[id]?.active
+            );
 
             if (activeMonitors.length === 0) {
                 this.$root.toastError(this.$t("noMonitorsPausedMsg"));
@@ -685,7 +696,7 @@ export default {
             }
 
             const inactiveMonitors = Object.keys(this.selectedMonitors).filter(
-                (id) => !this.$root.monitorList[id].active
+                (id) => this.$root.monitorList[id] && !this.$root.monitorList[id].active
             );
 
             if (inactiveMonitors.length === 0) {
@@ -756,7 +767,14 @@ export default {
                     return true;
                 }
             }
-
+            return this.matchesFilters(monitor);
+        },
+        /**
+         * Whether a monitor itself matches the filters and search, whatever is in it
+         * @param {object} monitor Monitor to check
+         * @returns {boolean} Does it match
+         */
+        matchesFilters(monitor) {
             // filter by search text
             // finds monitor name, tag name or tag value
             let searchTextMatch = true;

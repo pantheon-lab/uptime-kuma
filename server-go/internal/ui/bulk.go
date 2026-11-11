@@ -411,7 +411,7 @@ func (s *Server) exportMonitors(ctx context.Context, c *conn, args []json.RawMes
 	}
 	tree, err := s.monitorTree(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load monitors to export: %w", err)
 	}
 
 	chosen := make(map[int32]bool, len(ids))

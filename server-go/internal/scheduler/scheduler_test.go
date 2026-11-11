@@ -578,3 +578,32 @@ func TestPausedGroupStopsTheMonitorsInIt(t *testing.T) {
 		t.Errorf("a paused monitor started when its group was deleted: %d checks", n)
 	}
 }
+
+func TestSuspendedMonitorStaysStoppedWhileItsGroupChanges(t *testing.T) {
+	checker := &countingChecker{}
+	s := New(checker, &fakeSink{}, 10, quiet)
+	defer s.Stop()
+	groupID := int32(1)
+	group := monitor.Monitor{ID: groupID, Type: monitor.TypeGroup, Active: true, Interval: 3600}
+	child := monitor.Monitor{ID: 2, Active: true, Interval: 1, ParentID: &groupID}
+	s.Start([]monitor.Monitor{group, child}, nil)
+	waitFor(t, "the child's first check", func() bool { return checker.count(2) >= 1 })
+
+	// Suspended while its data is cleared: pausing and resuming its group doesn't start it.
+	if err := s.Suspend(context.Background(), 2); err != nil {
+		t.Fatal(err)
+	}
+	group.Active = false
+	s.Upsert(group)
+	group.Active = true
+	s.Upsert(group)
+	before := checker.count(2)
+	time.Sleep(1300 * time.Millisecond)
+	if n := checker.count(2); n != before {
+		t.Fatalf("a suspended monitor started with its group: %d checks, then %d", before, n)
+	}
+
+	// Its own Upsert, once the data is cleared, starts it again.
+	s.Upsert(child)
+	waitFor(t, "the child after its Upsert", func() bool { return checker.count(2) > before })
+}

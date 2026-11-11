@@ -63,8 +63,8 @@ JSON that **Import** reads back, here or on another server. The groups the monit
 everything in a chosen group; a monitor whose group isn't exported loses its `parentId`. The file holds the
 monitors' passwords, tokens and keys, and only admins can export.
 
-The REST API exports too, with an API key with `monitors:write` (with only `monitors:read`, passwords and tokens come
-redacted). The file imports again as it is:
+The REST API exports too. With an API key with `monitors:write`, the file imports again as it is, credentials
+included. With only `monitors:read`, passwords and tokens come redacted, and an import of that file doesn't have them:
 
 ```bash
 curl -s -H "Authorization: Bearer $KEY" "http://localhost:3002/api/v1/monitors?limit=1000" > monitors.json
@@ -72,7 +72,8 @@ curl -s -H "Authorization: Bearer $KEY" "http://localhost:3002/api/v1/monitors?l
 
 A `parentId` names a group in the same file by its `id`, or else a group on the server importing it. Groups in the
 file are added first, with new IDs, and the monitors in them follow. Push tokens must be unique, so **Check** refuses
-a token that's already in use: remove it to get a new one. Notifications and tags aren't in the file.
+a token that's already in use, such as a push monitor's exported from this server: remove it from the file to get a
+new one. Notifications and tags aren't in the file.
 
 The Edit Monitor form's **Test** runs one check of the monitor as the form has it, without saving it.
 
