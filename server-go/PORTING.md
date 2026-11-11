@@ -1025,7 +1025,7 @@ Not tested: a range of more than 30 days, which reads the daily statistics; the 
   service `LISTEN`s on its own connection, out of the pool, and then reloads maintenance windows, gives the
   scheduler the monitors as they are (`Sync`), and sends every open page its lists again, as at login. It also
   reloads each time it starts listening, the first time too, so an import that finished while it wasn't is picked
-  up. A reload has 2 minutes; a failed one, or a lost connection, waits 5 seconds and listens again. `Sync` takes the scheduler's
+  up. Monitors a reload starts continue from the states saved in the database, as at startup, so that `-activate` doesn't make every resumed monitor alert on its first check; and an import that fails notifies too, since it may have written part of its data. A reload has 2 minutes; a failed one, or a lost connection, waits 5 seconds and listens again. `Sync` takes the scheduler's
   `Generation` from before the monitors were read, and leaves alone any monitor changed here after it, by a pause,
   an edit or a delete, so an older snapshot can't undo them; it installs every monitor before starting any, so a
   monitor can't start while its new group is still missing, restarts only those that changed, and stops and

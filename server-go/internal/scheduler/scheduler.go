@@ -192,7 +192,11 @@ func (s *Scheduler) touchLocked(id int32) {
 // that, by Upsert, Remove or Suspend, is newer than the snapshot and left as it is. Only monitors
 // that changed are restarted, and those no longer there are stopped. Every change is in place
 // before any runner starts, so a monitor can't start while its new group is still missing.
-func (s *Scheduler) Sync(monitors []monitor.Monitor, since uint64) {
+//
+// previous holds the states saved in the database, as Start takes them: a monitor that starts here
+// without one of its own, such as one an import resumed, continues from it, so that its first check
+// isn't taken for a change and alerted.
+func (s *Scheduler) Sync(monitors []monitor.Monitor, since uint64, previous map[int32]monitor.Previous) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.stopped {
@@ -252,6 +256,13 @@ func (s *Scheduler) Sync(monitors []monitor.Monitor, since uint64) {
 	}
 	for _, id := range append(changed, below...) {
 		if _, running := s.runners[id]; !running && s.shouldRunLocked(id) {
+			if p, saved := previous[id]; saved {
+				s.stateMu.Lock()
+				if s.last[id] == nil {
+					s.last[id] = &p
+				}
+				s.stateMu.Unlock()
+			}
 			s.startLocked(s.monitors[id], 0)
 		}
 	}

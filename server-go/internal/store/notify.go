@@ -44,20 +44,20 @@ func (s *Store) ListenImported(ctx context.Context, log *slog.Logger, changed fu
 func (s *Store) listenImported(ctx context.Context, changed func(context.Context) error) error {
 	pooled, err := s.pool.Acquire(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("acquire a connection to listen on: %w", err)
 	}
 	// Out of the pool for good: a connection that has listened mustn't serve queries.
 	conn := pooled.Hijack()
 	defer func() { _ = conn.Close(context.WithoutCancel(ctx)) }()
 	if _, err := conn.Exec(ctx, "LISTEN "+importedChannel); err != nil {
-		return err
+		return fmt.Errorf("listen: %w", err)
 	}
 	for {
 		if err := changed(ctx); err != nil {
-			return err
+			return fmt.Errorf("reload: %w", err)
 		}
 		if _, err := conn.WaitForNotification(ctx); err != nil {
-			return err
+			return fmt.Errorf("wait for an import: %w", err)
 		}
 	}
 }

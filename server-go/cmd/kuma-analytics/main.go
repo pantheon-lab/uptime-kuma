@@ -364,7 +364,12 @@ func run(log *slog.Logger) error {
 		if err != nil {
 			return fmt.Errorf("reload monitors: %w", err)
 		}
-		sched.Sync(monitors, since)
+		// The saved states, so that monitors the import resumed don't alert on their first check.
+		previous, err := db.LatestStates(ctx)
+		if err != nil {
+			return fmt.Errorf("reload states: %w", err)
+		}
+		sched.Sync(monitors, since, previous)
 		return uiServer.Reload(ctx)
 	})
 	go uiServer.Run(ctx, hub)
