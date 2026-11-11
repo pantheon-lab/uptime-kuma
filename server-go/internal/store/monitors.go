@@ -213,8 +213,8 @@ func (s *Store) CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 
 // SetMonitorOrder puts the monitors of one group, or of the top of the list when parent is nil,
 // in the order given: the monitor list's custom order. All of them must be in that group, or
-// nothing changes and it returns ErrNotFound. Monitors of the group left out keep their place
-// after them. It returns the monitors it changed.
+// nothing changes and it returns ErrNotFound. Monitors of the group left out follow them, in the
+// order they had. It returns the monitors it changed.
 func (s *Store) SetMonitorOrder(ctx context.Context, parent *int32, ids []int32) ([]monitor.Monitor, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -236,6 +236,22 @@ func (s *Store) SetMonitorOrder(ctx context.Context, parent *int32, ids []int32)
 	if len(changed) != len(ids) {
 		return nil, ErrNotFound
 	}
+	rows, err = tx.Query(ctx, `
+		UPDATE monitor m SET sort_order = $3 + r.n
+		FROM (
+			SELECT id, row_number() OVER (ORDER BY sort_order = 0, sort_order, lower(name), id) AS n
+			FROM monitor WHERE parent_id IS NOT DISTINCT FROM $2 AND id <> ALL($1::int[])
+		) r
+		WHERE m.id = r.id
+		RETURNING `+qualifiedMonitorColumns("m"), ids, parent, len(ids))
+	if err != nil {
+		return nil, fmt.Errorf("order the rest of the group: %w", err)
+	}
+	rest, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (monitor.Monitor, error) { return scanMonitor(r) })
+	if err != nil {
+		return nil, fmt.Errorf("order the rest of the group: %w", err)
+	}
+	changed = append(changed, rest...)
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit: %w", err)
 	}
@@ -271,6 +287,8 @@ func (s *Store) UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 				json_path = $33, json_path_operator = $34, expected_value = $35, conditions = $36, manual_status = $37,
 				ws_subprotocol = $38, ws_ignore_accept_header = $39, database_connection_string = $40, database_query = $41,
 				database_password = $42, settings = $43,
+				-- A monitor moved to another group starts unordered there; parent_id here is the old one
+				sort_order = CASE WHEN parent_id IS DISTINCT FROM $22 THEN 0 ELSE sort_order END,
 				updated_at = now()
 			WHERE id = $1
 			RETURNING `+monitorColumns,
@@ -283,7 +301,7 @@ func (s *Store) UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 			return m, err
 		}
 		if updated.Type != monitor.TypeGroup {
-			if _, err := tx.Exec(ctx, `UPDATE monitor SET parent_id = NULL WHERE parent_id = $1`, updated.ID); err != nil {
+			if _, err := tx.Exec(ctx, `UPDATE monitor SET parent_id = NULL, sort_order = 0 WHERE parent_id = $1`, updated.ID); err != nil {
 				return m, fmt.Errorf("release children: %w", err)
 			}
 		}

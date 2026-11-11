@@ -225,9 +225,35 @@ func (s *Scheduler) Sync(monitors []monitor.Monitor, since uint64, previous map[
 		}
 	}
 
-	// Changed monitors restart with their new settings; the monitors below a changed or removed
-	// group follow it. Everything that must stop is cancelled before anything is waited for, so a
-	// slow check elsewhere can't let a monitor in a newly paused group record a beat meanwhile.
+	s.reconcileLocked(changed, removed, previous)
+}
+
+// UpsertAll applies many new or changed monitors at once, such as a bulk pause or resume: all of
+// them are in place, and every runner that must stop is cancelled, before any is waited for, so
+// none of them, nor a monitor in a group among them, checks meanwhile.
+func (s *Scheduler) UpsertAll(monitors []monitor.Monitor) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopped {
+		return
+	}
+	changed := make([]int32, 0, len(monitors))
+	for _, m := range monitors {
+		s.touchLocked(m.ID)
+		s.rememberGroup(m)
+		s.monitors[m.ID] = m
+		delete(s.suspended, m.ID)
+		changed = append(changed, m.ID)
+	}
+	s.reconcileLocked(changed, nil, nil)
+}
+
+// reconcileLocked restarts changed monitors with their new settings, stops removed ones, and
+// starts or stops the monitors below a changed or removed group to follow it. Everything that must
+// stop is cancelled before anything is waited for, so a slow check elsewhere can't let a monitor
+// in a newly paused group record a beat meanwhile. A monitor started without a state of its own
+// continues from previous, when it's there.
+func (s *Scheduler) reconcileLocked(changed, removed []int32, previous map[int32]monitor.Previous) {
 	children := s.childrenLocked()
 	restart := make(map[int32]bool, len(changed))
 	for _, id := range changed {

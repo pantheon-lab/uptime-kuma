@@ -825,3 +825,69 @@ func TestSyncContinuesFromTheSavedState(t *testing.T) {
 		}
 	}
 }
+
+func TestUpsertAllStopsEveryPausedMonitorBeforeWaiting(t *testing.T) {
+	checker := &slowChecker{slow: 3, started: make(chan struct{}), release: make(chan struct{})}
+	sink := &fakeSink{}
+	s := New(checker, sink, 10, quiet)
+	defer s.Stop()
+	released := false
+	release := func() {
+		if !released {
+			released = true
+			close(checker.release)
+		}
+	}
+	defer release()
+	fast := monitor.Monitor{ID: 2, Active: true, Interval: 1}
+	slow := monitor.Monitor{ID: 3, Active: true, Interval: 1}
+	s.Upsert(fast)
+	s.Upsert(slow)
+	waitFor(t, "the fast monitor's first check", func() bool { return checker.count(2) >= 1 })
+	<-checker.started
+
+	cancelled := make(chan struct{})
+	var once sync.Once
+	s.mu.Lock()
+	s.cancelled = func() { once.Do(func() { close(cancelled) }) }
+	fastDone := s.runners[2].done
+	s.mu.Unlock()
+	beatsOf := func(id int32) int {
+		n := 0
+		for _, b := range sink.snapshot() {
+			if b.MonitorID == id {
+				n++
+			}
+		}
+		return n
+	}
+
+	// Both paused together, the slow one first.
+	slow.Active, fast.Active = false, false
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		s.UpsertAll([]monitor.Monitor{slow, fast})
+	}()
+	select {
+	case <-cancelled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("UpsertAll didn't cancel the runners")
+	}
+	select {
+	case <-fastDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the fast monitor's runner didn't exit once cancelled")
+	}
+	before := beatsOf(2)
+	time.Sleep(1300 * time.Millisecond)
+	if n := beatsOf(2); n != before {
+		t.Errorf("a paused monitor recorded %d beats while a slow check was stopped", n-before)
+	}
+	release()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("UpsertAll didn't return once the slow check ended")
+	}
+}

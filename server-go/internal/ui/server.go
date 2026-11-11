@@ -141,6 +141,7 @@ type Scheduler interface {
 	Upsert(m monitor.Monitor)
 	Remove(ctx context.Context, id int32) error
 	Suspend(ctx context.Context, id int32) error
+	UpsertAll(monitors []monitor.Monitor)
 }
 
 // Beats delivers new beats as they are stored.

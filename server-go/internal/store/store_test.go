@@ -845,7 +845,48 @@ func TestSetMonitorOrder(t *testing.T) {
 		t.Errorf("top: %d", got.SortOrder)
 	}
 
+	// A partial order: the monitors left out follow, in the order they had.
+	c, _ := s.CreateMonitor(ctx, member("c", &g.ID))
+	if _, err := s.SetMonitorOrder(ctx, &g.ID, []int32{c.ID}); err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[int32]int32{c.ID: 1, b.ID: 2, a.ID: 3} {
+		if got, _ := s.GetMonitor(ctx, id); got.SortOrder != want {
+			t.Errorf("monitor %d: order %d, want %d", id, got.SortOrder, want)
+		}
+	}
+	if _, err := s.SetMonitorOrder(ctx, &g.ID, []int32{b.ID, a.ID, c.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Moved to another group, a monitor starts unordered there; a group that isn't one any more
+	// lets its monitors go unordered.
+	moved, _ := s.GetMonitor(ctx, c.ID)
+	moved.ParentID = nil
+	if updated, err := s.UpdateMonitor(ctx, moved); err != nil || updated.SortOrder != 0 {
+		t.Errorf("moved: %v, order %d", err, updated.SortOrder)
+	}
+	if _, err := s.SetMonitorOrder(ctx, &g.ID, []int32{b.ID, a.ID}); err != nil {
+		t.Fatal(err)
+	}
+	notGroup, _ := s.GetMonitor(ctx, g.ID)
+	notGroup.Type, notGroup.Hostname, notGroup.Port = monitor.TypePort, "127.0.0.1", 1
+	if _, err := s.UpdateMonitor(ctx, notGroup); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.GetMonitor(ctx, b.ID); got.ParentID != nil || got.SortOrder != 0 {
+		t.Errorf("released: parent %v, order %d", got.ParentID, got.SortOrder)
+	}
+
 	// Editing a monitor keeps its place, and a new one can be given one, as an import does.
+	gotA, _ = s.GetMonitor(ctx, a.ID)
+	if gotA.ParentID != nil {
+		t.Fatalf("a: parent %v", gotA.ParentID)
+	}
+	if _, err := s.SetMonitorOrder(ctx, nil, []int32{top.ID, a.ID}); err != nil {
+		t.Fatal(err)
+	}
+	gotA, _ = s.GetMonitor(ctx, a.ID)
 	gotA.Name = "a2"
 	gotA.SortOrder = 0
 	if updated, err := s.UpdateMonitor(ctx, gotA); err != nil || updated.SortOrder != 2 {

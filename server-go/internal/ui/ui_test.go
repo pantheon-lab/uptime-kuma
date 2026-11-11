@@ -560,6 +560,12 @@ func (f *fakeScheduler) Remove(_ context.Context, id int32) error {
 	return nil
 }
 
+func (f *fakeScheduler) UpsertAll(monitors []monitor.Monitor) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.upserted = append(f.upserted, monitors...)
+}
+
 func (f *fakeScheduler) Suspend(_ context.Context, id int32) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

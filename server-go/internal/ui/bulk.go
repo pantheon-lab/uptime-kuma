@@ -20,6 +20,9 @@ import (
 const (
 	// maxBulkMonitors is how many monitors one bulk edit, import or export may touch.
 	maxBulkMonitors = 1000
+	// maxOrderedMonitors is how many monitors of one group setMonitorOrder takes: the page sends
+	// them all, so it's a group's size rather than a bulk action's.
+	maxOrderedMonitors = 10000
 	// maxTestRun is how long the form's test may take: less than the event's own time limit.
 	maxTestRun = 25 * time.Second
 )
@@ -168,9 +171,8 @@ func (s *Server) setMonitorsActive(ctx context.Context, args []json.RawMessage) 
 	if err != nil {
 		return nil, fmt.Errorf("set monitors active: %w", err)
 	}
-	for _, m := range changed {
-		s.scheduler.Upsert(m)
-	}
+	// Together, so that no monitor among them, nor in a group among them, checks while one is stopped
+	s.scheduler.UpsertAll(changed)
 	// Monitors show as paused while a group above them is, so those in the groups change too.
 	send := make([]int32, 0, len(changed))
 	seen := make(map[int32]bool, len(changed))
@@ -215,15 +217,15 @@ func (s *Server) setMonitorOrder(ctx context.Context, args []json.RawMessage) (r
 	switch {
 	case len(ids) == 0:
 		return nil, userErr(errors.New("no monitors to order"))
-	case len(ids) > maxBulkMonitors:
-		return nil, userErr(fmt.Errorf("at most %d monitors can be ordered at once", maxBulkMonitors))
+	case len(ids) > maxOrderedMonitors:
+		return nil, userErr(fmt.Errorf("at most %d monitors can be ordered at once", maxOrderedMonitors))
 	}
 	changed, err := s.store.SetMonitorOrder(ctx, parent, ids)
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, userErr(errors.New("The monitors aren't all in that group any more, so nothing was moved. Try again.")) //nolint:staticcheck // Shown to users.
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("set monitor order: %w", err)
 	}
 	sent := make([]int32, len(changed))
 	for i, m := range changed {
