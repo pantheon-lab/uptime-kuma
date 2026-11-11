@@ -84,6 +84,10 @@ type Scheduler struct {
 	monitors map[int32]monitor.Monitor
 	// suspended monitors stay stopped, whatever their groups do, until their next Upsert.
 	suspended map[int32]bool
+	// gen counts the changes given to the scheduler, and touched holds each monitor's last one, kept
+	// after it's removed, so that Sync can tell a snapshot read before a change from one read after.
+	gen     uint64
+	touched map[int32]uint64
 	// pushRunners finds the runner of an active push monitor by its token.
 	pushRunners map[string]*runner
 
@@ -109,6 +113,7 @@ func New(checker Checker, sink Sink, concurrency int, log *slog.Logger) *Schedul
 
 		monitors:    make(map[int32]monitor.Monitor),
 		suspended:   make(map[int32]bool),
+		touched:     make(map[int32]uint64),
 		pushRunners: make(map[string]*runner),
 		last:        make(map[int32]*monitor.Previous),
 	}
@@ -164,31 +169,72 @@ func (s *Scheduler) Start(monitors []monitor.Monitor, previous map[int32]monitor
 	}
 }
 
+// Generation is the count of changes given to the scheduler so far. Take it before reading the
+// monitors for Sync.
+func (s *Scheduler) Generation() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.gen
+}
+
+// touchLocked records a change to a monitor that Sync mustn't undo with an older snapshot.
+func (s *Scheduler) touchLocked(id int32) {
+	s.gen++
+	s.touched[id] = s.gen
+}
+
 // Sync applies the monitors as the database has them now, after something else changed it, such
-// as kuma-import. Only monitors that changed are restarted, and those no longer there are stopped.
-func (s *Scheduler) Sync(monitors []monitor.Monitor) {
+// as kuma-import. since is Generation from before they were read: a monitor changed here after
+// that, by Upsert, Remove or Suspend, is newer than the snapshot and left as it is. Only monitors
+// that changed are restarted, and those no longer there are stopped. Every change is in place
+// before any runner starts, so a monitor can't start while its new group is still missing.
+func (s *Scheduler) Sync(monitors []monitor.Monitor, since uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.stopped {
 		return
 	}
+	newer := func(id int32) bool { return s.touched[id] > since }
 	present := make(map[int32]bool, len(monitors))
+	var changed, removed []int32
 	for _, m := range monitors {
 		present[m.ID] = true
+		if newer(m.ID) {
+			continue
+		}
 		if known, ok := s.monitors[m.ID]; ok && reflect.DeepEqual(known, m) {
 			continue
 		}
-		s.upsertLocked(m)
+		s.rememberGroup(m)
+		s.monitors[m.ID] = m
+		changed = append(changed, m.ID)
 	}
 	for id := range s.monitors {
-		if !present[id] {
-			s.stopRunnerLocked(id)
+		if !present[id] && !newer(id) {
 			delete(s.monitors, id)
-			delete(s.suspended, id)
-			s.groupNames.Delete(id)
-			telemetry.Metrics().ForgetMonitor(id)
-			s.applyToDescendantsLocked(id)
+			removed = append(removed, id)
 		}
+	}
+
+	for _, id := range removed {
+		s.stopRunnerLocked(id)
+		delete(s.suspended, id)
+		s.stateMu.Lock()
+		delete(s.last, id)
+		s.stateMu.Unlock()
+		s.groupNames.Delete(id)
+		telemetry.Metrics().ForgetMonitor(id)
+	}
+	for _, id := range changed {
+		s.stopRunnerLocked(id)
+		if s.shouldRunLocked(id) {
+			s.startLocked(s.monitors[id], 0)
+		} else {
+			telemetry.Metrics().ForgetMonitor(id)
+		}
+	}
+	for _, id := range append(changed, removed...) {
+		s.applyToDescendantsLocked(id)
 	}
 }
 
@@ -201,6 +247,7 @@ func (s *Scheduler) Upsert(m monitor.Monitor) {
 	if s.stopped {
 		return
 	}
+	s.touchLocked(m.ID)
 	s.upsertLocked(m)
 }
 
@@ -291,6 +338,7 @@ func (s *Scheduler) groupName(m monitor.Monitor) string {
 // its data, or queued beats would be written after the delete.
 func (s *Scheduler) Remove(ctx context.Context, id int32) error {
 	s.mu.Lock()
+	s.touchLocked(id)
 	s.stopRunnerLocked(id)
 	delete(s.suspended, id)
 	// The monitors in a deleted group leave it, as the database's ON DELETE SET NULL does,
@@ -315,6 +363,7 @@ func (s *Scheduler) Remove(ctx context.Context, id int32) error {
 // queued beats. Unlike Remove, the monitors in a group stay as they are.
 func (s *Scheduler) Suspend(ctx context.Context, id int32) error {
 	s.mu.Lock()
+	s.touchLocked(id)
 	s.stopRunnerLocked(id)
 	s.suspended[id] = true
 	s.stateMu.Lock()

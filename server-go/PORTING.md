@@ -1023,9 +1023,16 @@ Not tested: a range of more than 30 days, which reads the daily statistics; the 
 - **An import shows at once.** `kuma-import -apply` writes to the database directly, so the running service didn't
   know: open pages needed a refresh, and `-activate` a restart. It now ends with `NOTIFY kuma_imported`; the
   service `LISTEN`s on its own connection, out of the pool, and then reloads maintenance windows, gives the
-  scheduler the monitors as they are (`Sync` restarts only those that changed, and stops those gone), and sends
-  every open page its lists again, as at login. A lost connection is opened again, and reloads once in case an
-  import finished meanwhile.
+  scheduler the monitors as they are (`Sync`), and sends every open page its lists again, as at login. It also
+  reloads each time it starts listening, the first time too, so an import that finished while it wasn't is picked
+  up. A failed reload, or a lost connection, waits 5 seconds and listens again. `Sync` takes the scheduler's
+  `Generation` from before the monitors were read, and leaves alone any monitor changed here after it, by a pause,
+  an edit or a delete, so an older snapshot can't undo them; it installs every monitor before starting any, so a
+  monitor can't start while its new group is still missing, restarts only those that changed, and stops and
+  forgets those gone. Tested with the race detector against TimescaleDB: the listener hearing imports, retrying a
+  failed reload, and recovering after its connection is closed; `Sync` with stale snapshots and groups; and open
+  pages getting their lists. A built service reloaded on `NOTIFY kuma_imported` from `psql`. Not tested: a real
+  `kuma-import -apply` from MariaDB with a page open, and on Kubernetes.
 - **Exporting the selected monitors** (`src/components/ExportMonitorsDialog.vue`), from Export… in the list's Actions
   menu. `exportMonitors(ids, {groups, children})` returns them in the REST API's format with their credentials, so
   only admins can. `groups` adds the groups they're in up to the top, and `children` everything in a chosen group;

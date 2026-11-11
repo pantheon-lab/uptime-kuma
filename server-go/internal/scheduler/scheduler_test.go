@@ -645,7 +645,7 @@ func TestSyncAppliesWhatChangedInTheDatabase(t *testing.T) {
 	// would check it again at once.
 	paused.Active = true
 	added := monitor.Monitor{ID: 4, Active: true, Interval: 1}
-	s.Sync([]monitor.Monitor{steady, paused, added})
+	s.Sync([]monitor.Monitor{steady, paused, added}, s.Generation())
 	waitFor(t, "the resumed and the added monitor", func() bool { return checker.count(2) >= 1 && checker.count(4) >= 1 })
 	if running(3) {
 		t.Error("a monitor no longer in the database is still running")
@@ -653,5 +653,55 @@ func TestSyncAppliesWhatChangedInTheDatabase(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	if n := checker.count(1); n != 1 {
 		t.Errorf("an unchanged monitor was restarted: %d checks", n)
+	}
+}
+
+func TestSyncLeavesNewerChangesAlone(t *testing.T) {
+	checker := &countingChecker{}
+	s := New(checker, &fakeSink{}, 10, quiet)
+	defer s.Stop()
+	running := func(id int32) bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, ok := s.runners[id]
+		return ok
+	}
+	site := monitor.Monitor{ID: 1, Active: false, Interval: 1}
+	other := monitor.Monitor{ID: 2, Active: true, Interval: 3600}
+	s.Upsert(site)
+	s.Upsert(other)
+
+	// A reload reads the database, and meanwhile the page pauses one monitor and deletes another.
+	since := s.Generation()
+	snapshot := []monitor.Monitor{{ID: 1, Active: true, Interval: 1}, other}
+	s.Upsert(monitor.Monitor{ID: 1, Active: false, Interval: 1})
+	if err := s.Remove(context.Background(), 2); err != nil {
+		t.Fatal(err)
+	}
+	s.Sync(snapshot, since)
+	if running(1) {
+		t.Error("an older snapshot resumed a monitor paused after it was read")
+	}
+	if running(2) {
+		t.Error("an older snapshot brought back a monitor deleted after it was read")
+	}
+
+	// A snapshot read after the changes applies.
+	s.Sync([]monitor.Monitor{{ID: 1, Active: true, Interval: 1}}, s.Generation())
+	waitFor(t, "the resumed monitor", func() bool { return checker.count(1) >= 1 })
+}
+
+func TestSyncInstallsGroupsBeforeStartingAnything(t *testing.T) {
+	checker := &countingChecker{}
+	s := New(checker, &fakeSink{}, 10, quiet)
+	defer s.Stop()
+	groupID := int32(10)
+	// The child comes first, and its new group, paused, is only further down the snapshot.
+	child := monitor.Monitor{ID: 11, Active: true, Interval: 1, ParentID: &groupID}
+	group := monitor.Monitor{ID: groupID, Type: monitor.TypeGroup, Active: false, Interval: 3600}
+	s.Sync([]monitor.Monitor{child, group}, s.Generation())
+	time.Sleep(300 * time.Millisecond)
+	if n := checker.count(11); n != 0 {
+		t.Errorf("a monitor in a paused group was checked %d times", n)
 	}
 }

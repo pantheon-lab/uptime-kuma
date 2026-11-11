@@ -351,18 +351,19 @@ func run(log *slog.Logger) error {
 	}
 	go uiServer.WatchLoginConfig(ctx)
 	// kuma-import writes to the database directly: apply what it wrote, and show it on open pages.
-	go db.ListenImported(ctx, log, func(ctx context.Context) {
-		log.Info("an import changed the data, reloading")
+	go db.ListenImported(ctx, log, func(ctx context.Context) error {
 		if err := maintenanceService.Refresh(ctx); err != nil {
-			log.Error("reload maintenance after an import", "error", err)
+			return fmt.Errorf("reload maintenance: %w", err)
 		}
+		// Before reading: a monitor changed here meanwhile is newer than what's read.
+		since := sched.Generation()
 		monitors, err := db.ListMonitors(ctx)
 		if err != nil {
-			log.Error("reload monitors after an import", "error", err)
-			return
+			return fmt.Errorf("reload monitors: %w", err)
 		}
-		sched.Sync(monitors)
+		sched.Sync(monitors, since)
 		uiServer.Reload(ctx)
+		return nil
 	})
 	go uiServer.Run(ctx, hub)
 	certService.OnChange(uiServer.BroadcastCertInfo)

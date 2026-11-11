@@ -22,21 +22,16 @@ func (s *Store) NotifyImported(ctx context.Context) error {
 	return nil
 }
 
-// ListenImported calls changed after each import, until ctx ends. A lost connection is opened
-// again, and changed is called then too, in case an import finished meanwhile.
-func (s *Store) ListenImported(ctx context.Context, log *slog.Logger, changed func(context.Context)) {
-	reconnect := false
+// ListenImported calls changed after each import, until ctx ends, and once each time it starts
+// listening, the first time too, in case an import finished while it wasn't. When changed fails,
+// or the connection is lost, it waits and listens again, which calls changed again.
+func (s *Store) ListenImported(ctx context.Context, log *slog.Logger, changed func(context.Context) error) {
 	for ctx.Err() == nil {
-		err := s.listenImported(ctx, func() {
-			if reconnect {
-				changed(ctx)
-			}
-			reconnect = true
-		}, changed)
+		err := s.listenImported(ctx, changed)
 		if ctx.Err() != nil {
 			return
 		}
-		log.Warn("listen for imports, connecting again", "error", err, "in", listenRetry)
+		log.Warn("reload after an import, trying again", "error", err, "in", listenRetry)
 		select {
 		case <-ctx.Done():
 			return
@@ -46,7 +41,7 @@ func (s *Store) ListenImported(ctx context.Context, log *slog.Logger, changed fu
 }
 
 // listenImported holds its own connection, which LISTEN ties up, and returns when it fails.
-func (s *Store) listenImported(ctx context.Context, listening func(), changed func(context.Context)) error {
+func (s *Store) listenImported(ctx context.Context, changed func(context.Context) error) error {
 	pooled, err := s.pool.Acquire(ctx)
 	if err != nil {
 		return err
@@ -57,11 +52,12 @@ func (s *Store) listenImported(ctx context.Context, listening func(), changed fu
 	if _, err := conn.Exec(ctx, "LISTEN "+importedChannel); err != nil {
 		return err
 	}
-	listening()
 	for {
+		if err := changed(ctx); err != nil {
+			return err
+		}
 		if _, err := conn.WaitForNotification(ctx); err != nil {
 			return err
 		}
-		changed(ctx)
 	}
 }
