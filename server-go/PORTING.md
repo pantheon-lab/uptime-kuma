@@ -1020,6 +1020,11 @@ Not tested: a range of more than 30 days, which reads the daily statistics; the 
   after a restart a paused group's monitors stay stopped. Moving a monitor into or out of a paused group, or
   deleting the group, applies the same rule. Clearing a group's data suspends only the group (`Suspend`), so it
   doesn't start the monitors in it.
+- **Easier to choose monitors.** Each monitor's box is bigger (1.3rem, as is the header's), in a label as tall as
+  the row, so the space around it ticks it too. Once one is ticked, a click anywhere on a row ticks or unticks it
+  rather than opening the monitor, and ticked rows are highlighted; the group's open and close button still works.
+  With nothing ticked, rows open their monitor as before. The row is Vue Router's `custom` link, so that the click
+  can be taken over.
 - **Exporting the selected monitors** (`src/components/ExportMonitorsDialog.vue`), from Export… in the list's Actions
   menu. `exportMonitors(ids, {groups, children})` returns them in the REST API's format with their credentials, so
   only admins can. `groups` adds the groups they're in up to the top, and `children` everything in a chosen group;
