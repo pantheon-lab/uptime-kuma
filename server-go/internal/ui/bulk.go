@@ -166,7 +166,7 @@ func (s *Server) setMonitorsActive(ctx context.Context, args []json.RawMessage) 
 	}
 	changed, err := s.store.SetMonitorsActive(ctx, ids, active)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("set monitors active: %w", err)
 	}
 	for _, m := range changed {
 		s.scheduler.Upsert(m)
