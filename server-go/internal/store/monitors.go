@@ -100,6 +100,21 @@ func (s *Store) SetMonitorActive(ctx context.Context, id int32, active bool) (mo
 	return m, monitorResult(err)
 }
 
+// SetMonitorsActive pauses or resumes many monitors in one statement, and returns those it
+// changed. Ids that don't exist are left out.
+func (s *Store) SetMonitorsActive(ctx context.Context, ids []int32, active bool) ([]monitor.Monitor, error) {
+	rows, err := s.pool.Query(ctx,
+		`UPDATE monitor SET active = $2, updated_at = now() WHERE id = ANY($1) RETURNING `+monitorColumns, ids, active)
+	if err != nil {
+		return nil, fmt.Errorf("set monitors active: %w", err)
+	}
+	monitors, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (monitor.Monitor, error) { return scanMonitor(r) })
+	if err != nil {
+		return nil, fmt.Errorf("set monitors active: %w", err)
+	}
+	return monitors, nil
+}
+
 // GetMonitor returns one monitor or ErrNotFound.
 func (s *Store) GetMonitor(ctx context.Context, id int32) (monitor.Monitor, error) {
 	m, err := scanMonitor(s.pool.QueryRow(ctx, `SELECT `+monitorColumns+` FROM monitor WHERE id = $1`, id))

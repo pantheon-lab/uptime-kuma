@@ -77,6 +77,7 @@ type Store interface {
 	CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
 	UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
 	SetMonitorActive(ctx context.Context, id int32, active bool) (monitor.Monitor, error)
+	SetMonitorsActive(ctx context.Context, ids []int32, active bool) ([]monitor.Monitor, error)
 	DeleteMonitor(ctx context.Context, id int32) error
 
 	LatestBeats(ctx context.Context, monitorID int32, limit int) ([]store.Beat, error)

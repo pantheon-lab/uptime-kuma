@@ -769,3 +769,42 @@ func TestChartRange(t *testing.T) {
 		t.Errorf("empty range: %d points, %v", len(points), err)
 	}
 }
+
+func TestSetMonitorsActive(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	a, err := s.CreateMonitor(ctx, member("a", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := s.CreateMonitor(ctx, member("b", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := s.CreateMonitor(ctx, member("c", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	changed, err := s.SetMonitorsActive(ctx, []int32{a.ID, b.ID, 9999}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changed) != 2 {
+		t.Fatalf("changed %d monitors, want the 2 that exist", len(changed))
+	}
+	for _, m := range changed {
+		if !m.Active || (m.ID != a.ID && m.ID != b.ID) {
+			t.Errorf("returned %d, active %v", m.ID, m.Active)
+		}
+	}
+	if got, _ := s.GetMonitor(ctx, c.ID); got.Active {
+		t.Error("a monitor that wasn't chosen was resumed")
+	}
+	if _, err := s.SetMonitorsActive(ctx, []int32{a.ID}, false); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.GetMonitor(ctx, a.ID); got.Active {
+		t.Error("the monitor wasn't paused again")
+	}
+}
