@@ -184,6 +184,7 @@ import ExportMonitorsDialog from "../components/ExportMonitorsDialog.vue";
 import MonitorListItem from "../components/MonitorListItem.vue";
 import MonitorListFilter from "./MonitorListFilter.vue";
 import { getMonitorRelativeURL } from "../util.ts";
+import { setMonitorsActive } from "../bulk-active";
 import { computeListWindow, computeRowMetrics } from "../monitor-list-window";
 
 export default {
@@ -206,6 +207,8 @@ export default {
             selectedMonitors: {},
             windowTop: 0,
             bulkActionInProgress: false,
+            // Which bulk pause or resume is the newest
+            bulkActiveRun: 0,
             filterState: {
                 status: null,
                 active: null,
@@ -735,19 +738,26 @@ export default {
          * Pause or resume monitors in one request, so the list changes once rather than per monitor
          * @param {string[]} ids Monitors to change
          * @param {boolean} active Resume them, or pause them
-         * @returns {void}
+         * @returns {Promise<void>}
          */
-        setSelectedActive(ids, active) {
+        async setSelectedActive(ids, active) {
+            // A newer action takes over: the answer to an older one, however late, changes nothing
+            const run = ++this.bulkActiveRun;
             this.bulkActionInProgress = true;
-            this.$root.getSocket().emit("setMonitorsActive", ids.map(Number), active, (res) => {
-                this.bulkActionInProgress = false;
-                if (!res?.ok) {
-                    this.$root.toastError(res?.msg ?? this.$t("bulkActionFailedMsg"));
-                    return;
-                }
-                this.$root.toastSuccess(this.$t(active ? "resumedMonitorsMsg" : "pausedMonitorsMsg", res.count));
+            const socket = this.$root.getSocket();
+            const result = await setMonitorsActive((...args) => socket.emit(...args), ids, active);
+            if (run !== this.bulkActiveRun) {
+                return;
+            }
+            this.bulkActionInProgress = false;
+            if (result.kind === "done") {
+                this.$root.toastSuccess(this.$t(active ? "resumedMonitorsMsg" : "pausedMonitorsMsg", result.count));
                 this.cancelSelectMode();
-            });
+            } else if (result.kind === "failed") {
+                this.$root.toastError(result.message ?? this.$t("bulkActionFailedMsg"));
+            } else {
+                this.$root.toastError(this.$t("bulkActionUnknownMsg"));
+            }
         },
         /**
          * Delete each selected monitor

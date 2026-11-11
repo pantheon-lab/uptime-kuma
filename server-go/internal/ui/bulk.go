@@ -173,10 +173,16 @@ func (s *Server) setMonitorsActive(ctx context.Context, args []json.RawMessage) 
 	}
 	// Monitors show as paused while a group above them is, so those in the groups change too.
 	send := make([]int32, 0, len(changed))
-	if tree, err := s.monitorTree(ctx); err == nil {
-		seen := make(map[int32]bool, len(changed))
+	seen := make(map[int32]bool, len(changed))
+	for _, m := range changed {
+		seen[m.ID] = true
+		send = append(send, m.ID)
+	}
+	if tree, err := s.monitorTree(ctx); err != nil {
+		s.log.Warn("find the monitors in the changed groups", "error", err)
+	} else {
 		for _, m := range changed {
-			for _, id := range append([]int32{m.ID}, tree.descendants(m.ID)...) {
+			for _, id := range tree.descendants(m.ID) {
 				if !seen[id] {
 					seen[id] = true
 					send = append(send, id)

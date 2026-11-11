@@ -792,6 +792,7 @@
     "deleteMonitorsMsg": "Are you sure you want to delete the selected monitors?",
     "hiddenByFilters": "hidden by the filters",
     "bulkActionFailedMsg": "The monitors couldn't be changed. Try again.",
+    "bulkActionUnknownMsg": "No answer from the server: the monitors may not have changed. Check the list, then try again.",
     "pausedMonitorsMsg": "Paused {n} monitor | Paused {n} monitors",
     "resumedMonitorsMsg": "Resumed {n} monitor | Resumed {n} monitors",
     "deletedMonitorsMsg": "Deleted {n} monitor | Deleted {n} monitors",

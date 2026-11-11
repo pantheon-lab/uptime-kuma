@@ -1025,7 +1025,11 @@ Not tested: a range of more than 30 days, which reads the daily statistics; the 
   twice. A connection's events run in order, so with a database a millisecond away 190 monitors took seconds, and
   the list re-sorted itself monitor by monitor, paused ones moving up one at a time. `setMonitorsActive(ids,
 active)` changes them in one statement and sends one update, with the monitors in the groups among them. The
-  toast now waits for the answer, and says what failed.
+  toast now waits for the answer, and says what failed; after 30 seconds without one, the actions work again and
+  the toast says the result is unknown, and a late answer changes nothing (`src/bulk-active.ts`). Tested: the event
+  with a group's monitors, the store's statement against TimescaleDB, the request's answers and time limit, and in
+  a browser, 190 monitors resumed in one list update with the database a millisecond away. Not tested on
+  Kubernetes.
 - **Exporting the selected monitors** (`src/components/ExportMonitorsDialog.vue`), from Export… in the list's Actions
   menu. `exportMonitors(ids, {groups, children})` returns them in the REST API's format with their credentials, so
   only admins can. `groups` adds the groups they're in up to the top, and `children` everything in a chosen group;
