@@ -768,6 +768,11 @@ func TestSyncStopsAPausedGroupsMonitorsBeforeWaiting(t *testing.T) {
 	s.mu.Lock()
 	s.cancelled = func() { once.Do(func() { close(cancelled) }) }
 	s.mu.Unlock()
+	// The child's runner, to wait until it has exited: a check that had just passed its last
+	// cancellation check could still record its beat after the signal.
+	s.mu.Lock()
+	childDone := s.runners[2].done
+	s.mu.Unlock()
 	synced := make(chan struct{})
 	go func() {
 		defer close(synced)
@@ -777,6 +782,11 @@ func TestSyncStopsAPausedGroupsMonitorsBeforeWaiting(t *testing.T) {
 	case <-cancelled:
 	case <-time.After(5 * time.Second):
 		t.Fatal("Sync didn't cancel the runners")
+	}
+	select {
+	case <-childDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the child's runner didn't exit once cancelled")
 	}
 	before := beatsOf(2)
 	// Longer than the child's interval: it would check again, were it still running.
