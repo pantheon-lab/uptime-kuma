@@ -2,11 +2,14 @@ package ui
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/pantheon-lab/uptime-kuma/server-go/internal/check"
@@ -15,7 +18,7 @@ import (
 )
 
 const (
-	// maxBulkMonitors is how many monitors one bulk edit or import may touch.
+	// maxBulkMonitors is how many monitors one bulk edit, import or export may touch.
 	maxBulkMonitors = 1000
 	// maxTestRun is how long the form's test may take: less than the event's own time limit.
 	maxTestRun = 25 * time.Second
@@ -199,6 +202,9 @@ type importRow struct {
 // importMonitors adds monitors, each in the REST API's format: importMonitors(monitors, dryRun).
 // Nothing is added unless every one of them is valid, and a dry run only checks them. Monitors
 // get the default notifications, as from the REST API.
+//
+// A parentId names a group in the file by its id, as an export writes them, or else a group on
+// this server. Groups in the file are added before the monitors in them.
 func (s *Server) importMonitors(ctx context.Context, args []json.RawMessage) (reply, error) {
 	var raws []json.RawMessage
 	if err := arg(args, 0, &raws); err != nil {
@@ -221,20 +227,75 @@ func (s *Server) importMonitors(ctx context.Context, args []json.RawMessage) (re
 
 	rows := make([]importRow, len(raws))
 	monitors := make([]monitor.Monitor, len(raws))
-	invalid := 0
+	errs := make([]error, len(raws))
+	// The rows by the id the file gives them
+	byFileID := make(map[int32]int, len(raws))
 	for i, raw := range raws {
-		m, err := decodeImportedMonitor(raw)
+		m, fileID, err := decodeImportedMonitor(raw)
 		rows[i] = importRow{Row: i + 1, Name: m.Name, Type: m.Type}
-		if err == nil && m.ParentID != nil {
-			if parent, found := tree.byID[*m.ParentID]; !found || parent.Type != monitor.TypeGroup {
-				err = fmt.Errorf("parentId %d isn't a group", *m.ParentID)
+		monitors[i], errs[i] = m, err
+		if fileID > 0 {
+			if first, taken := byFileID[fileID]; taken {
+				errs[i] = firstErr(errs[i], fmt.Errorf("id %d is also row %d's", fileID, first+1))
+			} else {
+				byFileID[fileID] = i
 			}
 		}
+	}
+
+	// Push tokens are unique, so a token in use here, or twice in the file, would stop the import
+	// part way.
+	tokens := make(map[string]string, len(tree.byID))
+	for _, m := range tree.byID {
+		if m.PushToken != "" {
+			tokens[m.PushToken] = fmt.Sprintf("monitor %q", m.Name)
+		}
+	}
+	for i, m := range monitors {
+		if errs[i] != nil || m.Type != monitor.TypePush || m.PushToken == "" {
+			continue
+		}
+		if owner, taken := tokens[m.PushToken]; taken {
+			errs[i] = fmt.Errorf("its pushToken is already %s's: remove it to get a new one", owner)
+		} else {
+			tokens[m.PushToken] = fmt.Sprintf("row %d", i+1)
+		}
+	}
+
+	// parentRow is the row of each monitor's group when the group is in the file, or -1.
+	parentRow := make([]int, len(raws))
+	for i, m := range monitors {
+		parentRow[i] = -1
+		if errs[i] != nil || m.ParentID == nil {
+			continue
+		}
+		if p, inFile := byFileID[*m.ParentID]; inFile {
+			if monitors[p].Type != monitor.TypeGroup {
+				errs[i] = fmt.Errorf("parentId %d is row %d, which isn't a group", *m.ParentID, p+1)
+			} else {
+				parentRow[i] = p
+			}
+		} else if parent, found := tree.byID[*m.ParentID]; !found || parent.Type != monitor.TypeGroup {
+			errs[i] = fmt.Errorf("parentId %d isn't a group", *m.ParentID)
+		}
+	}
+	depth := make([]int, len(raws))
+	for i := range monitors {
+		for p := parentRow[i]; p >= 0; p = parentRow[p] {
+			depth[i]++
+			if depth[i] > len(raws) {
+				errs[i] = errors.New("its groups contain each other")
+				break
+			}
+		}
+	}
+
+	invalid := 0
+	for i, err := range errs {
 		if err != nil {
 			rows[i].Error = err.Error()
 			invalid++
 		}
-		monitors[i] = m
 	}
 	if invalid > 0 {
 		return reply{"ok": false, "msg": fmt.Sprintf("%d of %s can't be imported. Nothing was imported.", invalid, monitorCount(len(raws))), "rows": rows}, nil
@@ -242,6 +303,13 @@ func (s *Server) importMonitors(ctx context.Context, args []json.RawMessage) (re
 	if dryRun {
 		return ok("rows", rows, "count", len(rows)), nil
 	}
+
+	// Groups first, so that each monitor's group exists when it's added.
+	order := make([]int, len(raws))
+	for i := range order {
+		order[i] = i
+	}
+	slices.SortStableFunc(order, func(a, b int) int { return depth[a] - depth[b] })
 
 	created := make([]int32, 0, len(monitors))
 	defer func() {
@@ -251,11 +319,16 @@ func (s *Server) importMonitors(ctx context.Context, args []json.RawMessage) (re
 			s.log.Info("monitors imported from the web UI", "monitors", len(created))
 		}
 	}()
-	for i, m := range monitors {
+	for _, i := range order {
+		m := monitors[i]
+		if p := parentRow[i]; p >= 0 {
+			id := rows[p].ID
+			m.ParentID = &id
+		}
 		c, err := s.store.CreateMonitor(ctx, m)
 		if errors.Is(err, store.ErrInvalidParent) || errors.Is(err, store.ErrPushTokenTaken) {
 			rows[i].Error = err.Error()
-			return reply{"ok": false, "msg": fmt.Sprintf("Row %d: %v. The %s before it were imported.", i+1, err, monitorCount(len(created))), "rows": rows, "count": len(created)}, nil
+			return reply{"ok": false, "msg": fmt.Sprintf("Row %d: %v. %s were imported before it.", i+1, err, capitalize(monitorCount(len(created)))), "rows": rows, "count": len(created)}, nil
 		}
 		if err != nil {
 			return nil, err
@@ -270,9 +343,26 @@ func (s *Server) importMonitors(ctx context.Context, args []json.RawMessage) (re
 	return ok("msg", "Imported "+monitorCount(len(created))+".", "rows", rows, "count", len(created)), nil
 }
 
+// firstErr returns the first error that isn't nil.
+func firstErr(first, second error) error {
+	if first != nil {
+		return first
+	}
+	return second
+}
+
+// capitalize makes "3 monitors" read as the start of a sentence; numbers are left as they are.
+func capitalize(text string) string {
+	if text == "" || text[0] < 'a' || text[0] > 'z' {
+		return text
+	}
+	return string(text[0]-'a'+'A') + text[1:]
+}
+
 // decodeImportedMonitor reads a monitor as the REST API does: a misspelled field is an error,
-// not a default.
-func decodeImportedMonitor(raw json.RawMessage) (monitor.Monitor, error) {
+// not a default. It returns the id the file gives the monitor, which only links monitors of
+// the same file.
+func decodeImportedMonitor(raw json.RawMessage) (monitor.Monitor, int32, error) {
 	m := monitor.New()
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
@@ -284,11 +374,107 @@ func decodeImportedMonitor(raw json.RawMessage) (monitor.Monitor, error) {
 		}
 		_ = json.Unmarshal(raw, &named)
 		m.Name, m.Type = named.Name, named.Type
-		return m, err
+		return m, 0, err
 	}
+	fileID := m.ID
 	m.ID = 0
 	m.Normalize()
-	return m, m.Validate()
+	return m, fileID, m.Validate()
+}
+
+// exportOptions says what an export adds to the chosen monitors.
+type exportOptions struct {
+	// Groups adds the groups the monitors are in, up to the top. Without it, a monitor whose
+	// group isn't exported loses its parentId.
+	Groups bool `json:"groups"`
+	// Children adds every monitor in the chosen groups, however deep.
+	Children bool `json:"children"`
+}
+
+// exportMonitors returns monitors in the REST API's format, credentials included, for a file
+// that importMonitors reads back: exportMonitors(ids, options). Groups come before the monitors
+// in them, and each parentId is a monitor in the file, so the file is complete on its own.
+func (s *Server) exportMonitors(ctx context.Context, c *conn, args []json.RawMessage) (reply, error) {
+	var ids []int32
+	if err := arg(args, 0, &ids); err != nil {
+		return nil, userErr(err)
+	}
+	var options exportOptions
+	if len(args) > 1 {
+		if err := arg(args, 1, &options); err != nil {
+			return nil, userErr(err)
+		}
+	}
+	ids = uniqueIDs(ids)
+	if len(ids) == 0 {
+		return nil, userErr(errors.New("no monitors were chosen"))
+	}
+	tree, err := s.monitorTree(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	chosen := make(map[int32]bool, len(ids))
+	for _, id := range ids {
+		if _, found := tree.byID[id]; !found {
+			return nil, userErr(fmt.Errorf("monitor %d doesn't exist", id))
+		}
+		chosen[id] = true
+	}
+	if options.Children {
+		for _, id := range ids {
+			if tree.byID[id].Type == monitor.TypeGroup {
+				for _, child := range tree.descendants(id) {
+					chosen[child] = true
+				}
+			}
+		}
+	}
+	if options.Groups {
+		for id := range maps.Clone(chosen) {
+			seen := map[int32]bool{id: true}
+			for p := tree.byID[id].ParentID; p != nil && !seen[*p]; p = tree.byID[*p].ParentID {
+				if _, found := tree.byID[*p]; !found {
+					break
+				}
+				seen[*p] = true
+				chosen[*p] = true
+			}
+		}
+	}
+	if len(chosen) > maxBulkMonitors {
+		return nil, userErr(fmt.Errorf("at most %d monitors can be exported at once", maxBulkMonitors))
+	}
+
+	// In the list's order: each group, then what's in it.
+	out := make([]monitor.Monitor, 0, len(chosen))
+	var walk func(parent *int32, seen map[int32]bool)
+	walk = func(parent *int32, seen map[int32]bool) {
+		var level []monitor.Monitor
+		for id := range chosen {
+			m := tree.byID[id]
+			inLevel := (parent == nil && (m.ParentID == nil || !chosen[*m.ParentID])) ||
+				(parent != nil && m.ParentID != nil && *m.ParentID == *parent)
+			if inLevel && !seen[id] {
+				level = append(level, m)
+			}
+		}
+		slices.SortFunc(level, func(a, b monitor.Monitor) int {
+			return cmp.Or(strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)), cmp.Compare(a.ID, b.ID))
+		})
+		for _, m := range level {
+			seen[m.ID] = true
+			if m.ParentID != nil && !chosen[*m.ParentID] {
+				m.ParentID = nil
+			}
+			out = append(out, m)
+			walk(&m.ID, seen)
+		}
+	}
+	walk(nil, map[int32]bool{})
+
+	s.log.Info("monitors exported from the web UI", "monitors", len(out), "user", c.username)
+	return ok("monitors", out, "count", len(out)), nil
 }
 
 // testMonitor runs one check of the Edit Monitor form's monitor, saved or not, and stores nothing:

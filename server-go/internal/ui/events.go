@@ -376,6 +376,8 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.bulkEditMonitors(ctx, args)
 	case "importMonitors":
 		r, err = s.importMonitors(ctx, args)
+	case "exportMonitors":
+		r, err = s.exportMonitors(ctx, c, args)
 	case "testMonitor":
 		r, err = s.testMonitor(ctx, args)
 	case "pauseMonitor":

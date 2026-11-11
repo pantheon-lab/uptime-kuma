@@ -81,6 +81,17 @@
                                 </a>
                             </li>
                             <li>
+                                <a
+                                    class="dropdown-item"
+                                    href="#"
+                                    data-testid="bulk-export"
+                                    @click.prevent="$refs.exportDialog.show(Object.keys(selectedMonitors))"
+                                >
+                                    <font-awesome-icon icon="download" class="me-2" />
+                                    {{ $t("exportMonitorsAction") }}
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item" href="#" data-testid="bulk-pause" @click.prevent="pauseDialog">
                                     <font-awesome-icon icon="pause" class="me-2" />
                                     {{ $t("Pause") }}
@@ -154,6 +165,7 @@
     </div>
 
     <BulkEditDialog ref="bulkEditDialog" @saved="cancelSelectMode" />
+    <ExportMonitorsDialog ref="exportDialog" />
 
     <Confirm ref="confirmPause" :yes-text="$t('Yes')" :no-text="$t('No')" @yes="pauseSelected">
         {{ $t("pauseMonitorMsg") }}
@@ -167,6 +179,7 @@
 <script>
 import BulkEditDialog from "../components/BulkEditDialog.vue";
 import Confirm from "../components/Confirm.vue";
+import ExportMonitorsDialog from "../components/ExportMonitorsDialog.vue";
 import MonitorListItem from "../components/MonitorListItem.vue";
 import MonitorListFilter from "./MonitorListFilter.vue";
 import { getMonitorRelativeURL } from "../util.ts";
@@ -175,6 +188,7 @@ import { computeListWindow, computeRowMetrics } from "../monitor-list-window";
 export default {
     components: {
         BulkEditDialog,
+        ExportMonitorsDialog,
         Confirm,
         MonitorListItem,
         MonitorListFilter,
