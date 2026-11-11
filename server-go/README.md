@@ -860,10 +860,13 @@ docker compose run --rm --no-deps -e SOURCE_MARIADB_DSN --entrypoint /kuma-impor
 # Import. Monitors arrive paused, so nothing checks twice
 docker compose run --rm --no-deps -e SOURCE_MARIADB_DSN --entrypoint /kuma-import analytics -apply
 
-# At the cutover: resume what was active in the source, switch on its notifications, then restart
+# At the cutover: resume what was active in the source, and switch on its notifications
 docker compose run --rm --no-deps -e SOURCE_MARIADB_DSN --entrypoint /kuma-import analytics -apply -activate
-docker compose restart analytics
 ```
+
+A running service picks up an import as soon as it's written: `-apply` tells it through Postgres (`NOTIFY
+kuma_imported`), and it starts or stops the monitors that changed and sends open pages their lists again, so nobody
+needs to refresh. Without the service running, it reads everything when it starts.
 
 Check these parts of the report:
 

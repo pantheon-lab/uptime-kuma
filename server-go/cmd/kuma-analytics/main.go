@@ -350,6 +350,28 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	go uiServer.WatchLoginConfig(ctx)
+	// kuma-import writes to the database directly: apply what it wrote, and show it on open pages.
+	go db.ListenImported(ctx, log, func(ctx context.Context) error {
+		// A stalled query fails the attempt, which is then tried again, rather than holding up the listener.
+		ctx, cancel := context.WithTimeout(ctx, reloadTimeout)
+		defer cancel()
+		if err := maintenanceService.Refresh(ctx); err != nil {
+			return fmt.Errorf("reload maintenance: %w", err)
+		}
+		// Before reading: a monitor changed here meanwhile is newer than what's read.
+		since := sched.Generation()
+		monitors, err := db.ListMonitors(ctx)
+		if err != nil {
+			return fmt.Errorf("reload monitors: %w", err)
+		}
+		// The saved states, so that monitors the import resumed don't alert on their first check.
+		previous, err := db.LatestStates(ctx)
+		if err != nil {
+			return fmt.Errorf("reload states: %w", err)
+		}
+		sched.Sync(monitors, since, previous)
+		return uiServer.Reload(ctx)
+	})
 	go uiServer.Run(ctx, hub)
 	certService.OnChange(uiServer.BroadcastCertInfo)
 	domainService.OnChange(uiServer.BroadcastDomainInfo)
@@ -415,6 +437,9 @@ func envTrue(value string) bool {
 
 // createInitialAdmin creates the first account from KUMA_INITIAL_ADMIN_USERNAME and
 // KUMA_INITIAL_ADMIN_PASSWORD, which are ignored once an account exists.
+// reloadTimeout bounds one reload after an import.
+const reloadTimeout = 2 * time.Minute
+
 func createInitialAdmin(ctx context.Context, server *ui.Server, log *slog.Logger) error {
 	username := strings.TrimSpace(os.Getenv("KUMA_INITIAL_ADMIN_USERNAME"))
 	password := os.Getenv("KUMA_INITIAL_ADMIN_PASSWORD")

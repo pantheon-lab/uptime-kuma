@@ -614,6 +614,11 @@ var migrations = [][]string{
 			cleared_at timestamptz NOT NULL
 		)`,
 	},
+	{
+		// The monitor list's custom order, among the monitors of the same group. 0 is unordered,
+		// which sorts after the ordered ones, by name.
+		`ALTER TABLE monitor ADD COLUMN IF NOT EXISTS sort_order integer NOT NULL DEFAULT 0`,
+	},
 }
 
 // Migrate brings the schema up to date.

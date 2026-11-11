@@ -38,6 +38,7 @@ type nopScheduler struct{}
 func (nopScheduler) Upsert(monitor.Monitor)               {}
 func (nopScheduler) Remove(context.Context, int32) error  { return nil }
 func (nopScheduler) Suspend(context.Context, int32) error { return nil }
+func (nopScheduler) UpsertAll([]monitor.Monitor)          {}
 
 // uiApp is the web UI's backend on a real database, logged in.
 type uiApp struct {

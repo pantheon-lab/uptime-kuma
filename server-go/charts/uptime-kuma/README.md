@@ -78,7 +78,6 @@ kubectl -n uptime-kuma logs -l app.kubernetes.io/component=import --tail=-1
 # Import, and later the cutover
 helm upgrade ... --reuse-values --set-json 'import.args=["-apply"]'
 helm upgrade ... --reuse-values --set-json 'import.args=["-apply","-activate"]'
-kubectl -n uptime-kuma rollout restart deploy/uptime-kuma-analytics
 
 # Done: remove the job
 helm upgrade ... --reuse-values --set import.enabled=false

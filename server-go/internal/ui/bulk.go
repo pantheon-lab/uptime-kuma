@@ -20,6 +20,9 @@ import (
 const (
 	// maxBulkMonitors is how many monitors one bulk edit, import or export may touch.
 	maxBulkMonitors = 1000
+	// maxOrderedMonitors is how many monitors of one group setMonitorOrder takes: the page sends
+	// them all, so it's a group's size rather than a bulk action's.
+	maxOrderedMonitors = 10000
 	// maxTestRun is how long the form's test may take: less than the event's own time limit.
 	maxTestRun = 25 * time.Second
 )
@@ -143,6 +146,93 @@ func (s *Server) bulkEditMonitors(ctx context.Context, args []json.RawMessage) (
 	s.broadcastMonitors(ctx, ids...)
 	s.log.Info("monitors changed together from the web UI", "monitors", len(ids))
 	return ok("msg", "Changed "+monitorCount(len(ids))+".", "count", len(ids)), nil
+}
+
+// setMonitorsActive pauses or resumes many monitors at once: setMonitorsActive(ids, active).
+// Open pages get one update with all of them, and the monitors in the groups among them, rather
+// than one per monitor, which made the list re-sort itself monitor by monitor.
+func (s *Server) setMonitorsActive(ctx context.Context, args []json.RawMessage) (reply, error) {
+	var ids []int32
+	if err := arg(args, 0, &ids); err != nil {
+		return nil, userErr(err)
+	}
+	var active bool
+	if err := arg(args, 1, &active); err != nil {
+		return nil, userErr(err)
+	}
+	ids = uniqueIDs(ids)
+	switch {
+	case len(ids) == 0:
+		return nil, userErr(errors.New("no monitors were chosen"))
+	case len(ids) > maxBulkMonitors:
+		return nil, userErr(fmt.Errorf("at most %d monitors can be changed at once", maxBulkMonitors))
+	}
+	changed, err := s.store.SetMonitorsActive(ctx, ids, active)
+	if err != nil {
+		return nil, fmt.Errorf("set monitors active: %w", err)
+	}
+	// Together, so that no monitor among them, nor in a group among them, checks while one is stopped
+	s.scheduler.UpsertAll(changed)
+	// Monitors show as paused while a group above them is, so those in the groups change too.
+	send := make([]int32, 0, len(changed))
+	seen := make(map[int32]bool, len(changed))
+	for _, m := range changed {
+		seen[m.ID] = true
+		send = append(send, m.ID)
+	}
+	if tree, err := s.monitorTree(ctx); err != nil {
+		s.log.Warn("find the monitors in the changed groups", "error", err)
+	} else {
+		for _, m := range changed {
+			for _, id := range tree.descendants(m.ID) {
+				if !seen[id] {
+					seen[id] = true
+					send = append(send, id)
+				}
+			}
+		}
+	}
+	s.broadcastMonitors(ctx, send...)
+	verb := "Paused"
+	if active {
+		verb = "Resumed"
+	}
+	s.log.Info("monitors "+strings.ToLower(verb)+" together from the web UI", "monitors", len(changed))
+	return ok("msg", verb+" "+monitorCount(len(changed))+".", "count", len(changed)), nil
+}
+
+// setMonitorOrder sets the list's custom order of the monitors in one group, or at the top of the
+// list: setMonitorOrder(parentId or null, ids). Everyone's list shows it. It changes nothing the
+// scheduler uses, so no check restarts.
+func (s *Server) setMonitorOrder(ctx context.Context, args []json.RawMessage) (reply, error) {
+	var parent *int32
+	if err := arg(args, 0, &parent); err != nil {
+		return nil, userErr(err)
+	}
+	var ids []int32
+	if err := arg(args, 1, &ids); err != nil {
+		return nil, userErr(err)
+	}
+	ids = uniqueIDs(ids)
+	switch {
+	case len(ids) == 0:
+		return nil, userErr(errors.New("no monitors to order"))
+	case len(ids) > maxOrderedMonitors:
+		return nil, userErr(fmt.Errorf("at most %d monitors can be ordered at once", maxOrderedMonitors))
+	}
+	changed, err := s.store.SetMonitorOrder(ctx, parent, ids)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, userErr(errors.New("The monitors aren't all in that group any more, so nothing was moved. Try again.")) //nolint:staticcheck // Shown to users.
+	}
+	if err != nil {
+		return nil, fmt.Errorf("set monitor order: %w", err)
+	}
+	sent := make([]int32, len(changed))
+	for i, m := range changed {
+		sent[i] = m.ID
+	}
+	s.broadcastMonitors(ctx, sent...)
+	return ok("count", len(changed)), nil
 }
 
 // checkBulkReferences refuses notifications and tags that don't exist.

@@ -26,7 +26,7 @@ import (
 
 func main() {
 	apply := flag.Bool("apply", false, "write to DATABASE_URL. Without it, nothing is written")
-	activate := flag.Bool("activate", false, "with -apply, resume monitors that were active in the source. They start after the service restarts")
+	activate := flag.Bool("activate", false, "with -apply, resume monitors that were active in the source. A running service starts them at once")
 	verify := flag.Bool("verify", false, "compare what's in DATABASE_URL with the source, monitor by monitor, and exit non-zero if any differ. Imports nothing")
 	flag.Parse()
 
@@ -83,6 +83,15 @@ func run(apply, activate bool, log *slog.Logger) error {
 
 	start := time.Now()
 	report, err := importer.Run(ctx, options)
+	if db, ok := options.Target.(*store.Store); ok && db != nil {
+		// A running service picks up what was written, its scheduler and its open pages, after a
+		// failed import too, which may have written part of it. Even when the import was cancelled.
+		notifyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		if err := db.NotifyImported(notifyCtx); err != nil {
+			log.Warn("tell the service about the import; restart it to see what was imported", "error", err)
+		}
+		cancel()
+	}
 	if err != nil {
 		return err
 	}

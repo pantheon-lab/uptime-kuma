@@ -1020,6 +1020,55 @@ Not tested: a range of more than 30 days, which reads the daily statistics; the 
   after a restart a paused group's monitors stay stopped. Moving a monitor into or out of a paused group, or
   deleting the group, applies the same rule. Clearing a group's data suspends only the group (`Suspend`), so it
   doesn't start the monitors in it.
+- **An import shows at once.** `kuma-import -apply` writes to the database directly, so the running service didn't
+  know: open pages needed a refresh, and `-activate` a restart. It now ends with `NOTIFY kuma_imported`; the
+  service `LISTEN`s on its own connection, out of the pool, and then reloads maintenance windows, gives the
+  scheduler the monitors as they are (`Sync`), and sends every open page its lists again, as at login. It also
+  reloads each time it starts listening, the first time too, so an import that finished while it wasn't is picked
+  up. Monitors a reload starts continue from the states saved in the database, as at startup, so that `-activate` doesn't make every resumed monitor alert on its first check; and an import that fails notifies too, since it may have written part of its data. A reload has 2 minutes; a failed one, or a lost connection, waits 5 seconds and listens again. `Sync` takes the scheduler's
+  `Generation` from before the monitors were read, and leaves alone any monitor changed here after it, by a pause,
+  an edit or a delete, so an older snapshot can't undo them; it installs every monitor before starting any, so a
+  monitor can't start while its new group is still missing, restarts only those that changed, and stops and
+  forgets those gone. Everything that must stop is cancelled before any is waited for, so a slow check elsewhere
+  can't let a monitor in a newly paused group record a beat meanwhile; pausing a group does the same. Tested with the race detector against TimescaleDB: the listener hearing imports, retrying a
+  failed reload, and recovering after its connection is closed; `Sync` with stale snapshots and groups; and open
+  pages getting their lists. A built service reloaded on `NOTIFY kuma_imported` from `psql`. Not tested: a real
+  `kuma-import -apply` from MariaDB with a page open, and on Kubernetes.
+- **Pausing or resuming many monitors is one request.** The list's Actions sent `pauseMonitor` or `resumeMonitor`
+  once per monitor, and the server answered each with its own list update, after loading the whole monitor tree
+  twice. A connection's events run in order, so with a database a millisecond away 190 monitors took seconds, and
+  the list re-sorted itself monitor by monitor, paused ones moving up one at a time. `setMonitorsActive(ids,
+active)` changes them in one statement and sends one update, with the monitors in the groups among them. The
+  toast now waits for the answer, and says what failed; after 30 seconds without one, the actions work again and
+  the toast says the result is unknown, and a late answer changes nothing (`src/bulk-active.ts`). Tested: the event
+  with a group's monitors, the store's statement against TimescaleDB, the request's answers and time limit, and in
+  a browser, 190 monitors resumed in one list update with the database a millisecond away. Not tested on
+  Kubernetes.
+- **Easier to choose monitors.** Each monitor's box is bigger (1.3rem, as is the header's), in a label as tall as
+  the row, so the space around it ticks it too. Once one is ticked, a click anywhere on a row ticks or unticks it
+  rather than opening the monitor, and ticked rows are highlighted; the group's open and close button still works.
+  With nothing ticked, rows open their monitor as before, and Ctrl or Cmd, Shift or a middle click are left to the
+  browser, for a new tab, even while choosing; Enter on a focused row opens it too, since the keyboard ticks with
+  the box (`src/row-click.ts`). The row is Vue Router's `custom` link, so that
+  the click can be taken over. Tested: the click's decision by unit tests; and in a browser against a built
+  service, by hand-written checks, the box (21 px) and its target (39 by 56 px), ticking from the space around the
+  box, a row click ticking while choosing and opening otherwise, the group button, and the highlight in light and
+  dark mode, a Ctrl-click opening a new tab while choosing, and Enter opening the monitor. Not tested: touch screens.
+- **A resizable, sortable monitor list.** The dashboard's list has an edge to drag (`src/pages/Dashboard.vue`), or
+  move with the arrow keys, Home and End; Enter or a double click resets it; right to left, the edge and its arrows go the other way. It stays between 280 pixels and what
+  leaves the monitor's page 360, at most 70% of the row, and is remembered per browser (`src/panel-width.ts`). The
+  list's bars follow as it's dragged. A sort menu beside the filters (`src/monitor-sort.ts`) sorts by name (numbers
+  in order), status (down, pending, maintenance, up, then no beat), the last 24 hours' uptime (unknown last), or
+  recently added, each reversible, with paused monitors last; it's remembered per browser. **Custom order** is
+  everyone's: an admin drags a monitor above or below another of the same group, a line showing where, or moves the focused one with Alt and an arrow, and
+  `setMonitorOrder(parentId, ids)` stores it in the new `monitor.sort_order` column, in one transaction that
+  refuses monitors from another group and puts any left out after the others. A monitor moved to another group starts unordered there. The order is the REST API's and the export's `sortOrder`; editing a monitor
+  keeps it, and the scheduler ignores it, so reordering restarts no check. A group's middle still takes a monitor
+  into it. Tested: the sorts, moves and widths by unit tests; `setMonitorOrder` against TimescaleDB and through the
+  event; and in a browser against a built service, the edge (default, dragged, its limits, kept after a reload, the
+  keys, the reset), each sort, and dragging in custom order, kept on the server and after a reload, near the rows'
+  edges too, with a group's middle still taking a monitor in. Not tested: touch screens, where HTML drag and drop
+  doesn't start, so only the keyboard reorders there.
 - **Exporting the selected monitors** (`src/components/ExportMonitorsDialog.vue`), from Export… in the list's Actions
   menu. `exportMonitors(ids, {groups, children})` returns them in the REST API's format with their credentials, so
   only admins can. `groups` adds the groups they're in up to the top, and `children` everything in a chosen group;

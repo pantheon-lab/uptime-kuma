@@ -461,3 +461,175 @@ func TestEditingAGroupSendsTheMonitorsInIt(t *testing.T) {
 		t.Fatalf("the monitor in the renamed group wasn't sent with its new path: %s", sent)
 	}
 }
+
+func TestReloadSendsOpenPagesTheirLists(t *testing.T) {
+	s, fs, _ := newTestServer(t)
+	ctx := context.Background()
+	admin := &conn{userID: 1, admin: true, username: "a", out: make(chan []byte, 256), done: make(chan struct{})}
+	viewer := &conn{userID: 2, username: "v", out: make(chan []byte, 256), done: make(chan struct{})}
+	anonymous := &conn{out: make(chan []byte, 256), done: make(chan struct{})}
+	s.mu.Lock()
+	s.conns["admin"], s.conns["viewer"], s.conns["anonymous"] = admin, viewer, anonymous
+	s.mu.Unlock()
+
+	// Written to the database by something else, such as kuma-import.
+	m := monitor.New()
+	m.Name, m.Type, m.URL, m.BasicAuthPass = "Imported", monitor.TypeHTTP, "https://imported.example.com", "s3cret"
+	if _, err := fs.CreateMonitor(ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Reload(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	read := func(c *conn) string {
+		out := ""
+		for len(c.out) > 0 {
+			out += string(<-c.out)
+		}
+		return out
+	}
+	if got := read(admin); !strings.Contains(got, `"monitorList"`) || !strings.Contains(got, "Imported") || !strings.Contains(got, `"notificationList"`) {
+		t.Errorf("the admin's page: %.300s", got)
+	}
+	got := read(viewer)
+	if !strings.Contains(got, `"monitorList"`) || !strings.Contains(got, "Imported") {
+		t.Errorf("the viewer's page: %.300s", got)
+	}
+	if strings.Contains(got, "s3cret") {
+		t.Error("the viewer was sent a monitor's password")
+	}
+	if got := read(anonymous); got != "" {
+		t.Errorf("a page that isn't logged in was sent: %.300s", got)
+	}
+	// Out of time: it fails, so that the listener tries again.
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	if err := s.Reload(cancelled); err == nil {
+		t.Error("a reload that ran out of time succeeded")
+	}
+}
+
+func TestSetMonitorsActiveSendsOneUpdate(t *testing.T) {
+	s, fs, _ := newTestServer(t)
+	ctx := context.Background()
+	c := &conn{userID: 1, admin: true, username: "a", out: make(chan []byte, 256), done: make(chan struct{})}
+	s.mu.Lock()
+	s.conns["admin"] = c
+	s.mu.Unlock()
+	sched := s.scheduler.(*fakeScheduler)
+	group := addFakeMonitor(fs, "Shop", monitor.TypeGroup)
+	child := monitor.New()
+	child.Name, child.Type, child.URL, child.ParentID = "API", monitor.TypeHTTP, "https://api.example.com", &group
+	child, _ = fs.CreateMonitor(ctx, child)
+	other := addFakeMonitor(fs, "Site", monitor.TypeHTTP)
+	for _, id := range []int32{group, child.ID, other} {
+		m := fs.monitors[id]
+		m.Active = false
+		fs.monitors[id] = m
+	}
+	call := func(args ...any) reply {
+		raws := make([]json.RawMessage, len(args))
+		for i, a := range args {
+			raws[i], _ = json.Marshal(a)
+		}
+		r, _ := s.handle(ctx, c, "setMonitorsActive", raws)
+		return r.(reply)
+	}
+
+	r := call([]int32{group, other, group}, true)
+	if r["ok"] != true || r["count"] != 2 {
+		t.Fatalf("resume: %v", r)
+	}
+	if !fs.monitors[group].Active || !fs.monitors[other].Active || fs.monitors[child.ID].Active {
+		t.Errorf("active: group %v, other %v, child %v", fs.monitors[group].Active, fs.monitors[other].Active, fs.monitors[child.ID].Active)
+	}
+	if len(sched.upserted) != 2 {
+		t.Errorf("the scheduler got %d monitors, want 2", len(sched.upserted))
+	}
+
+	// One update, with the group's monitor too: it shows as paused while its group is.
+	var updates []string
+	for len(c.out) > 0 {
+		if frame := string(<-c.out); strings.Contains(frame, `"updateMonitorIntoList"`) {
+			updates = append(updates, frame)
+		}
+	}
+	if len(updates) != 1 {
+		t.Fatalf("%d list updates, want 1", len(updates))
+	}
+	for _, id := range []int32{group, child.ID, other} {
+		if !strings.Contains(updates[0], `"`+strconv.Itoa(int(id))+`":{`) {
+			t.Errorf("monitor %d isn't in the update", id)
+		}
+	}
+
+	if r := call([]int32{}, true); r["ok"] != false {
+		t.Errorf("nothing chosen: %v", r)
+	}
+	if r, _ := s.handle(ctx, &conn{userID: 2, out: make(chan []byte, 8), done: make(chan struct{})}, "setMonitorsActive",
+		[]json.RawMessage{json.RawMessage(`[1]`), json.RawMessage(`false`)}); r.(reply)["ok"] != false {
+		t.Errorf("a viewer paused monitors: %v", r)
+	}
+}
+
+func TestSetMonitorOrder(t *testing.T) {
+	s, fs, _ := newTestServer(t)
+	ctx := context.Background()
+	c := &conn{userID: 1, admin: true, username: "a", out: make(chan []byte, 256), done: make(chan struct{})}
+	s.mu.Lock()
+	s.conns["admin"] = c
+	s.mu.Unlock()
+	sched := s.scheduler.(*fakeScheduler)
+	group := addFakeMonitor(fs, "Shop", monitor.TypeGroup)
+	child := func(name string) int32 {
+		m := monitor.New()
+		m.Name, m.Type, m.URL, m.ParentID = name, monitor.TypeHTTP, "https://"+name, &group
+		created, _ := fs.CreateMonitor(ctx, m)
+		return created.ID
+	}
+	a, b := child("a"), child("b")
+	top := addFakeMonitor(fs, "Site", monitor.TypeHTTP)
+	call := func(by *conn, args ...any) reply {
+		raws := make([]json.RawMessage, len(args))
+		for i, x := range args {
+			raws[i], _ = json.Marshal(x)
+		}
+		r, _ := s.handle(ctx, by, "setMonitorOrder", raws)
+		return r.(reply)
+	}
+
+	upserts := len(sched.upserted)
+	if r := call(c, group, []int32{b, a}); r["ok"] != true || r["count"] != 2 {
+		t.Fatalf("order: %v", r)
+	}
+	if fs.monitors[b].SortOrder != 1 || fs.monitors[a].SortOrder != 2 {
+		t.Errorf("orders: b %d, a %d", fs.monitors[b].SortOrder, fs.monitors[a].SortOrder)
+	}
+	if len(sched.upserted) != upserts {
+		t.Error("ordering monitors restarted their checks")
+	}
+	sent := ""
+	for len(c.out) > 0 {
+		sent += string(<-c.out)
+	}
+	if !strings.Contains(sent, `"updateMonitorIntoList"`) || !strings.Contains(sent, `"sortOrder":1`) {
+		t.Errorf("open pages weren't sent the order: %.300s", sent)
+	}
+
+	// The top of the list, with a null parent.
+	if r := call(c, nil, []int32{top, group}); r["ok"] != true || fs.monitors[top].SortOrder != 1 {
+		t.Errorf("order the top: %v", r)
+	}
+	// A monitor from another group changes nothing.
+	if r := call(c, group, []int32{a, top}); r["ok"] != false || fs.monitors[a].SortOrder != 2 {
+		t.Errorf("mixed groups: %v", r)
+	}
+	if r := call(c, group, []int32{}); r["ok"] != false {
+		t.Errorf("nothing to order: %v", r)
+	}
+	viewer := &conn{userID: 2, out: make(chan []byte, 8), done: make(chan struct{})}
+	if r := call(viewer, group, []int32{a, b}); r["ok"] != false {
+		t.Errorf("a viewer ordered monitors: %v", r)
+	}
+}

@@ -48,7 +48,7 @@ var viewerMonitorFields = []string{
 	"id", "name", "description", "type", "path", "pathName", "parent", "childrenIDs", "active", "forceInactive",
 	"tags", "maintenance", "interval", "retryInterval", "maxretries", "upsideDown", "expiryNotification",
 	"domainExpiryNotification", "hostname", "port", "method", "keyword", "invertKeyword", "dns_resolve_type",
-	"dns_resolve_server", "dns_last_result", "docker_container", "game", "weight", "includeSensitiveData",
+	"dns_resolve_server", "dns_last_result", "docker_container", "game", "weight", "sortOrder", "includeSensitiveData",
 	"location", "protocol", "ipFamily",
 }
 
@@ -119,9 +119,10 @@ func (s *Server) broadcastMonitorUpdate(update map[string]any) {
 }
 
 // afterViewerLogin sends a viewer what the UI waits for at login, without credentials.
-func (s *Server) afterViewerLogin(ctx context.Context, c *conn) {
-	if tree, err := s.monitorTree(ctx); err != nil {
-		s.log.Error("send monitor list", "error", err)
+func (s *Server) afterViewerLogin(ctx context.Context, c *conn) error {
+	tree, listErr := s.monitorTree(ctx)
+	if listErr != nil {
+		s.log.Error("send monitor list", "error", listErr)
 	} else {
 		c.emit("monitorList", viewerMonitorList(tree.listJSON()))
 	}
@@ -137,11 +138,12 @@ func (s *Server) afterViewerLogin(ctx context.Context, c *conn) {
 	c.emit("monitorTypeList", monitorTypeList())
 	if s.pages == nil {
 		c.emit("statusPageList", map[string]any{})
-		return
+		return listErr
 	}
 	if list, err := s.statusPageList(ctx); err != nil {
 		s.log.Error("send status page list", "error", err)
 	} else {
 		c.emit("statusPageList", list)
 	}
+	return listErr
 }

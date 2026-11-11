@@ -621,3 +621,273 @@ func TestSuspendedMonitorStaysStoppedWhileItsGroupChanges(t *testing.T) {
 	s.Upsert(child)
 	waitFor(t, "the child after its Upsert", func() bool { return checker.count(2) > before })
 }
+
+func TestSyncAppliesWhatChangedInTheDatabase(t *testing.T) {
+	checker := &countingChecker{}
+	s := New(checker, &fakeSink{}, 10, quiet)
+	defer s.Stop()
+	running := func(id int32) bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, ok := s.runners[id]
+		return ok
+	}
+	steady := monitor.Monitor{ID: 1, Active: true, Interval: 3600}
+	paused := monitor.Monitor{ID: 2, Active: false, Interval: 1}
+	gone := monitor.Monitor{ID: 3, Active: true, Interval: 1}
+	// Upsert rather than Start, which spreads first checks over the interval.
+	for _, m := range []monitor.Monitor{steady, paused, gone} {
+		s.Upsert(m)
+	}
+	waitFor(t, "the first check", func() bool { return checker.count(1) == 1 && checker.count(3) >= 1 })
+
+	// An import resumed one, deleted one and added one; the unchanged one isn't restarted, which
+	// would check it again at once.
+	paused.Active = true
+	added := monitor.Monitor{ID: 4, Active: true, Interval: 1}
+	s.Sync([]monitor.Monitor{steady, paused, added}, s.Generation(), nil)
+	waitFor(t, "the resumed and the added monitor", func() bool { return checker.count(2) >= 1 && checker.count(4) >= 1 })
+	if running(3) {
+		t.Error("a monitor no longer in the database is still running")
+	}
+	time.Sleep(200 * time.Millisecond)
+	if n := checker.count(1); n != 1 {
+		t.Errorf("an unchanged monitor was restarted: %d checks", n)
+	}
+}
+
+func TestSyncLeavesNewerChangesAlone(t *testing.T) {
+	checker := &countingChecker{}
+	s := New(checker, &fakeSink{}, 10, quiet)
+	defer s.Stop()
+	running := func(id int32) bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, ok := s.runners[id]
+		return ok
+	}
+	site := monitor.Monitor{ID: 1, Active: false, Interval: 1}
+	other := monitor.Monitor{ID: 2, Active: true, Interval: 3600}
+	s.Upsert(site)
+	s.Upsert(other)
+
+	// A reload reads the database, and meanwhile the page pauses one monitor and deletes another.
+	since := s.Generation()
+	snapshot := []monitor.Monitor{{ID: 1, Active: true, Interval: 1}, other}
+	s.Upsert(monitor.Monitor{ID: 1, Active: false, Interval: 1})
+	if err := s.Remove(context.Background(), 2); err != nil {
+		t.Fatal(err)
+	}
+	s.Sync(snapshot, since, nil)
+	if running(1) {
+		t.Error("an older snapshot resumed a monitor paused after it was read")
+	}
+	if running(2) {
+		t.Error("an older snapshot brought back a monitor deleted after it was read")
+	}
+
+	// A snapshot read after the changes applies.
+	s.Sync([]monitor.Monitor{{ID: 1, Active: true, Interval: 1}}, s.Generation(), nil)
+	waitFor(t, "the resumed monitor", func() bool { return checker.count(1) >= 1 })
+}
+
+func TestSyncInstallsGroupsBeforeStartingAnything(t *testing.T) {
+	checker := &countingChecker{}
+	s := New(checker, &fakeSink{}, 10, quiet)
+	defer s.Stop()
+	groupID := int32(10)
+	// The child comes first, and its new group, paused, is only further down the snapshot.
+	child := monitor.Monitor{ID: 11, Active: true, Interval: 1, ParentID: &groupID}
+	group := monitor.Monitor{ID: groupID, Type: monitor.TypeGroup, Active: false, Interval: 3600}
+	s.Sync([]monitor.Monitor{child, group}, s.Generation(), nil)
+	time.Sleep(300 * time.Millisecond)
+	if n := checker.count(11); n != 0 {
+		t.Errorf("a monitor in a paused group was checked %d times", n)
+	}
+}
+
+// slowChecker holds one monitor's check until released, ignoring cancellation as a stuck check
+// would, and checks the others at once, counting each. started is closed when the held check begins.
+type slowChecker struct {
+	countingChecker
+	slow    int32
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+// Run holds the slow monitor's check, then counts the check.
+func (c *slowChecker) Run(ctx context.Context, m monitor.Monitor) monitor.Result {
+	if m.ID == c.slow {
+		c.once.Do(func() { close(c.started) })
+		<-c.release
+	}
+	return c.countingChecker.Run(ctx, m)
+}
+
+func TestSyncStopsAPausedGroupsMonitorsBeforeWaiting(t *testing.T) {
+	checker := &slowChecker{slow: 3, started: make(chan struct{}), release: make(chan struct{})}
+	sink := &fakeSink{}
+	s := New(checker, sink, 10, quiet)
+	defer s.Stop()
+	released := false
+	release := func() {
+		if !released {
+			released = true
+			close(checker.release)
+		}
+	}
+	defer release()
+	groupID := int32(1)
+	group := monitor.Monitor{ID: groupID, Type: monitor.TypeGroup, Active: true, Interval: 3600}
+	child := monitor.Monitor{ID: 2, Active: true, Interval: 1, ParentID: &groupID}
+	slow := monitor.Monitor{ID: 3, Name: "slow", Active: true, Interval: 1}
+	for _, m := range []monitor.Monitor{group, child, slow} {
+		s.Upsert(m)
+	}
+	waitFor(t, "the child's first check", func() bool { return checker.count(2) >= 1 })
+	// The slow monitor is in the middle of its check, so stopping it waits until it's released.
+	<-checker.started
+
+	beatsOf := func(id int32) int {
+		n := 0
+		for _, b := range sink.snapshot() {
+			if b.MonitorID == id {
+				n++
+			}
+		}
+		return n
+	}
+	// The group is paused, and the slow monitor changed, the slow one first in the snapshot.
+	group.Active = false
+	slow.Name = "slower"
+	// Sync signals once it has cancelled the runners, before it waits for the slow one; any beat
+	// of the child's after that is the bug.
+	cancelled := make(chan struct{})
+	var once sync.Once
+	s.mu.Lock()
+	s.cancelled = func() { once.Do(func() { close(cancelled) }) }
+	s.mu.Unlock()
+	// The child's runner, to wait until it has exited: a check that had just passed its last
+	// cancellation check could still record its beat after the signal.
+	s.mu.Lock()
+	childDone := s.runners[2].done
+	s.mu.Unlock()
+	synced := make(chan struct{})
+	go func() {
+		defer close(synced)
+		s.Sync([]monitor.Monitor{slow, child, group}, s.Generation(), nil)
+	}()
+	select {
+	case <-cancelled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Sync didn't cancel the runners")
+	}
+	select {
+	case <-childDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the child's runner didn't exit once cancelled")
+	}
+	before := beatsOf(2)
+	// Longer than the child's interval: it would check again, were it still running.
+	time.Sleep(1300 * time.Millisecond)
+	if n := beatsOf(2); n != before {
+		t.Errorf("a monitor in the paused group recorded %d beats while a slow check was stopped", n-before)
+	}
+	release()
+	select {
+	case <-synced:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Sync didn't return once the slow check ended")
+	}
+	time.Sleep(1200 * time.Millisecond)
+	if n := beatsOf(2); n != before {
+		t.Errorf("a monitor in the paused group recorded %d beats after the reload", n-before)
+	}
+}
+
+func TestSyncContinuesFromTheSavedState(t *testing.T) {
+	sink := &fakeSink{}
+	checker := checkFunc(func(context.Context, monitor.Monitor) monitor.Result { return monitor.Result{OK: true} })
+	s := New(checker, sink, 10, quiet)
+	defer s.Stop()
+
+	// An import resumed two monitors: one was up in the source, the other has no saved state.
+	s.Sync([]monitor.Monitor{{ID: 1, Active: true, Interval: 3600}, {ID: 2, Active: true, Interval: 3600}},
+		s.Generation(), map[int32]monitor.Previous{1: {Status: monitor.StatusUp}})
+	waitFor(t, "both first checks", func() bool { return len(sink.snapshot()) >= 2 })
+	for _, b := range sink.snapshot() {
+		switch {
+		case b.MonitorID == 1 && b.Important:
+			t.Error("up after up, as saved, was taken for a change: every resumed monitor would alert")
+		case b.MonitorID == 2 && !b.Important:
+			t.Error("a monitor without a saved state didn't start a new history")
+		}
+	}
+}
+
+func TestUpsertAllStopsEveryPausedMonitorBeforeWaiting(t *testing.T) {
+	checker := &slowChecker{slow: 3, started: make(chan struct{}), release: make(chan struct{})}
+	sink := &fakeSink{}
+	s := New(checker, sink, 10, quiet)
+	defer s.Stop()
+	released := false
+	release := func() {
+		if !released {
+			released = true
+			close(checker.release)
+		}
+	}
+	defer release()
+	fast := monitor.Monitor{ID: 2, Active: true, Interval: 1}
+	slow := monitor.Monitor{ID: 3, Active: true, Interval: 1}
+	s.Upsert(fast)
+	s.Upsert(slow)
+	waitFor(t, "the fast monitor's first check", func() bool { return checker.count(2) >= 1 })
+	<-checker.started
+
+	cancelled := make(chan struct{})
+	var once sync.Once
+	s.mu.Lock()
+	s.cancelled = func() { once.Do(func() { close(cancelled) }) }
+	fastDone := s.runners[2].done
+	s.mu.Unlock()
+	beatsOf := func(id int32) int {
+		n := 0
+		for _, b := range sink.snapshot() {
+			if b.MonitorID == id {
+				n++
+			}
+		}
+		return n
+	}
+
+	// Both paused together, the slow one first.
+	slow.Active, fast.Active = false, false
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		s.UpsertAll([]monitor.Monitor{slow, fast})
+	}()
+	select {
+	case <-cancelled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("UpsertAll didn't cancel the runners")
+	}
+	select {
+	case <-fastDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the fast monitor's runner didn't exit once cancelled")
+	}
+	before := beatsOf(2)
+	time.Sleep(1300 * time.Millisecond)
+	if n := beatsOf(2); n != before {
+		t.Errorf("a paused monitor recorded %d beats while a slow check was stopped", n-before)
+	}
+	release()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("UpsertAll didn't return once the slow check ended")
+	}
+}

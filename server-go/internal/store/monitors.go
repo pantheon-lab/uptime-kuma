@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -29,7 +30,7 @@ const monitorColumns = `id, name, type, active, interval_seconds, retry_interval
 	max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
 	max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval, expiry_notification,
 	push_token, ping_count, ping_per_request_timeout, packet_size, dns_resolve_type, dns_resolve_server, dns_last_result,
-	json_path, json_path_operator, expected_value, conditions, manual_status, ws_subprotocol, ws_ignore_accept_header, database_connection_string, database_query, database_password, settings`
+	json_path, json_path_operator, expected_value, conditions, manual_status, ws_subprotocol, ws_ignore_accept_header, database_connection_string, database_query, database_password, settings, sort_order`
 
 // aggregateRefreshTimeout allows for rebuilding every bucket a deleted monitor touched.
 const (
@@ -48,7 +49,7 @@ func scanMonitor(row pgx.Row) (monitor.Monitor, error) {
 		&m.MaxRedirects, &m.IgnoreTLS, &m.Keyword, &m.InvertKeyword, &m.Hostname, &m.Port, &m.ParentID, &m.PropagateTrace, &m.ResendInterval, &m.ExpiryNotification,
 		&m.PushToken, &m.PingCount, &m.PingPerRequestTimeout, &m.PacketSize, &m.DNSResolveType, &m.DNSResolveServer, &m.DNSLastResult,
 		&m.JSONPath, &m.JSONPathOperator, &m.ExpectedValue, &m.Conditions, &m.ManualStatus, &m.WSSubprotocol, &m.WSIgnoreAcceptHeader,
-		&m.DatabaseConnectionString, &m.DatabaseQuery, &m.DatabasePassword, &m.Settings)
+		&m.DatabaseConnectionString, &m.DatabaseQuery, &m.DatabasePassword, &m.Settings, &m.SortOrder)
 	return m, err
 }
 
@@ -98,6 +99,21 @@ func (s *Store) SetMonitorActive(ctx context.Context, id int32, active bool) (mo
 	m, err := scanMonitor(s.pool.QueryRow(ctx,
 		`UPDATE monitor SET active = $2, updated_at = now() WHERE id = $1 RETURNING `+monitorColumns, id, active))
 	return m, monitorResult(err)
+}
+
+// SetMonitorsActive pauses or resumes many monitors in one statement, and returns those it
+// changed. Ids that don't exist are left out.
+func (s *Store) SetMonitorsActive(ctx context.Context, ids []int32, active bool) ([]monitor.Monitor, error) {
+	rows, err := s.pool.Query(ctx,
+		`UPDATE monitor SET active = $2, updated_at = now() WHERE id = ANY($1) RETURNING `+monitorColumns, ids, active)
+	if err != nil {
+		return nil, fmt.Errorf("set monitors active: %w", err)
+	}
+	monitors, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (monitor.Monitor, error) { return scanMonitor(r) })
+	if err != nil {
+		return nil, fmt.Errorf("set monitors active: %w", err)
+	}
+	return monitors, nil
 }
 
 // GetMonitor returns one monitor or ErrNotFound.
@@ -182,17 +198,73 @@ func (s *Store) CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 				max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
 				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval, expiry_notification,
 				push_token, ping_count, ping_per_request_timeout, packet_size, dns_resolve_type, dns_resolve_server,
-				json_path, json_path_operator, expected_value, conditions, manual_status, ws_subprotocol, ws_ignore_accept_header, database_connection_string, database_query, database_password, settings)
+				json_path, json_path_operator, expected_value, conditions, manual_status, ws_subprotocol, ws_ignore_accept_header, database_connection_string, database_query, database_password, settings, sort_order)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
-				$25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41)
+				$25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42)
 			RETURNING `+monitorColumns,
 			m.Name, m.Type, m.Active, m.Interval, m.RetryInterval, m.Timeout,
 			m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers, m.Body, m.BodyEncoding, m.AcceptedStatusCodes,
 			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace, m.ResendInterval, m.ExpiryNotification,
 			m.PushToken, m.PingCount, m.PingPerRequestTimeout, m.PacketSize, m.DNSResolveType, m.DNSResolveServer,
-			m.JSONPath, m.JSONPathOperator, m.ExpectedValue, m.Conditions, m.ManualStatus, m.WSSubprotocol, m.WSIgnoreAcceptHeader, m.DatabaseConnectionString, m.DatabaseQuery, m.DatabasePassword, m.Settings))
+			m.JSONPath, m.JSONPathOperator, m.ExpectedValue, m.Conditions, m.ManualStatus, m.WSSubprotocol, m.WSIgnoreAcceptHeader, m.DatabaseConnectionString, m.DatabaseQuery, m.DatabasePassword, m.Settings, max(m.SortOrder, 0)))
 		return created, monitorResult(err)
 	})
+}
+
+// SetMonitorOrder puts the monitors of one group, or of the top of the list when parent is nil,
+// in the order given: the monitor list's custom order. All of them must be in that group, or
+// nothing changes and it returns ErrNotFound. Monitors of the group left out follow them, in the
+// order they had. It returns the monitors it changed.
+func (s *Store) SetMonitorOrder(ctx context.Context, parent *int32, ids []int32) ([]monitor.Monitor, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	rows, err := tx.Query(ctx, `
+		UPDATE monitor m SET sort_order = o.n
+		FROM unnest($1::int[]) WITH ORDINALITY AS o(id, n)
+		WHERE m.id = o.id AND m.parent_id IS NOT DISTINCT FROM $2
+		RETURNING `+qualifiedMonitorColumns("m"), ids, parent)
+	if err != nil {
+		return nil, fmt.Errorf("set monitor order: %w", err)
+	}
+	changed, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (monitor.Monitor, error) { return scanMonitor(r) })
+	if err != nil {
+		return nil, fmt.Errorf("set monitor order: %w", err)
+	}
+	if len(changed) != len(ids) {
+		return nil, ErrNotFound
+	}
+	rows, err = tx.Query(ctx, `
+		UPDATE monitor m SET sort_order = $3 + r.n
+		FROM (
+			SELECT id, row_number() OVER (ORDER BY sort_order = 0, sort_order, lower(name), id) AS n
+			FROM monitor WHERE parent_id IS NOT DISTINCT FROM $2 AND id <> ALL($1::int[])
+		) r
+		WHERE m.id = r.id
+		RETURNING `+qualifiedMonitorColumns("m"), ids, parent, len(ids))
+	if err != nil {
+		return nil, fmt.Errorf("order the rest of the group: %w", err)
+	}
+	rest, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (monitor.Monitor, error) { return scanMonitor(r) })
+	if err != nil {
+		return nil, fmt.Errorf("order the rest of the group: %w", err)
+	}
+	changed = append(changed, rest...)
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+	return changed, nil
+}
+
+// qualifiedMonitorColumns is monitorColumns with each column prefixed by a table alias.
+func qualifiedMonitorColumns(alias string) string {
+	columns := strings.Split(monitorColumns, ",")
+	for i, c := range columns {
+		columns[i] = alias + "." + strings.TrimSpace(c)
+	}
+	return strings.Join(columns, ", ")
 }
 
 // UpdateMonitor replaces a monitor's configuration or returns ErrNotFound. A group that
@@ -215,6 +287,8 @@ func (s *Store) UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 				json_path = $33, json_path_operator = $34, expected_value = $35, conditions = $36, manual_status = $37,
 				ws_subprotocol = $38, ws_ignore_accept_header = $39, database_connection_string = $40, database_query = $41,
 				database_password = $42, settings = $43,
+				-- A monitor moved to another group starts unordered there; parent_id here is the old one
+				sort_order = CASE WHEN parent_id IS DISTINCT FROM $22 THEN 0 ELSE sort_order END,
 				updated_at = now()
 			WHERE id = $1
 			RETURNING `+monitorColumns,
@@ -227,7 +301,7 @@ func (s *Store) UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 			return m, err
 		}
 		if updated.Type != monitor.TypeGroup {
-			if _, err := tx.Exec(ctx, `UPDATE monitor SET parent_id = NULL WHERE parent_id = $1`, updated.ID); err != nil {
+			if _, err := tx.Exec(ctx, `UPDATE monitor SET parent_id = NULL, sort_order = 0 WHERE parent_id = $1`, updated.ID); err != nil {
 				return m, fmt.Errorf("release children: %w", err)
 			}
 		}

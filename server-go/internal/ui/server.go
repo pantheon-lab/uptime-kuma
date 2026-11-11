@@ -77,6 +77,8 @@ type Store interface {
 	CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
 	UpdateMonitor(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
 	SetMonitorActive(ctx context.Context, id int32, active bool) (monitor.Monitor, error)
+	SetMonitorsActive(ctx context.Context, ids []int32, active bool) ([]monitor.Monitor, error)
+	SetMonitorOrder(ctx context.Context, parent *int32, ids []int32) ([]monitor.Monitor, error)
 	DeleteMonitor(ctx context.Context, id int32) error
 
 	LatestBeats(ctx context.Context, monitorID int32, limit int) ([]store.Beat, error)
@@ -139,6 +141,7 @@ type Scheduler interface {
 	Upsert(m monitor.Monitor)
 	Remove(ctx context.Context, id int32) error
 	Suspend(ctx context.Context, id int32) error
+	UpsertAll(monitors []monitor.Monitor)
 }
 
 // Beats delivers new beats as they are stored.

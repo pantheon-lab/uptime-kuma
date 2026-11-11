@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"reflect"
 	"slices"
 	"strconv"
 	"sync"
@@ -83,6 +84,14 @@ type Scheduler struct {
 	monitors map[int32]monitor.Monitor
 	// suspended monitors stay stopped, whatever their groups do, until their next Upsert.
 	suspended map[int32]bool
+	// gen counts the changes given to the scheduler, and touched holds each monitor's last one, kept
+	// after it's removed, so that Sync can tell a snapshot read before a change from one read after.
+	gen     uint64
+	touched map[int32]uint64
+
+	// cancelled is a test's hook, called once stopRunnersLocked has cancelled the runners and before
+	// it waits for them. Nil outside tests.
+	cancelled func()
 	// pushRunners finds the runner of an active push monitor by its token.
 	pushRunners map[string]*runner
 
@@ -108,6 +117,7 @@ func New(checker Checker, sink Sink, concurrency int, log *slog.Logger) *Schedul
 
 		monitors:    make(map[int32]monitor.Monitor),
 		suspended:   make(map[int32]bool),
+		touched:     make(map[int32]uint64),
 		pushRunners: make(map[string]*runner),
 		last:        make(map[int32]*monitor.Previous),
 	}
@@ -163,6 +173,135 @@ func (s *Scheduler) Start(monitors []monitor.Monitor, previous map[int32]monitor
 	}
 }
 
+// Generation is the count of changes given to the scheduler so far. Take it before reading the
+// monitors for Sync.
+func (s *Scheduler) Generation() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.gen
+}
+
+// touchLocked records a change to a monitor that Sync mustn't undo with an older snapshot.
+func (s *Scheduler) touchLocked(id int32) {
+	s.gen++
+	s.touched[id] = s.gen
+}
+
+// Sync applies the monitors as the database has them now, after something else changed it, such
+// as kuma-import. since is Generation from before they were read: a monitor changed here after
+// that, by Upsert, Remove or Suspend, is newer than the snapshot and left as it is. Only monitors
+// that changed are restarted, and those no longer there are stopped. Every change is in place
+// before any runner starts, so a monitor can't start while its new group is still missing.
+//
+// previous holds the states saved in the database, as Start takes them: a monitor that starts here
+// without one of its own, such as one an import resumed, continues from it, so that its first check
+// isn't taken for a change and alerted.
+func (s *Scheduler) Sync(monitors []monitor.Monitor, since uint64, previous map[int32]monitor.Previous) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopped {
+		return
+	}
+	newer := func(id int32) bool { return s.touched[id] > since }
+	present := make(map[int32]bool, len(monitors))
+	var changed, removed []int32
+	for _, m := range monitors {
+		present[m.ID] = true
+		if newer(m.ID) {
+			continue
+		}
+		if known, ok := s.monitors[m.ID]; ok && sameChecks(known, m) {
+			s.monitors[m.ID] = m
+			continue
+		}
+		s.rememberGroup(m)
+		s.monitors[m.ID] = m
+		changed = append(changed, m.ID)
+	}
+	for id := range s.monitors {
+		if !present[id] && !newer(id) {
+			delete(s.monitors, id)
+			removed = append(removed, id)
+		}
+	}
+
+	s.reconcileLocked(changed, removed, previous)
+}
+
+// UpsertAll applies many new or changed monitors at once, such as a bulk pause or resume: all of
+// them are in place, and every runner that must stop is cancelled, before any is waited for, so
+// none of them, nor a monitor in a group among them, checks meanwhile.
+func (s *Scheduler) UpsertAll(monitors []monitor.Monitor) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopped {
+		return
+	}
+	changed := make([]int32, 0, len(monitors))
+	for _, m := range monitors {
+		s.touchLocked(m.ID)
+		s.rememberGroup(m)
+		s.monitors[m.ID] = m
+		delete(s.suspended, m.ID)
+		changed = append(changed, m.ID)
+	}
+	s.reconcileLocked(changed, nil, nil)
+}
+
+// reconcileLocked restarts changed monitors with their new settings, stops removed ones, and
+// starts or stops the monitors below a changed or removed group to follow it. Everything that must
+// stop is cancelled before anything is waited for, so a slow check elsewhere can't let a monitor
+// in a newly paused group record a beat meanwhile. A monitor started without a state of its own
+// continues from previous, when it's there.
+func (s *Scheduler) reconcileLocked(changed, removed []int32, previous map[int32]monitor.Previous) {
+	children := s.childrenLocked()
+	restart := make(map[int32]bool, len(changed))
+	for _, id := range changed {
+		restart[id] = true
+	}
+	var below []int32
+	for _, id := range append(slices.Clone(changed), removed...) {
+		for _, d := range s.descendantsLocked(children, id) {
+			if !restart[d] {
+				below = append(below, d)
+			}
+		}
+	}
+	stop := append(slices.Clone(removed), changed...)
+	for _, id := range below {
+		if _, running := s.runners[id]; running && !s.shouldRunLocked(id) {
+			stop = append(stop, id)
+		}
+	}
+	s.stopRunnersLocked(stop)
+	for _, id := range removed {
+		delete(s.suspended, id)
+		s.stateMu.Lock()
+		delete(s.last, id)
+		s.stateMu.Unlock()
+		s.groupNames.Delete(id)
+	}
+	for _, id := range append(changed, below...) {
+		if _, running := s.runners[id]; !running && s.shouldRunLocked(id) {
+			if p, saved := previous[id]; saved {
+				s.stateMu.Lock()
+				if s.last[id] == nil {
+					s.last[id] = &p
+				}
+				s.stateMu.Unlock()
+			}
+			s.startLocked(s.monitors[id], 0)
+		}
+	}
+}
+
+// sameChecks says whether two versions of a monitor check the same way: the list's custom order
+// changes nothing that's checked, so it restarts nothing.
+func sameChecks(a, b monitor.Monitor) bool {
+	a.SortOrder, b.SortOrder = 0, 0
+	return reflect.DeepEqual(a, b)
+}
+
 // Upsert applies a new or changed monitor. A monitor that is active, and in no paused group,
 // is checked immediately. A group's change reaches the monitors in it: pausing it stops
 // them, and resuming it starts those that are active.
@@ -172,6 +311,11 @@ func (s *Scheduler) Upsert(m monitor.Monitor) {
 	if s.stopped {
 		return
 	}
+	s.touchLocked(m.ID)
+	s.upsertLocked(m)
+}
+
+func (s *Scheduler) upsertLocked(m monitor.Monitor) {
 	s.rememberGroup(m)
 	s.monitors[m.ID] = m
 	delete(s.suspended, m.ID)
@@ -209,12 +353,35 @@ func (s *Scheduler) shouldRunLocked(id int32) bool {
 // applyToDescendantsLocked starts or stops the monitors below a group whose state may have
 // changed. Those already in the right state are left alone, so their timing doesn't change.
 func (s *Scheduler) applyToDescendantsLocked(id int32) {
+	below := s.descendantsLocked(s.childrenLocked(), id)
+	var stop []int32
+	for _, d := range below {
+		if _, running := s.runners[d]; running && !s.shouldRunLocked(d) {
+			stop = append(stop, d)
+		}
+	}
+	s.stopRunnersLocked(stop)
+	for _, d := range below {
+		if _, running := s.runners[d]; !running && s.shouldRunLocked(d) {
+			s.startLocked(s.monitors[d], 0)
+		}
+	}
+}
+
+// childrenLocked maps each group to the monitors directly in it.
+func (s *Scheduler) childrenLocked() map[int32][]int32 {
 	children := make(map[int32][]int32)
 	for _, m := range s.monitors {
 		if m.ParentID != nil {
 			children[*m.ParentID] = append(children[*m.ParentID], m.ID)
 		}
 	}
+	return children
+}
+
+// descendantsLocked lists the monitors below id, however deep, each once.
+func (s *Scheduler) descendantsLocked(children map[int32][]int32, id int32) []int32 {
+	var out []int32
 	seen := map[int32]bool{id: true}
 	queue := slices.Clone(children[id])
 	for len(queue) > 0 {
@@ -224,16 +391,26 @@ func (s *Scheduler) applyToDescendantsLocked(id int32) {
 			continue
 		}
 		seen[child] = true
+		out = append(out, child)
 		queue = append(queue, children[child]...)
+	}
+	return out
+}
 
-		_, running := s.runners[child]
-		switch run := s.shouldRunLocked(child); {
-		case run && !running:
-			s.startLocked(s.monitors[child], 0)
-		case !run && running:
-			s.stopRunnerLocked(child)
-			telemetry.Metrics().ForgetMonitor(child)
+// stopRunnersLocked cancels every runner first, so none of them records another beat, and then
+// waits for each to exit.
+func (s *Scheduler) stopRunnersLocked(ids []int32) {
+	for _, id := range ids {
+		if r, ok := s.runners[id]; ok {
+			r.cancel()
 		}
+	}
+	if s.cancelled != nil {
+		s.cancelled()
+	}
+	for _, id := range ids {
+		s.stopRunnerLocked(id)
+		telemetry.Metrics().ForgetMonitor(id)
 	}
 }
 
@@ -258,6 +435,7 @@ func (s *Scheduler) groupName(m monitor.Monitor) string {
 // its data, or queued beats would be written after the delete.
 func (s *Scheduler) Remove(ctx context.Context, id int32) error {
 	s.mu.Lock()
+	s.touchLocked(id)
 	s.stopRunnerLocked(id)
 	delete(s.suspended, id)
 	// The monitors in a deleted group leave it, as the database's ON DELETE SET NULL does,
@@ -282,6 +460,7 @@ func (s *Scheduler) Remove(ctx context.Context, id int32) error {
 // queued beats. Unlike Remove, the monitors in a group stay as they are.
 func (s *Scheduler) Suspend(ctx context.Context, id int32) error {
 	s.mu.Lock()
+	s.touchLocked(id)
 	s.stopRunnerLocked(id)
 	s.suspended[id] = true
 	s.stateMu.Lock()

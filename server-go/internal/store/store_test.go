@@ -769,3 +769,132 @@ func TestChartRange(t *testing.T) {
 		t.Errorf("empty range: %d points, %v", len(points), err)
 	}
 }
+
+func TestSetMonitorsActive(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	a, err := s.CreateMonitor(ctx, member("a", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := s.CreateMonitor(ctx, member("b", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := s.CreateMonitor(ctx, member("c", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	changed, err := s.SetMonitorsActive(ctx, []int32{a.ID, b.ID, 9999}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changed) != 2 {
+		t.Fatalf("changed %d monitors, want the 2 that exist", len(changed))
+	}
+	for _, m := range changed {
+		if !m.Active || (m.ID != a.ID && m.ID != b.ID) {
+			t.Errorf("returned %d, active %v", m.ID, m.Active)
+		}
+	}
+	if got, _ := s.GetMonitor(ctx, c.ID); got.Active {
+		t.Error("a monitor that wasn't chosen was resumed")
+	}
+	if _, err := s.SetMonitorsActive(ctx, []int32{a.ID}, false); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.GetMonitor(ctx, a.ID); got.Active {
+		t.Error("the monitor wasn't paused again")
+	}
+}
+
+func TestSetMonitorOrder(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	g, err := s.CreateMonitor(ctx, group("g", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _ := s.CreateMonitor(ctx, member("a", &g.ID))
+	b, _ := s.CreateMonitor(ctx, member("b", &g.ID))
+	top, _ := s.CreateMonitor(ctx, member("top", nil))
+
+	changed, err := s.SetMonitorOrder(ctx, &g.ID, []int32{b.ID, a.ID})
+	if err != nil || len(changed) != 2 {
+		t.Fatalf("order: %v, %d changed", err, len(changed))
+	}
+	gotA, _ := s.GetMonitor(ctx, a.ID)
+	gotB, _ := s.GetMonitor(ctx, b.ID)
+	if gotB.SortOrder != 1 || gotA.SortOrder != 2 {
+		t.Errorf("orders: b %d, a %d", gotB.SortOrder, gotA.SortOrder)
+	}
+
+	// A monitor that isn't in the group: nothing changes.
+	if _, err := s.SetMonitorOrder(ctx, &g.ID, []int32{a.ID, top.ID}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("mixed groups: %v", err)
+	}
+	if got, _ := s.GetMonitor(ctx, a.ID); got.SortOrder != 2 {
+		t.Error("a refused order changed a monitor")
+	}
+	// The top of the list.
+	if _, err := s.SetMonitorOrder(ctx, nil, []int32{top.ID, g.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.GetMonitor(ctx, top.ID); got.SortOrder != 1 {
+		t.Errorf("top: %d", got.SortOrder)
+	}
+
+	// A partial order: the monitors left out follow, in the order they had.
+	c, _ := s.CreateMonitor(ctx, member("c", &g.ID))
+	if _, err := s.SetMonitorOrder(ctx, &g.ID, []int32{c.ID}); err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[int32]int32{c.ID: 1, b.ID: 2, a.ID: 3} {
+		if got, _ := s.GetMonitor(ctx, id); got.SortOrder != want {
+			t.Errorf("monitor %d: order %d, want %d", id, got.SortOrder, want)
+		}
+	}
+	if _, err := s.SetMonitorOrder(ctx, &g.ID, []int32{b.ID, a.ID, c.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Moved to another group, a monitor starts unordered there; a group that isn't one any more
+	// lets its monitors go unordered.
+	moved, _ := s.GetMonitor(ctx, c.ID)
+	moved.ParentID = nil
+	if updated, err := s.UpdateMonitor(ctx, moved); err != nil || updated.SortOrder != 0 {
+		t.Errorf("moved: %v, order %d", err, updated.SortOrder)
+	}
+	if _, err := s.SetMonitorOrder(ctx, &g.ID, []int32{b.ID, a.ID}); err != nil {
+		t.Fatal(err)
+	}
+	notGroup, _ := s.GetMonitor(ctx, g.ID)
+	notGroup.Type, notGroup.Hostname, notGroup.Port = monitor.TypePort, "127.0.0.1", 1
+	if _, err := s.UpdateMonitor(ctx, notGroup); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.GetMonitor(ctx, b.ID); got.ParentID != nil || got.SortOrder != 0 {
+		t.Errorf("released: parent %v, order %d", got.ParentID, got.SortOrder)
+	}
+
+	// Editing a monitor keeps its place, and a new one can be given one, as an import does.
+	gotA, _ = s.GetMonitor(ctx, a.ID)
+	if gotA.ParentID != nil {
+		t.Fatalf("a: parent %v", gotA.ParentID)
+	}
+	if _, err := s.SetMonitorOrder(ctx, nil, []int32{top.ID, a.ID}); err != nil {
+		t.Fatal(err)
+	}
+	gotA, _ = s.GetMonitor(ctx, a.ID)
+	gotA.Name = "a2"
+	gotA.SortOrder = 0
+	if updated, err := s.UpdateMonitor(ctx, gotA); err != nil || updated.SortOrder != 2 {
+		t.Errorf("edit: %v, order %d", err, updated.SortOrder)
+	}
+	placed := member("placed", nil)
+	placed.SortOrder = 7
+	if created, err := s.CreateMonitor(ctx, placed); err != nil || created.SortOrder != 7 {
+		t.Errorf("create: %v, order %d", err, created.SortOrder)
+	}
+}

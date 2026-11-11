@@ -238,6 +238,39 @@ func (f *fakeStore) SetMonitorActive(_ context.Context, id int32, active bool) (
 	return m, nil
 }
 
+func (f *fakeStore) SetMonitorsActive(_ context.Context, ids []int32, active bool) ([]monitor.Monitor, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var changed []monitor.Monitor
+	for _, id := range ids {
+		if m, ok := f.monitors[id]; ok {
+			m.Active = active
+			f.monitors[id] = m
+			changed = append(changed, m)
+		}
+	}
+	return changed, nil
+}
+
+func (f *fakeStore) SetMonitorOrder(_ context.Context, parent *int32, ids []int32) ([]monitor.Monitor, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, id := range ids {
+		m, ok := f.monitors[id]
+		if !ok || (m.ParentID == nil) != (parent == nil) || (parent != nil && *m.ParentID != *parent) {
+			return nil, store.ErrNotFound
+		}
+	}
+	changed := make([]monitor.Monitor, 0, len(ids))
+	for i, id := range ids {
+		m := f.monitors[id]
+		m.SortOrder = int32(i + 1)
+		f.monitors[id] = m
+		changed = append(changed, m)
+	}
+	return changed, nil
+}
+
 func (f *fakeStore) DeleteMonitor(_ context.Context, id int32) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -525,6 +558,12 @@ func (f *fakeScheduler) Remove(_ context.Context, id int32) error {
 	defer f.mu.Unlock()
 	f.removed = append(f.removed, id)
 	return nil
+}
+
+func (f *fakeScheduler) UpsertAll(monitors []monitor.Monitor) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.upserted = append(f.upserted, monitors...)
 }
 
 func (f *fakeScheduler) Suspend(_ context.Context, id int32) error {

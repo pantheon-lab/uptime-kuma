@@ -4,15 +4,21 @@
             class="draggable-item"
             :data-monitor-id="monitor.id"
             :style="depthMargin"
-            :class="{ 'drag-over': dragOverCount > 0 }"
+            :class="{
+                'drag-over': dragOverCount > 0 && dropAt === 'into',
+                'drop-before': dragOverCount > 0 && dropAt === 'before',
+                'drop-after': dragOverCount > 0 && dropAt === 'after',
+                selectable,
+            }"
             @dragstart="onDragStart"
+            @dragend="onDragEnd"
             @dragenter.prevent="onDragEnter"
             @dragleave.prevent="onDragLeave"
-            @dragover.prevent
+            @dragover.prevent="onDragOver"
             @drop.prevent="onDrop"
         >
-            <!-- Checkbox -->
-            <div v-if="selectable" class="select-input-wrapper">
+            <!-- Checkbox, in a label as tall as the row, so that the space around the box ticks it too -->
+            <label v-if="selectable" class="select-input-wrapper" @click.stop>
                 <input
                     class="form-check-input select-input"
                     type="checkbox"
@@ -21,72 +27,94 @@
                     :checked="isSelected(monitor.id)"
                     @click.stop="toggleSelection"
                 />
-            </div>
+            </label>
 
-            <router-link :to="monitorURL(monitor.id)" class="item" :class="{ disabled: !monitor.active }">
-                <div class="row">
-                    <div class="small-padding d-flex gap-2 align-items-center" :class="monitorStyle">
-                        <div class="me-1">
-                            <Uptime :monitor="monitor" type="24" :pill="true" />
-                        </div>
-                        <div class="d-flex align-items-center gap-2 flex-fill" style="min-width: 0">
-                            <!-- A button, so that the keyboard opens and closes groups too -->
-                            <button
-                                v-if="hasChildren"
-                                type="button"
-                                class="collapse-padding collapse-button"
-                                data-testid="monitor-collapse"
-                                :aria-expanded="!isCollapsed"
-                                :aria-label="$t(isCollapsed ? 'expandGroup' : 'collapseGroup', [monitor.name])"
-                                @click.prevent.stop="changeCollapsed"
-                            >
-                                <font-awesome-icon
-                                    icon="chevron-down"
-                                    class="animated"
-                                    :class="{ collapsed: isCollapsed }"
-                                />
-                            </button>
-                            <div class="flex-fill text-truncate" style="min-width: 0">
-                                <div class="text-truncate">{{ monitor.name }}</div>
-                                <div v-if="monitor.tags.length > 0" class="tags gap-1">
-                                    <Tag
-                                        v-for="tag in monitor.tags"
-                                        :key="tag"
-                                        :item="tag"
-                                        :size="'sm'"
-                                        :title="tag.name"
+            <!-- While monitors are being chosen, a click anywhere on the row ticks or unticks it -->
+            <router-link v-slot="{ href, navigate, isActive }" :to="monitorURL(monitor.id)" custom>
+                <a
+                    :href="href"
+                    class="item"
+                    :class="{
+                        disabled: !monitor.active,
+                        active: isActive,
+                        selected: selectMode && isSelected(monitor.id),
+                    }"
+                    :data-testid="'monitor-row-' + monitor.id"
+                    @click="onRowClick($event, navigate)"
+                    @keydown="onRowKey"
+                >
+                    <div class="row">
+                        <div class="small-padding d-flex gap-2 align-items-center" :class="monitorStyle">
+                            <div class="me-1">
+                                <Uptime :monitor="monitor" type="24" :pill="true" />
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-fill" style="min-width: 0">
+                                <!-- A button, so that the keyboard opens and closes groups too -->
+                                <button
+                                    v-if="hasChildren"
+                                    type="button"
+                                    class="collapse-padding collapse-button"
+                                    data-testid="monitor-collapse"
+                                    :aria-expanded="!isCollapsed"
+                                    :aria-label="$t(isCollapsed ? 'expandGroup' : 'collapseGroup', [monitor.name])"
+                                    @click.prevent.stop="changeCollapsed"
+                                >
+                                    <font-awesome-icon
+                                        icon="chevron-down"
+                                        class="animated"
+                                        :class="{ collapsed: isCollapsed }"
                                     />
+                                </button>
+                                <div class="flex-fill text-truncate" style="min-width: 0">
+                                    <div class="text-truncate">{{ monitor.name }}</div>
+                                    <div v-if="monitor.tags.length > 0" class="tags gap-1">
+                                        <Tag
+                                            v-for="tag in monitor.tags"
+                                            :key="tag"
+                                            :item="tag"
+                                            :size="'sm'"
+                                            :title="tag.name"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                        <div
+                            v-if="$root.userHeartbeatBar == 'normal'"
+                            :key="$root.userHeartbeatBar"
+                            class="col-3 col-xl-6"
+                        >
+                            <HeartbeatBar ref="heartbeatBar" size="small" :monitor-id="monitor.id" />
+                        </div>
                     </div>
-                    <div v-if="$root.userHeartbeatBar == 'normal'" :key="$root.userHeartbeatBar" class="col-3 col-xl-6">
-                        <HeartbeatBar ref="heartbeatBar" size="small" :monitor-id="monitor.id" />
-                    </div>
-                </div>
 
-                <div v-if="$root.userHeartbeatBar == 'bottom'" class="row">
-                    <div class="col-12 bottom-style">
-                        <HeartbeatBar ref="heartbeatBar" size="small" :monitor-id="monitor.id" />
+                    <div v-if="$root.userHeartbeatBar == 'bottom'" class="row">
+                        <div class="col-12 bottom-style">
+                            <HeartbeatBar ref="heartbeatBar" size="small" :monitor-id="monitor.id" />
+                        </div>
                     </div>
-                </div>
+                </a>
             </router-link>
         </div>
 
         <transition name="slide-fade-up">
             <div v-if="!isCollapsed" class="childs">
                 <MonitorListItem
-                    v-for="(item, index) in sortedChildMonitorList"
-                    :key="index"
+                    v-for="item in sortedChildMonitorList"
+                    :key="item.id"
                     :monitor="item"
                     :children-by-parent="childrenByParent"
                     :selectable="selectable"
+                    :select-mode="selectMode"
                     :isSelected="isSelected"
                     :select="select"
                     :deselect="deselect"
                     :depth="depth + 1"
                     :filter-func="filterFunc"
                     :sort-func="sortFunc"
+                    :custom-order="customOrder"
+                    :reorder="reorder"
+                    :move-by="moveBy"
                 />
             </div>
         </transition>
@@ -98,6 +126,11 @@ import HeartbeatBar from "../components/HeartbeatBar.vue";
 import Tag from "../components/Tag.vue";
 import Uptime from "../components/Uptime.vue";
 import { getMonitorRelativeURL } from "../util.ts";
+import { dropPosition } from "../monitor-sort";
+
+// The monitor being dragged, for the rows it passes over
+let currentDragId = null;
+import { rowClickAction } from "../row-click";
 
 export default {
     name: "MonitorListItem",
@@ -127,6 +160,11 @@ export default {
             type: Number,
             default: 0,
         },
+        /** Whether any monitor is ticked: a click on a row then ticks it rather than opening it */
+        selectMode: {
+            type: Boolean,
+            default: false,
+        },
         /** Callback to determine if monitor is selected */
         isSelected: {
             type: Function,
@@ -152,11 +190,28 @@ export default {
             type: Function,
             default: () => {},
         },
+        /** Whether the list is in the custom order, which dragging a row above or below another sets */
+        customOrder: {
+            type: Boolean,
+            default: false,
+        },
+        /** Moves a monitor before or after another: reorder(draggedId, targetId, "before" or "after") */
+        reorder: {
+            type: Function,
+            default: () => {},
+        },
+        /** Moves a monitor one place up or down in the custom order: moveBy(id, -1 or 1) */
+        moveBy: {
+            type: Function,
+            default: () => {},
+        },
     },
     data() {
         return {
             isCollapsed: true,
             dragOverCount: 0,
+            // Where a drag over this row would drop: "before", "after" or "into" a group
+            dropAt: "into",
         };
     },
     computed: {
@@ -238,6 +293,8 @@ export default {
                 event.preventDefault();
                 return;
             }
+            // dragover can't read the drag's data, so the rows it passes over find the monitor here
+            currentDragId = this.monitor.id;
             try {
                 event.dataTransfer.setData("text/monitor-id", String(this.monitor.id));
                 event.dataTransfer.effectAllowed = "move";
@@ -246,24 +303,93 @@ export default {
             }
         },
 
-        onDragEnter(event) {
-            if (this.monitor.type !== "group") {
+        /**
+         * Alt with an arrow moves the focused monitor up or down, in the custom order
+         * @param {KeyboardEvent} event The key
+         * @returns {void}
+         */
+        onRowKey(event) {
+            if (!this.customOrder || !event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) {
                 return;
             }
+            event.preventDefault();
+            this.moveBy(this.monitor.id, event.key === "ArrowUp" ? -1 : 1);
+        },
 
+        /**
+         * The drag ended, dropped or not
+         * @returns {void}
+         */
+        onDragEnd() {
+            currentDragId = null;
+        },
+
+        /**
+         * Whether the monitor being dragged can be put before or after this one: in the custom
+         * order, among the monitors of the same group
+         * @returns {boolean} Whether it can
+         */
+        canReorderHere() {
+            if (!this.customOrder || currentDragId == null || currentDragId === this.monitor.id) {
+                return false;
+            }
+            const dragged = this.$root.monitorList[currentDragId];
+            return !!dragged && (dragged.parent ?? null) === (this.monitor.parent ?? null);
+        },
+
+        /**
+         * A drag came over this row: count it, when it could land here
+         * @returns {void}
+         */
+        onDragEnter() {
+            if (this.monitor.type !== "group" && !this.canReorderHere()) {
+                return;
+            }
             this.dragOverCount++;
         },
 
-        onDragLeave(event) {
-            if (this.monitor.type !== "group") {
+        /**
+         * A drag left this row, or one of its parts
+         * @returns {void}
+         */
+        onDragLeave() {
+            if (this.dragOverCount > 0) {
+                this.dragOverCount--;
+            }
+        },
+
+        /**
+         * Show where the monitor would land: a line above or below this row, or this group outlined
+         * @param {DragEvent} event The drag
+         * @returns {void}
+         */
+        onDragOver(event) {
+            if (this.dragOverCount === 0) {
                 return;
             }
-
-            this.dragOverCount = Math.max(0, this.dragOverCount - 1);
+            const isGroup = this.monitor.type === "group";
+            if (!this.canReorderHere()) {
+                this.dropAt = "into";
+                return;
+            }
+            const rect = event.currentTarget.getBoundingClientRect();
+            this.dropAt = dropPosition(event.clientY - rect.top, rect.height, isGroup);
         },
 
         async onDrop(event) {
+            // Where it lands comes from the drop itself: the last dragover may not have been where it ended
+            let at = "into";
+            if (this.canReorderHere()) {
+                const rect = event.currentTarget.getBoundingClientRect();
+                at = dropPosition(event.clientY - rect.top, rect.height, this.monitor.type === "group");
+            }
             this.dragOverCount = 0;
+            this.dropAt = "into";
+
+            if ((at === "before" || at === "after") && this.canReorderHere()) {
+                this.reorder(currentDragId, this.monitor.id, at);
+                return;
+            }
 
             // Only groups accept drops
             if (this.monitor.type !== "group") {
@@ -371,6 +497,22 @@ export default {
          * Toggle selection of monitor
          * @returns {void}
          */
+        /**
+         * Open the monitor, or while monitors are being chosen, tick or untick it
+         * @param {MouseEvent} event The click
+         * @param {Function} navigate The link's own navigation
+         * @returns {void}
+         */
+        onRowClick(event, navigate) {
+            const action = rowClickAction(event, this.selectMode, this.selectable);
+            if (action === "toggle") {
+                event.preventDefault();
+                this.toggleSelection();
+            } else if (action === "navigate") {
+                navigate(event);
+            }
+            // "browser": the link's own behaviour, such as a new tab
+        },
         toggleSelection() {
             if (this.isSelected(this.monitor.id)) {
                 this.deselect(this.monitor.id);
@@ -419,14 +561,46 @@ export default {
     transition: all 0.2s $easing-in;
 }
 
+// The box and the space around it, as tall as the row, are one target
+.draggable-item.selectable {
+    display: flex;
+    align-items: stretch;
+
+    .item {
+        flex: 1;
+        min-width: 0;
+    }
+}
+
 .select-input-wrapper {
-    float: left;
-    margin-top: 15px;
-    margin-left: 3px;
-    margin-right: 10px;
-    padding-left: 4px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0 8px 0 10px;
+    cursor: pointer;
     position: relative;
     z-index: 15;
+    border-radius: 10px;
+
+    &:hover {
+        background-color: rgba($primary, 0.08);
+    }
+}
+
+.select-input {
+    width: 1.3rem;
+    height: 1.3rem;
+    margin: 0;
+    cursor: pointer;
+}
+
+.item.selected {
+    background-color: rgba($primary, 0.14);
+}
+
+.dark .item.selected {
+    background-color: rgba($primary, 0.2);
 }
 
 .drag-over {
@@ -464,5 +638,31 @@ export default {
 .bottom-style {
     margin-left: -10px;
     margin-top: 5px;
+}
+
+// Where a dragged monitor would land in the custom order
+.drop-before,
+.drop-after {
+    position: relative;
+
+    &::after {
+        content: "";
+        position: absolute;
+        left: 8px;
+        right: 8px;
+        height: 3px;
+        border-radius: 2px;
+        background-color: $primary;
+        pointer-events: none;
+        z-index: 20;
+    }
+}
+
+.drop-before::after {
+    top: -2px;
+}
+
+.drop-after::after {
+    bottom: -2px;
 }
 </style>

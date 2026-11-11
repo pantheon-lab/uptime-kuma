@@ -2363,6 +2363,11 @@
             ],
             "description": "The group this monitor belongs to"
           },
+          "sortOrder": {
+            "type": "integer",
+            "default": 0,
+            "description": "Place in the monitor list's custom order, among the monitors of its group; 0 is unordered, after the others. Kept when the monitor is edited: the list's drag and drop sets it"
+          },
           "url": {
             "type": "string",
             "description": "http and keyword: http(s) URL. websocket-upgrade: ws(s) URL."
