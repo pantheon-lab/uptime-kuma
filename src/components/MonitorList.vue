@@ -209,6 +209,8 @@ export default {
             bulkActionInProgress: false,
             // Which bulk pause or resume is the newest
             bulkActiveRun: 0,
+            // Counts the user's changes to the selection, so that a slow bulk action doesn't clear one made meanwhile
+            selectionRevision: 0,
             filterState: {
                 status: null,
                 active: null,
@@ -648,6 +650,7 @@ export default {
          */
         deselect(id) {
             delete this.selectedMonitors[id];
+            this.selectionRevision++;
         },
         /**
          * Select a monitor
@@ -656,6 +659,7 @@ export default {
          */
         select(id) {
             this.selectedMonitors[id] = true;
+            this.selectionRevision++;
         },
         /**
          * Determine if monitor is selected
@@ -671,12 +675,14 @@ export default {
          */
         cancelSelectMode() {
             this.selectedMonitors = {};
+            this.selectionRevision++;
         },
         /**
          * The header's box: with none ticked, tick every monitor shown; otherwise untick them all
          * @returns {void}
          */
         toggleSelectAll() {
+            this.selectionRevision++;
             if (this.selectMode) {
                 this.selectedMonitors = {};
                 return;
@@ -743,6 +749,7 @@ export default {
         async setSelectedActive(ids, active) {
             // A newer action takes over: the answer to an older one, however late, changes nothing
             const run = ++this.bulkActiveRun;
+            const revision = this.selectionRevision;
             this.bulkActionInProgress = true;
             const socket = this.$root.getSocket();
             const result = await setMonitorsActive((...args) => socket.emit(...args), ids, active);
@@ -752,7 +759,10 @@ export default {
             this.bulkActionInProgress = false;
             if (result.kind === "done") {
                 this.$root.toastSuccess(this.$t(active ? "resumedMonitorsMsg" : "pausedMonitorsMsg", result.count));
-                this.cancelSelectMode();
+                // Only the selection this was for: one changed while it was sent stays
+                if (this.selectionRevision === revision) {
+                    this.cancelSelectMode();
+                }
             } else if (result.kind === "failed") {
                 this.$root.toastError(result.message ?? this.$t("bulkActionFailedMsg"));
             } else {
