@@ -252,6 +252,25 @@ func (f *fakeStore) SetMonitorsActive(_ context.Context, ids []int32, active boo
 	return changed, nil
 }
 
+func (f *fakeStore) SetMonitorOrder(_ context.Context, parent *int32, ids []int32) ([]monitor.Monitor, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, id := range ids {
+		m, ok := f.monitors[id]
+		if !ok || (m.ParentID == nil) != (parent == nil) || (parent != nil && *m.ParentID != *parent) {
+			return nil, store.ErrNotFound
+		}
+	}
+	changed := make([]monitor.Monitor, 0, len(ids))
+	for i, id := range ids {
+		m := f.monitors[id]
+		m.SortOrder = int32(i + 1)
+		f.monitors[id] = m
+		changed = append(changed, m)
+	}
+	return changed, nil
+}
+
 func (f *fakeStore) DeleteMonitor(_ context.Context, id int32) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

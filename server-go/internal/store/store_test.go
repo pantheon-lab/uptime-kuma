@@ -808,3 +808,52 @@ func TestSetMonitorsActive(t *testing.T) {
 		t.Error("the monitor wasn't paused again")
 	}
 }
+
+func TestSetMonitorOrder(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	g, err := s.CreateMonitor(ctx, group("g", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _ := s.CreateMonitor(ctx, member("a", &g.ID))
+	b, _ := s.CreateMonitor(ctx, member("b", &g.ID))
+	top, _ := s.CreateMonitor(ctx, member("top", nil))
+
+	changed, err := s.SetMonitorOrder(ctx, &g.ID, []int32{b.ID, a.ID})
+	if err != nil || len(changed) != 2 {
+		t.Fatalf("order: %v, %d changed", err, len(changed))
+	}
+	gotA, _ := s.GetMonitor(ctx, a.ID)
+	gotB, _ := s.GetMonitor(ctx, b.ID)
+	if gotB.SortOrder != 1 || gotA.SortOrder != 2 {
+		t.Errorf("orders: b %d, a %d", gotB.SortOrder, gotA.SortOrder)
+	}
+
+	// A monitor that isn't in the group: nothing changes.
+	if _, err := s.SetMonitorOrder(ctx, &g.ID, []int32{a.ID, top.ID}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("mixed groups: %v", err)
+	}
+	if got, _ := s.GetMonitor(ctx, a.ID); got.SortOrder != 2 {
+		t.Error("a refused order changed a monitor")
+	}
+	// The top of the list.
+	if _, err := s.SetMonitorOrder(ctx, nil, []int32{top.ID, g.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.GetMonitor(ctx, top.ID); got.SortOrder != 1 {
+		t.Errorf("top: %d", got.SortOrder)
+	}
+
+	// Editing a monitor keeps its place, and a new one can be given one, as an import does.
+	gotA.Name = "a2"
+	gotA.SortOrder = 0
+	if updated, err := s.UpdateMonitor(ctx, gotA); err != nil || updated.SortOrder != 2 {
+		t.Errorf("edit: %v, order %d", err, updated.SortOrder)
+	}
+	placed := member("placed", nil)
+	placed.SortOrder = 7
+	if created, err := s.CreateMonitor(ctx, placed); err != nil || created.SortOrder != 7 {
+		t.Errorf("create: %v, order %d", err, created.SortOrder)
+	}
+}

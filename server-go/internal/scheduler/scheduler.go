@@ -202,7 +202,8 @@ func (s *Scheduler) Sync(monitors []monitor.Monitor, since uint64) {
 		if newer(m.ID) {
 			continue
 		}
-		if known, ok := s.monitors[m.ID]; ok && reflect.DeepEqual(known, m) {
+		if known, ok := s.monitors[m.ID]; ok && sameChecks(known, m) {
+			s.monitors[m.ID] = m
 			continue
 		}
 		s.rememberGroup(m)
@@ -251,6 +252,13 @@ func (s *Scheduler) Sync(monitors []monitor.Monitor, since uint64) {
 			s.startLocked(s.monitors[id], 0)
 		}
 	}
+}
+
+// sameChecks says whether two versions of a monitor check the same way: the list's custom order
+// changes nothing that's checked, so it restarts nothing.
+func sameChecks(a, b monitor.Monitor) bool {
+	a.SortOrder, b.SortOrder = 0, 0
+	return reflect.DeepEqual(a, b)
 }
 
 // Upsert applies a new or changed monitor. A monitor that is active, and in no paused group,

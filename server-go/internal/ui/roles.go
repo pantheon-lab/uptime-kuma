@@ -48,7 +48,7 @@ var viewerMonitorFields = []string{
 	"id", "name", "description", "type", "path", "pathName", "parent", "childrenIDs", "active", "forceInactive",
 	"tags", "maintenance", "interval", "retryInterval", "maxretries", "upsideDown", "expiryNotification",
 	"domainExpiryNotification", "hostname", "port", "method", "keyword", "invertKeyword", "dns_resolve_type",
-	"dns_resolve_server", "dns_last_result", "docker_container", "game", "weight", "includeSensitiveData",
+	"dns_resolve_server", "dns_last_result", "docker_container", "game", "weight", "sortOrder", "includeSensitiveData",
 	"location", "protocol", "ipFamily",
 }
 

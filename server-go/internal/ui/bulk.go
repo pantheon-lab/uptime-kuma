@@ -199,6 +199,40 @@ func (s *Server) setMonitorsActive(ctx context.Context, args []json.RawMessage) 
 	return ok("msg", verb+" "+monitorCount(len(changed))+".", "count", len(changed)), nil
 }
 
+// setMonitorOrder sets the list's custom order of the monitors in one group, or at the top of the
+// list: setMonitorOrder(parentId or null, ids). Everyone's list shows it. It changes nothing the
+// scheduler uses, so no check restarts.
+func (s *Server) setMonitorOrder(ctx context.Context, args []json.RawMessage) (reply, error) {
+	var parent *int32
+	if err := arg(args, 0, &parent); err != nil {
+		return nil, userErr(err)
+	}
+	var ids []int32
+	if err := arg(args, 1, &ids); err != nil {
+		return nil, userErr(err)
+	}
+	ids = uniqueIDs(ids)
+	switch {
+	case len(ids) == 0:
+		return nil, userErr(errors.New("no monitors to order"))
+	case len(ids) > maxBulkMonitors:
+		return nil, userErr(fmt.Errorf("at most %d monitors can be ordered at once", maxBulkMonitors))
+	}
+	changed, err := s.store.SetMonitorOrder(ctx, parent, ids)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, userErr(errors.New("The monitors aren't all in that group any more, so nothing was moved. Try again.")) //nolint:staticcheck // Shown to users.
+	}
+	if err != nil {
+		return nil, err
+	}
+	sent := make([]int32, len(changed))
+	for i, m := range changed {
+		sent[i] = m.ID
+	}
+	s.broadcastMonitors(ctx, sent...)
+	return ok("count", len(changed)), nil
+}
+
 // checkBulkReferences refuses notifications and tags that don't exist.
 func (s *Server) checkBulkReferences(ctx context.Context, changes bulkChanges) error {
 	if len(changes.AddNotifications) > 0 {

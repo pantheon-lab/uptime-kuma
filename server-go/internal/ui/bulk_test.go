@@ -572,3 +572,64 @@ func TestSetMonitorsActiveSendsOneUpdate(t *testing.T) {
 		t.Errorf("a viewer paused monitors: %v", r)
 	}
 }
+
+func TestSetMonitorOrder(t *testing.T) {
+	s, fs, _ := newTestServer(t)
+	ctx := context.Background()
+	c := &conn{userID: 1, admin: true, username: "a", out: make(chan []byte, 256), done: make(chan struct{})}
+	s.mu.Lock()
+	s.conns["admin"] = c
+	s.mu.Unlock()
+	sched := s.scheduler.(*fakeScheduler)
+	group := addFakeMonitor(fs, "Shop", monitor.TypeGroup)
+	child := func(name string) int32 {
+		m := monitor.New()
+		m.Name, m.Type, m.URL, m.ParentID = name, monitor.TypeHTTP, "https://"+name, &group
+		created, _ := fs.CreateMonitor(ctx, m)
+		return created.ID
+	}
+	a, b := child("a"), child("b")
+	top := addFakeMonitor(fs, "Site", monitor.TypeHTTP)
+	call := func(by *conn, args ...any) reply {
+		raws := make([]json.RawMessage, len(args))
+		for i, x := range args {
+			raws[i], _ = json.Marshal(x)
+		}
+		r, _ := s.handle(ctx, by, "setMonitorOrder", raws)
+		return r.(reply)
+	}
+
+	upserts := len(sched.upserted)
+	if r := call(c, group, []int32{b, a}); r["ok"] != true || r["count"] != 2 {
+		t.Fatalf("order: %v", r)
+	}
+	if fs.monitors[b].SortOrder != 1 || fs.monitors[a].SortOrder != 2 {
+		t.Errorf("orders: b %d, a %d", fs.monitors[b].SortOrder, fs.monitors[a].SortOrder)
+	}
+	if len(sched.upserted) != upserts {
+		t.Error("ordering monitors restarted their checks")
+	}
+	sent := ""
+	for len(c.out) > 0 {
+		sent += string(<-c.out)
+	}
+	if !strings.Contains(sent, `"updateMonitorIntoList"`) || !strings.Contains(sent, `"sortOrder":1`) {
+		t.Errorf("open pages weren't sent the order: %.300s", sent)
+	}
+
+	// The top of the list, with a null parent.
+	if r := call(c, nil, []int32{top, group}); r["ok"] != true || fs.monitors[top].SortOrder != 1 {
+		t.Errorf("order the top: %v", r)
+	}
+	// A monitor from another group changes nothing.
+	if r := call(c, group, []int32{a, top}); r["ok"] != false || fs.monitors[a].SortOrder != 2 {
+		t.Errorf("mixed groups: %v", r)
+	}
+	if r := call(c, group, []int32{}); r["ok"] != false {
+		t.Errorf("nothing to order: %v", r)
+	}
+	viewer := &conn{userID: 2, out: make(chan []byte, 8), done: make(chan struct{})}
+	if r := call(viewer, group, []int32{a, b}); r["ok"] != false {
+		t.Errorf("a viewer ordered monitors: %v", r)
+	}
+}

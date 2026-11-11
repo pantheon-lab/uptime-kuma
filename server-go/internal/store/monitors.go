@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -29,7 +30,7 @@ const monitorColumns = `id, name, type, active, interval_seconds, retry_interval
 	max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
 	max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval, expiry_notification,
 	push_token, ping_count, ping_per_request_timeout, packet_size, dns_resolve_type, dns_resolve_server, dns_last_result,
-	json_path, json_path_operator, expected_value, conditions, manual_status, ws_subprotocol, ws_ignore_accept_header, database_connection_string, database_query, database_password, settings`
+	json_path, json_path_operator, expected_value, conditions, manual_status, ws_subprotocol, ws_ignore_accept_header, database_connection_string, database_query, database_password, settings, sort_order`
 
 // aggregateRefreshTimeout allows for rebuilding every bucket a deleted monitor touched.
 const (
@@ -48,7 +49,7 @@ func scanMonitor(row pgx.Row) (monitor.Monitor, error) {
 		&m.MaxRedirects, &m.IgnoreTLS, &m.Keyword, &m.InvertKeyword, &m.Hostname, &m.Port, &m.ParentID, &m.PropagateTrace, &m.ResendInterval, &m.ExpiryNotification,
 		&m.PushToken, &m.PingCount, &m.PingPerRequestTimeout, &m.PacketSize, &m.DNSResolveType, &m.DNSResolveServer, &m.DNSLastResult,
 		&m.JSONPath, &m.JSONPathOperator, &m.ExpectedValue, &m.Conditions, &m.ManualStatus, &m.WSSubprotocol, &m.WSIgnoreAcceptHeader,
-		&m.DatabaseConnectionString, &m.DatabaseQuery, &m.DatabasePassword, &m.Settings)
+		&m.DatabaseConnectionString, &m.DatabaseQuery, &m.DatabasePassword, &m.Settings, &m.SortOrder)
 	return m, err
 }
 
@@ -197,17 +198,57 @@ func (s *Store) CreateMonitor(ctx context.Context, m monitor.Monitor) (monitor.M
 				max_retries, upside_down, url, method, headers, body, body_encoding, accepted_status_codes,
 				max_redirects, ignore_tls, keyword, invert_keyword, hostname, port, parent_id, propagate_trace, resend_interval, expiry_notification,
 				push_token, ping_count, ping_per_request_timeout, packet_size, dns_resolve_type, dns_resolve_server,
-				json_path, json_path_operator, expected_value, conditions, manual_status, ws_subprotocol, ws_ignore_accept_header, database_connection_string, database_query, database_password, settings)
+				json_path, json_path_operator, expected_value, conditions, manual_status, ws_subprotocol, ws_ignore_accept_header, database_connection_string, database_query, database_password, settings, sort_order)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
-				$25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41)
+				$25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42)
 			RETURNING `+monitorColumns,
 			m.Name, m.Type, m.Active, m.Interval, m.RetryInterval, m.Timeout,
 			m.MaxRetries, m.UpsideDown, m.URL, m.Method, m.Headers, m.Body, m.BodyEncoding, m.AcceptedStatusCodes,
 			m.MaxRedirects, m.IgnoreTLS, m.Keyword, m.InvertKeyword, m.Hostname, m.Port, m.ParentID, m.PropagateTrace, m.ResendInterval, m.ExpiryNotification,
 			m.PushToken, m.PingCount, m.PingPerRequestTimeout, m.PacketSize, m.DNSResolveType, m.DNSResolveServer,
-			m.JSONPath, m.JSONPathOperator, m.ExpectedValue, m.Conditions, m.ManualStatus, m.WSSubprotocol, m.WSIgnoreAcceptHeader, m.DatabaseConnectionString, m.DatabaseQuery, m.DatabasePassword, m.Settings))
+			m.JSONPath, m.JSONPathOperator, m.ExpectedValue, m.Conditions, m.ManualStatus, m.WSSubprotocol, m.WSIgnoreAcceptHeader, m.DatabaseConnectionString, m.DatabaseQuery, m.DatabasePassword, m.Settings, max(m.SortOrder, 0)))
 		return created, monitorResult(err)
 	})
+}
+
+// SetMonitorOrder puts the monitors of one group, or of the top of the list when parent is nil,
+// in the order given: the monitor list's custom order. All of them must be in that group, or
+// nothing changes and it returns ErrNotFound. Monitors of the group left out keep their place
+// after them. It returns the monitors it changed.
+func (s *Store) SetMonitorOrder(ctx context.Context, parent *int32, ids []int32) ([]monitor.Monitor, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	rows, err := tx.Query(ctx, `
+		UPDATE monitor m SET sort_order = o.n
+		FROM unnest($1::int[]) WITH ORDINALITY AS o(id, n)
+		WHERE m.id = o.id AND m.parent_id IS NOT DISTINCT FROM $2
+		RETURNING `+qualifiedMonitorColumns("m"), ids, parent)
+	if err != nil {
+		return nil, fmt.Errorf("set monitor order: %w", err)
+	}
+	changed, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (monitor.Monitor, error) { return scanMonitor(r) })
+	if err != nil {
+		return nil, fmt.Errorf("set monitor order: %w", err)
+	}
+	if len(changed) != len(ids) {
+		return nil, ErrNotFound
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+	return changed, nil
+}
+
+// qualifiedMonitorColumns is monitorColumns with each column prefixed by a table alias.
+func qualifiedMonitorColumns(alias string) string {
+	columns := strings.Split(monitorColumns, ",")
+	for i, c := range columns {
+		columns[i] = alias + "." + strings.TrimSpace(c)
+	}
+	return strings.Join(columns, ", ")
 }
 
 // UpdateMonitor replaces a monitor's configuration or returns ErrNotFound. A group that

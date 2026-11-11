@@ -380,6 +380,8 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 		r, err = s.exportMonitors(ctx, c, args)
 	case "testMonitor":
 		r, err = s.testMonitor(ctx, args)
+	case "setMonitorOrder":
+		r, err = s.setMonitorOrder(ctx, args)
 	case "setMonitorsActive":
 		r, err = s.setMonitorsActive(ctx, args)
 	case "pauseMonitor":

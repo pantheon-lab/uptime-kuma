@@ -155,6 +155,9 @@ type Monitor struct {
 	UpsideDown     bool  `json:"upsideDown"`
 	// ParentID is the group that this monitor belongs to, if any.
 	ParentID *int32 `json:"parentId"`
+	// SortOrder is the monitor's place in the list's custom order, among the monitors of its group.
+	// 0 is unordered, after the others. Editing a monitor keeps it; setMonitorOrder changes it.
+	SortOrder int32 `json:"sortOrder"`
 
 	URL                 string            `json:"url"`
 	Method              string            `json:"method"`

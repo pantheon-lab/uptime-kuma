@@ -196,6 +196,7 @@ func (t *monitorTree) monitorJSON(m monitor.Monitor) map[string]any {
 		"path":                 path,
 		"pathName":             strings.Join(path, " / "),
 		"parent":               m.ParentID,
+		"sortOrder":            m.SortOrder,
 		"childrenIDs":          childrenIDs,
 		"active":               m.Active,
 		"forceInactive":        parentPaused,
