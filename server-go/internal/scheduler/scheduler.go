@@ -88,6 +88,10 @@ type Scheduler struct {
 	// after it's removed, so that Sync can tell a snapshot read before a change from one read after.
 	gen     uint64
 	touched map[int32]uint64
+
+	// cancelled is a test's hook, called once stopRunnersLocked has cancelled the runners and before
+	// it waits for them. Nil outside tests.
+	cancelled func()
 	// pushRunners finds the runner of an active push monitor by its token.
 	pushRunners map[string]*runner
 
@@ -363,6 +367,9 @@ func (s *Scheduler) stopRunnersLocked(ids []int32) {
 		if r, ok := s.runners[id]; ok {
 			r.cancel()
 		}
+	}
+	if s.cancelled != nil {
+		s.cancelled()
 	}
 	for _, id := range ids {
 		s.stopRunnerLocked(id)

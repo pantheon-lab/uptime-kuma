@@ -761,12 +761,24 @@ func TestSyncStopsAPausedGroupsMonitorsBeforeWaiting(t *testing.T) {
 	// The group is paused, and the slow monitor changed, the slow one first in the snapshot.
 	group.Active = false
 	slow.Name = "slower"
-	before := beatsOf(2)
+	// Sync signals once it has cancelled the runners, before it waits for the slow one; any beat
+	// of the child's after that is the bug.
+	cancelled := make(chan struct{})
+	var once sync.Once
+	s.mu.Lock()
+	s.cancelled = func() { once.Do(func() { close(cancelled) }) }
+	s.mu.Unlock()
 	synced := make(chan struct{})
 	go func() {
 		defer close(synced)
 		s.Sync([]monitor.Monitor{slow, child, group}, s.Generation())
 	}()
+	select {
+	case <-cancelled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Sync didn't cancel the runners")
+	}
+	before := beatsOf(2)
 	// Longer than the child's interval: it would check again, were it still running.
 	time.Sleep(1300 * time.Millisecond)
 	if n := beatsOf(2); n != before {
