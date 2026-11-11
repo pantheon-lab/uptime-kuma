@@ -26,7 +26,7 @@ import (
 
 func main() {
 	apply := flag.Bool("apply", false, "write to DATABASE_URL. Without it, nothing is written")
-	activate := flag.Bool("activate", false, "with -apply, resume monitors that were active in the source. They start after the service restarts")
+	activate := flag.Bool("activate", false, "with -apply, resume monitors that were active in the source. A running service starts them at once")
 	verify := flag.Bool("verify", false, "compare what's in DATABASE_URL with the source, monitor by monitor, and exit non-zero if any differ. Imports nothing")
 	flag.Parse()
 
@@ -85,6 +85,12 @@ func run(apply, activate bool, log *slog.Logger) error {
 	report, err := importer.Run(ctx, options)
 	if err != nil {
 		return err
+	}
+	if db, ok := options.Target.(*store.Store); ok && db != nil {
+		// A running service picks up what was written: its scheduler and its open pages.
+		if err := db.NotifyImported(ctx); err != nil {
+			log.Warn("tell the service about the import; restart it to see what was imported", "error", err)
+		}
 	}
 	log.Info("finished", "duration", time.Since(start).Round(time.Millisecond))
 	encoder := json.NewEncoder(os.Stdout)

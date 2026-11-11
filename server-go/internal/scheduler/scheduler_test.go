@@ -621,3 +621,37 @@ func TestSuspendedMonitorStaysStoppedWhileItsGroupChanges(t *testing.T) {
 	s.Upsert(child)
 	waitFor(t, "the child after its Upsert", func() bool { return checker.count(2) > before })
 }
+
+func TestSyncAppliesWhatChangedInTheDatabase(t *testing.T) {
+	checker := &countingChecker{}
+	s := New(checker, &fakeSink{}, 10, quiet)
+	defer s.Stop()
+	running := func(id int32) bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, ok := s.runners[id]
+		return ok
+	}
+	steady := monitor.Monitor{ID: 1, Active: true, Interval: 3600}
+	paused := monitor.Monitor{ID: 2, Active: false, Interval: 1}
+	gone := monitor.Monitor{ID: 3, Active: true, Interval: 1}
+	// Upsert rather than Start, which spreads first checks over the interval.
+	for _, m := range []monitor.Monitor{steady, paused, gone} {
+		s.Upsert(m)
+	}
+	waitFor(t, "the first check", func() bool { return checker.count(1) == 1 && checker.count(3) >= 1 })
+
+	// An import resumed one, deleted one and added one; the unchanged one isn't restarted, which
+	// would check it again at once.
+	paused.Active = true
+	added := monitor.Monitor{ID: 4, Active: true, Interval: 1}
+	s.Sync([]monitor.Monitor{steady, paused, added})
+	waitFor(t, "the resumed and the added monitor", func() bool { return checker.count(2) >= 1 && checker.count(4) >= 1 })
+	if running(3) {
+		t.Error("a monitor no longer in the database is still running")
+	}
+	time.Sleep(200 * time.Millisecond)
+	if n := checker.count(1); n != 1 {
+		t.Errorf("an unchanged monitor was restarted: %d checks", n)
+	}
+}

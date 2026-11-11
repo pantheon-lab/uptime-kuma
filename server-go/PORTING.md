@@ -1020,6 +1020,12 @@ Not tested: a range of more than 30 days, which reads the daily statistics; the 
   after a restart a paused group's monitors stay stopped. Moving a monitor into or out of a paused group, or
   deleting the group, applies the same rule. Clearing a group's data suspends only the group (`Suspend`), so it
   doesn't start the monitors in it.
+- **An import shows at once.** `kuma-import -apply` writes to the database directly, so the running service didn't
+  know: open pages needed a refresh, and `-activate` a restart. It now ends with `NOTIFY kuma_imported`; the
+  service `LISTEN`s on its own connection, out of the pool, and then reloads maintenance windows, gives the
+  scheduler the monitors as they are (`Sync` restarts only those that changed, and stops those gone), and sends
+  every open page its lists again, as at login. A lost connection is opened again, and reloads once in case an
+  import finished meanwhile.
 - **Exporting the selected monitors** (`src/components/ExportMonitorsDialog.vue`), from Export… in the list's Actions
   menu. `exportMonitors(ids, {groups, children})` returns them in the REST API's format with their credentials, so
   only admins can. `groups` adds the groups they're in up to the top, and `children` everything in a chosen group;

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"reflect"
 	"slices"
 	"strconv"
 	"sync"
@@ -163,6 +164,34 @@ func (s *Scheduler) Start(monitors []monitor.Monitor, previous map[int32]monitor
 	}
 }
 
+// Sync applies the monitors as the database has them now, after something else changed it, such
+// as kuma-import. Only monitors that changed are restarted, and those no longer there are stopped.
+func (s *Scheduler) Sync(monitors []monitor.Monitor) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopped {
+		return
+	}
+	present := make(map[int32]bool, len(monitors))
+	for _, m := range monitors {
+		present[m.ID] = true
+		if known, ok := s.monitors[m.ID]; ok && reflect.DeepEqual(known, m) {
+			continue
+		}
+		s.upsertLocked(m)
+	}
+	for id := range s.monitors {
+		if !present[id] {
+			s.stopRunnerLocked(id)
+			delete(s.monitors, id)
+			delete(s.suspended, id)
+			s.groupNames.Delete(id)
+			telemetry.Metrics().ForgetMonitor(id)
+			s.applyToDescendantsLocked(id)
+		}
+	}
+}
+
 // Upsert applies a new or changed monitor. A monitor that is active, and in no paused group,
 // is checked immediately. A group's change reaches the monitors in it: pausing it stops
 // them, and resuming it starts those that are active.
@@ -172,6 +201,10 @@ func (s *Scheduler) Upsert(m monitor.Monitor) {
 	if s.stopped {
 		return
 	}
+	s.upsertLocked(m)
+}
+
+func (s *Scheduler) upsertLocked(m monitor.Monitor) {
 	s.rememberGroup(m)
 	s.monitors[m.ID] = m
 	delete(s.suspended, m.ID)

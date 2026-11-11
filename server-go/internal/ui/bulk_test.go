@@ -461,3 +461,43 @@ func TestEditingAGroupSendsTheMonitorsInIt(t *testing.T) {
 		t.Fatalf("the monitor in the renamed group wasn't sent with its new path: %s", sent)
 	}
 }
+
+func TestReloadSendsOpenPagesTheirLists(t *testing.T) {
+	s, fs, _ := newTestServer(t)
+	ctx := context.Background()
+	admin := &conn{userID: 1, admin: true, username: "a", out: make(chan []byte, 256), done: make(chan struct{})}
+	viewer := &conn{userID: 2, username: "v", out: make(chan []byte, 256), done: make(chan struct{})}
+	anonymous := &conn{out: make(chan []byte, 256), done: make(chan struct{})}
+	s.mu.Lock()
+	s.conns["admin"], s.conns["viewer"], s.conns["anonymous"] = admin, viewer, anonymous
+	s.mu.Unlock()
+
+	// Written to the database by something else, such as kuma-import.
+	m := monitor.New()
+	m.Name, m.Type, m.URL, m.BasicAuthPass = "Imported", monitor.TypeHTTP, "https://imported.example.com", "s3cret"
+	if _, err := fs.CreateMonitor(ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	s.Reload(ctx)
+
+	read := func(c *conn) string {
+		out := ""
+		for len(c.out) > 0 {
+			out += string(<-c.out)
+		}
+		return out
+	}
+	if got := read(admin); !strings.Contains(got, `"monitorList"`) || !strings.Contains(got, "Imported") || !strings.Contains(got, `"notificationList"`) {
+		t.Errorf("the admin's page: %.300s", got)
+	}
+	got := read(viewer)
+	if !strings.Contains(got, `"monitorList"`) || !strings.Contains(got, "Imported") {
+		t.Errorf("the viewer's page: %.300s", got)
+	}
+	if strings.Contains(got, "s3cret") {
+		t.Error("the viewer was sent a monitor's password")
+	}
+	if got := read(anonymous); got != "" {
+		t.Errorf("a page that isn't logged in was sent: %.300s", got)
+	}
+}

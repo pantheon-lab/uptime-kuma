@@ -371,6 +371,23 @@ func (s *Server) Close() {
 	}
 }
 
+// Reload sends every open page its lists again, as at login, after something outside this
+// server changed the data, such as kuma-import.
+func (s *Server) Reload(ctx context.Context) {
+	s.mu.Lock()
+	conns := make([]*conn, 0, len(s.conns))
+	for _, c := range s.conns {
+		if c.loggedIn() {
+			conns = append(conns, c)
+		}
+	}
+	s.mu.Unlock()
+	for _, c := range conns {
+		s.afterLogin(ctx, c)
+		s.sendDashboardLists(ctx, c)
+	}
+}
+
 // broadcast sends a frame to every logged-in connection.
 func (s *Server) broadcast(frame []byte) {
 	s.mu.Lock()
