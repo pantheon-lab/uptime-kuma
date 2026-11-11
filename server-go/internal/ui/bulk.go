@@ -213,6 +213,10 @@ func (s *Server) setMonitorOrder(ctx context.Context, args []json.RawMessage) (r
 	if err := arg(args, 1, &ids); err != nil {
 		return nil, userErr(err)
 	}
+	// Before removing duplicates, so that an oversized request isn't worked through first
+	if len(ids) > maxOrderedMonitors {
+		return nil, userErr(fmt.Errorf("at most %d monitors can be ordered at once", maxOrderedMonitors))
+	}
 	ids = uniqueIDs(ids)
 	switch {
 	case len(ids) == 0:
@@ -270,10 +274,13 @@ func monitorCount(n int) string {
 	return fmt.Sprintf("%d monitors", n)
 }
 
+// uniqueIDs keeps the first of each positive id, in order.
 func uniqueIDs(ids []int32) []int32 {
 	out := make([]int32, 0, len(ids))
+	seen := make(map[int32]bool, len(ids))
 	for _, id := range ids {
-		if id > 0 && !slices.Contains(out, id) {
+		if id > 0 && !seen[id] {
+			seen[id] = true
 			out = append(out, id)
 		}
 	}

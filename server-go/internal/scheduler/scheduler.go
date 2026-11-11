@@ -210,6 +210,16 @@ func (s *Scheduler) Sync(monitors []monitor.Monitor, since uint64, previous map[
 		if newer(m.ID) {
 			continue
 		}
+		// Every monitor, paused ones too, gets its saved state when it has none here: one resumed
+		// later then continues from it, rather than alerting on its first check. A state of its
+		// own is newer and stays.
+		if p, saved := previous[m.ID]; saved {
+			s.stateMu.Lock()
+			if s.last[m.ID] == nil {
+				s.last[m.ID] = &p
+			}
+			s.stateMu.Unlock()
+		}
 		if known, ok := s.monitors[m.ID]; ok && sameChecks(known, m) {
 			s.monitors[m.ID] = m
 			continue

@@ -891,3 +891,20 @@ func TestUpsertAllStopsEveryPausedMonitorBeforeWaiting(t *testing.T) {
 		t.Fatal("UpsertAll didn't return once the slow check ended")
 	}
 }
+
+func TestSyncGivesPausedMonitorsTheirSavedState(t *testing.T) {
+	sink := &fakeSink{}
+	checker := checkFunc(func(context.Context, monitor.Monitor) monitor.Result { return monitor.Result{OK: true} })
+	s := New(checker, sink, 10, quiet)
+	defer s.Stop()
+
+	// Imported paused, with the source's state, then resumed here later.
+	paused := monitor.Monitor{ID: 1, Active: false, Interval: 3600}
+	s.Sync([]monitor.Monitor{paused}, s.Generation(), map[int32]monitor.Previous{1: {Status: monitor.StatusUp}})
+	paused.Active = true
+	s.Upsert(paused)
+	waitFor(t, "the first check after resuming", func() bool { return len(sink.snapshot()) >= 1 })
+	if sink.snapshot()[0].Important {
+		t.Error("up after up, as saved, was taken for a change: every monitor resumed after an import would alert")
+	}
+}

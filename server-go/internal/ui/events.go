@@ -289,10 +289,15 @@ func (s *Server) stats(ctx context.Context) (map[string]any, error) {
 
 // sendDashboardLists sends the newest beat of each monitor and the uptime numbers. The UI asks
 // for them once it has drawn the monitor list, so that the list appears first.
-func (s *Server) sendDashboardLists(ctx context.Context, c *conn) {
+//
+// It returns the first failure of the beats or the uptime numbers, which a reload tries again; the
+// certificates and domains are best effort.
+func (s *Server) sendDashboardLists(ctx context.Context, c *conn) error {
+	var failed error
 	beats, err := s.store.LatestBeatPerMonitor(ctx)
 	if err != nil {
 		s.log.Error("send latest beats", "error", err)
+		failed = fmt.Errorf("latest beats: %w", err)
 	} else {
 		lists := make(map[string]any, len(beats))
 		for _, b := range beats {
@@ -303,13 +308,16 @@ func (s *Server) sendDashboardLists(ctx context.Context, c *conn) {
 	stats, err := s.stats(ctx)
 	if err != nil {
 		s.log.Error("send stats", "error", err)
+		if failed == nil {
+			failed = fmt.Errorf("uptime: %w", err)
+		}
 	} else {
 		c.emit("stats", stats)
 	}
 	certificates, err := s.store.AllTLSInfo(ctx)
 	if err != nil {
 		s.log.Error("send certificates", "error", err)
-		return
+		return failed
 	}
 	for id, info := range certificates {
 		c.emit("certInfo", id, info)
@@ -321,6 +329,7 @@ func (s *Server) sendDashboardLists(ctx context.Context, c *conn) {
 		}
 		s.sendDomainInfo(ctx, c, byID)
 	}
+	return failed
 }
 
 // BroadcastCertInfo tells open pages about a monitor's new certificate information. The UI
@@ -357,7 +366,8 @@ func (s *Server) handle(ctx context.Context, c *conn, event string, args []json.
 	var err error
 	switch event {
 	case "dashboardRendered":
-		c.rendered.Do(func() { s.sendDashboardLists(ctx, c) })
+		// At login it's best effort: what failed is logged, and the next reload or login sends it.
+		c.rendered.Do(func() { _ = s.sendDashboardLists(ctx, c) })
 		return ok(), true
 	case "getMonitorList":
 		err = s.sendMonitorList(ctx, c)

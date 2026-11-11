@@ -1981,7 +1981,9 @@ func TestProxyAndDomainEvents(t *testing.T) {
 	for len(c.out) > 0 {
 		<-c.out
 	}
-	s.sendDashboardLists(ctx, c)
+	if err := s.sendDashboardLists(ctx, c); err != nil {
+		t.Fatal(err)
+	}
 	found := false
 	for len(c.out) > 0 {
 		found = found || strings.Contains(string(<-c.out), `"domainInfo"`)

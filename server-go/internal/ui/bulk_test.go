@@ -628,6 +628,13 @@ func TestSetMonitorOrder(t *testing.T) {
 	if r := call(c, group, []int32{}); r["ok"] != false {
 		t.Errorf("nothing to order: %v", r)
 	}
+	tooMany := make([]int32, maxOrderedMonitors+1)
+	for i := range tooMany {
+		tooMany[i] = a // Duplicates too: the size is checked before they're removed
+	}
+	if r := call(c, group, tooMany); r["ok"] != false {
+		t.Errorf("too many: %v", r)
+	}
 	viewer := &conn{userID: 2, out: make(chan []byte, 8), done: make(chan struct{})}
 	if r := call(viewer, group, []int32{a, b}); r["ok"] != false {
 		t.Errorf("a viewer ordered monitors: %v", r)
