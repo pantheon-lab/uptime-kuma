@@ -1025,11 +1025,12 @@ Not tested: a range of more than 30 days, which reads the daily statistics; the 
   service `LISTEN`s on its own connection, out of the pool, and then reloads maintenance windows, gives the
   scheduler the monitors as they are (`Sync`), and sends every open page its lists again, as at login. It also
   reloads each time it starts listening, the first time too, so an import that finished while it wasn't is picked
-  up. A failed reload, or a lost connection, waits 5 seconds and listens again. `Sync` takes the scheduler's
+  up. A reload has 2 minutes; a failed one, or a lost connection, waits 5 seconds and listens again. `Sync` takes the scheduler's
   `Generation` from before the monitors were read, and leaves alone any monitor changed here after it, by a pause,
   an edit or a delete, so an older snapshot can't undo them; it installs every monitor before starting any, so a
   monitor can't start while its new group is still missing, restarts only those that changed, and stops and
-  forgets those gone. Tested with the race detector against TimescaleDB: the listener hearing imports, retrying a
+  forgets those gone. Everything that must stop is cancelled before any is waited for, so a slow check elsewhere
+  can't let a monitor in a newly paused group record a beat meanwhile; pausing a group does the same. Tested with the race detector against TimescaleDB: the listener hearing imports, retrying a
   failed reload, and recovering after its connection is closed; `Sync` with stale snapshots and groups; and open
   pages getting their lists. A built service reloaded on `NOTIFY kuma_imported` from `psql`. Not tested: a real
   `kuma-import -apply` from MariaDB with a page open, and on Kubernetes.

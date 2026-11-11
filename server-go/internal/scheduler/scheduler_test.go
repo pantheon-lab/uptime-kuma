@@ -705,3 +705,58 @@ func TestSyncInstallsGroupsBeforeStartingAnything(t *testing.T) {
 		t.Errorf("a monitor in a paused group was checked %d times", n)
 	}
 }
+
+// slowChecker checks one monitor slowly, ignoring cancellation as a stuck check would, and the
+// others at once, counting each.
+type slowChecker struct {
+	countingChecker
+	slow  int32
+	delay time.Duration
+}
+
+// Run waits on the slow monitor, then counts the check.
+func (c *slowChecker) Run(ctx context.Context, m monitor.Monitor) monitor.Result {
+	if m.ID == c.slow {
+		time.Sleep(c.delay)
+	}
+	return c.countingChecker.Run(ctx, m)
+}
+
+func TestSyncStopsAPausedGroupsMonitorsBeforeWaiting(t *testing.T) {
+	checker := &slowChecker{slow: 3, delay: 1500 * time.Millisecond}
+	sink := &fakeSink{}
+	s := New(checker, sink, 10, quiet)
+	defer s.Stop()
+	groupID := int32(1)
+	group := monitor.Monitor{ID: groupID, Type: monitor.TypeGroup, Active: true, Interval: 3600}
+	child := monitor.Monitor{ID: 2, Active: true, Interval: 1, ParentID: &groupID}
+	slow := monitor.Monitor{ID: 3, Name: "slow", Active: true, Interval: 1}
+	for _, m := range []monitor.Monitor{group, child, slow} {
+		s.Upsert(m)
+	}
+	waitFor(t, "the child's first check", func() bool { return checker.count(2) >= 1 })
+	// The slow monitor is in the middle of its check, so stopping it waits for that.
+	time.Sleep(100 * time.Millisecond)
+
+	// The group is paused, and the slow monitor changed, the slow one first in the snapshot.
+	group.Active = false
+	slow.Name = "slower"
+	beatsOf := func(id int32) int {
+		n := 0
+		for _, b := range sink.snapshot() {
+			if b.MonitorID == id {
+				n++
+			}
+		}
+		return n
+	}
+	before := beatsOf(2)
+	s.Sync([]monitor.Monitor{slow, child, group}, s.Generation())
+	if n := beatsOf(2); n != before {
+		t.Errorf("a monitor in the paused group recorded %d beats while a slow check was stopped", n-before)
+	}
+	time.Sleep(1200 * time.Millisecond)
+	if n := beatsOf(2); n != before {
+		t.Errorf("a monitor in the paused group recorded %d beats after the reload", n-before)
+	}
+}

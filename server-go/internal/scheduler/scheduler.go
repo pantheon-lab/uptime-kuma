@@ -216,25 +216,40 @@ func (s *Scheduler) Sync(monitors []monitor.Monitor, since uint64) {
 		}
 	}
 
+	// Changed monitors restart with their new settings; the monitors below a changed or removed
+	// group follow it. Everything that must stop is cancelled before anything is waited for, so a
+	// slow check elsewhere can't let a monitor in a newly paused group record a beat meanwhile.
+	children := s.childrenLocked()
+	restart := make(map[int32]bool, len(changed))
+	for _, id := range changed {
+		restart[id] = true
+	}
+	var below []int32
+	for _, id := range append(slices.Clone(changed), removed...) {
+		for _, d := range s.descendantsLocked(children, id) {
+			if !restart[d] {
+				below = append(below, d)
+			}
+		}
+	}
+	stop := append(slices.Clone(removed), changed...)
+	for _, id := range below {
+		if _, running := s.runners[id]; running && !s.shouldRunLocked(id) {
+			stop = append(stop, id)
+		}
+	}
+	s.stopRunnersLocked(stop)
 	for _, id := range removed {
-		s.stopRunnerLocked(id)
 		delete(s.suspended, id)
 		s.stateMu.Lock()
 		delete(s.last, id)
 		s.stateMu.Unlock()
 		s.groupNames.Delete(id)
-		telemetry.Metrics().ForgetMonitor(id)
 	}
-	for _, id := range changed {
-		s.stopRunnerLocked(id)
-		if s.shouldRunLocked(id) {
+	for _, id := range append(changed, below...) {
+		if _, running := s.runners[id]; !running && s.shouldRunLocked(id) {
 			s.startLocked(s.monitors[id], 0)
-		} else {
-			telemetry.Metrics().ForgetMonitor(id)
 		}
-	}
-	for _, id := range append(changed, removed...) {
-		s.applyToDescendantsLocked(id)
 	}
 }
 
@@ -289,12 +304,35 @@ func (s *Scheduler) shouldRunLocked(id int32) bool {
 // applyToDescendantsLocked starts or stops the monitors below a group whose state may have
 // changed. Those already in the right state are left alone, so their timing doesn't change.
 func (s *Scheduler) applyToDescendantsLocked(id int32) {
+	below := s.descendantsLocked(s.childrenLocked(), id)
+	var stop []int32
+	for _, d := range below {
+		if _, running := s.runners[d]; running && !s.shouldRunLocked(d) {
+			stop = append(stop, d)
+		}
+	}
+	s.stopRunnersLocked(stop)
+	for _, d := range below {
+		if _, running := s.runners[d]; !running && s.shouldRunLocked(d) {
+			s.startLocked(s.monitors[d], 0)
+		}
+	}
+}
+
+// childrenLocked maps each group to the monitors directly in it.
+func (s *Scheduler) childrenLocked() map[int32][]int32 {
 	children := make(map[int32][]int32)
 	for _, m := range s.monitors {
 		if m.ParentID != nil {
 			children[*m.ParentID] = append(children[*m.ParentID], m.ID)
 		}
 	}
+	return children
+}
+
+// descendantsLocked lists the monitors below id, however deep, each once.
+func (s *Scheduler) descendantsLocked(children map[int32][]int32, id int32) []int32 {
+	var out []int32
 	seen := map[int32]bool{id: true}
 	queue := slices.Clone(children[id])
 	for len(queue) > 0 {
@@ -304,16 +342,23 @@ func (s *Scheduler) applyToDescendantsLocked(id int32) {
 			continue
 		}
 		seen[child] = true
+		out = append(out, child)
 		queue = append(queue, children[child]...)
+	}
+	return out
+}
 
-		_, running := s.runners[child]
-		switch run := s.shouldRunLocked(child); {
-		case run && !running:
-			s.startLocked(s.monitors[child], 0)
-		case !run && running:
-			s.stopRunnerLocked(child)
-			telemetry.Metrics().ForgetMonitor(child)
+// stopRunnersLocked cancels every runner first, so none of them records another beat, and then
+// waits for each to exit.
+func (s *Scheduler) stopRunnersLocked(ids []int32) {
+	for _, id := range ids {
+		if r, ok := s.runners[id]; ok {
+			r.cancel()
 		}
+	}
+	for _, id := range ids {
+		s.stopRunnerLocked(id)
+		telemetry.Metrics().ForgetMonitor(id)
 	}
 }
 
