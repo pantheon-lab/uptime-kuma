@@ -207,6 +207,7 @@
                 :sort-func="sortFunc"
                 :custom-order="sortState.key === 'custom' && $root.canEdit"
                 :reorder="reorderMonitor"
+                :move-by="moveMonitorBy"
             />
             <div :style="{ height: renderedRows.bottom + 'px' }"></div>
         </div>
@@ -239,6 +240,7 @@ import MonitorListItem from "../components/MonitorListItem.vue";
 import MonitorListFilter from "./MonitorListFilter.vue";
 import { getMonitorRelativeURL } from "../util.ts";
 import { SORT_KEYS, compareMonitors, moveInOrder, parseSortState } from "../monitor-sort";
+import { request } from "../socket-request";
 import { Dropdown } from "bootstrap";
 
 // The sort is per browser
@@ -399,6 +401,10 @@ export default {
             };
         },
 
+        /**
+         * The sort button's icon: a grip for the custom order, else the direction
+         * @returns {string} Icon name
+         */
         sortIcon() {
             if (this.sortState.key === "custom") {
                 return "grip-vertical";
@@ -1021,16 +1027,44 @@ export default {
                     list[id].sortOrder = i + 1;
                 }
             });
-            this.$root.getSocket().emit("setMonitorOrder", parent, order, (res) => {
-                if (!res?.ok) {
+            const socket = this.$root.getSocket();
+            request((...args) => socket.emit(...args), "setMonitorOrder", [parent, order]).then((answer) => {
+                if (answer.kind === "unknown") {
+                    // It may have been saved: the list stays as moved, and says so
+                    this.$root.toastError(this.$t("sortSaveUnknown"));
+                    return;
+                }
+                if (!answer.res?.ok) {
                     for (const [id, sortOrder] of before) {
                         if (list[id]) {
                             list[id].sortOrder = sortOrder;
                         }
                     }
-                    this.$root.toastError(res?.msg ?? this.$t("sortSaveFailed"));
+                    this.$root.toastError(answer.res?.msg ?? this.$t("sortSaveFailed"));
                 }
             });
+        },
+        /**
+         * Move a monitor one place up or down among the monitors of its group, from the keyboard, and
+         * keep the keyboard on it
+         * @param {number} id The monitor
+         * @param {number} delta -1 for up, 1 for down
+         * @returns {void}
+         */
+        moveMonitorBy(id, delta) {
+            const monitor = this.$root.monitorList[id];
+            if (!monitor) {
+                return;
+            }
+            const siblings = [...(this.childrenByParent.get(monitor.parent ?? null) ?? [])]
+                .sort(this.sortFunc)
+                .map((m) => m.id);
+            const target = siblings[siblings.indexOf(id) + delta];
+            if (target === undefined) {
+                return;
+            }
+            this.reorderMonitor(id, target, delta < 0 ? "before" : "after");
+            this.$nextTick(() => document.querySelector(`[data-testid=monitor-row-${id}]`)?.focus());
         },
     },
 };

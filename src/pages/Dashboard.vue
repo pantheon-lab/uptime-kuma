@@ -67,6 +67,8 @@ import { MIN_LIST_WIDTH, clampListWidth, keyListWidth, maxListWidth, parseListWi
 
 // The list's width is per browser
 const WIDTH_STORAGE_KEY = "monitorListWidth";
+// The edge between the list and the page: its width and margins, which neither can use
+const RESIZER_SPACE = 18;
 
 export default {
     components: {
@@ -116,7 +118,8 @@ export default {
          * @returns {void}
          */
         measure() {
-            this.rowWidth = this.$refs.row?.clientWidth ?? 0;
+            // What the list and the page share, without the edge between them
+            this.rowWidth = Math.max(0, (this.$refs.row?.clientWidth ?? 0) - RESIZER_SPACE);
             this.$nextTick(() => {
                 this.currentWidth = Math.round(this.$refs.listPanel?.offsetWidth ?? 0);
             });
@@ -160,6 +163,14 @@ export default {
         },
 
         /**
+         * Whether the page is laid out right to left, as Arabic, Persian and Hebrew are
+         * @returns {boolean} Right to left
+         */
+        isRtl() {
+            return this.$refs.row ? getComputedStyle(this.$refs.row).direction === "rtl" : false;
+        },
+
+        /**
          * Start dragging the list's edge
          * @param {PointerEvent} event The press
          * @returns {void}
@@ -172,6 +183,8 @@ export default {
             this.measure();
             this.resizing = true;
             this.dragStartX = event.clientX;
+            // Right to left, the list is on the right: dragging left widens it
+            this.dragSign = this.isRtl() ? -1 : 1;
             this.dragStartWidth = this.$refs.listPanel.offsetWidth;
             event.currentTarget.setPointerCapture?.(event.pointerId);
             window.addEventListener("pointermove", this.onResizeMove);
@@ -185,7 +198,7 @@ export default {
          * @returns {void}
          */
         onResizeMove(event) {
-            this.setWidth(this.dragStartWidth + event.clientX - this.dragStartX, false);
+            this.setWidth(this.dragStartWidth + this.dragSign * (event.clientX - this.dragStartX), false);
         },
 
         /**
@@ -209,8 +222,12 @@ export default {
          * @returns {void}
          */
         onResizeKey(event) {
-            const width = this.listWidth ?? this.$refs.listPanel?.offsetWidth ?? MIN_LIST_WIDTH;
-            const next = keyListWidth(event.key, event.shiftKey, width, this.rowWidth);
+            // From the width as drawn, which a narrower window may have made smaller than the one saved
+            const width = this.$refs.listPanel?.offsetWidth || this.listWidth || MIN_LIST_WIDTH;
+            // Right to left, the arrows are swapped, so that each moves the edge its way
+            const swapped = { ArrowLeft: "ArrowRight", ArrowRight: "ArrowLeft" };
+            const key = this.isRtl() ? (swapped[event.key] ?? event.key) : event.key;
+            const next = keyListWidth(key, event.shiftKey, width, this.rowWidth);
             if (next === undefined) {
                 return;
             }

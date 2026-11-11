@@ -41,6 +41,7 @@
                     }"
                     :data-testid="'monitor-row-' + monitor.id"
                     @click="onRowClick($event, navigate)"
+                    @keydown="onRowKey"
                 >
                     <div class="row">
                         <div class="small-padding d-flex gap-2 align-items-center" :class="monitorStyle">
@@ -99,8 +100,8 @@
         <transition name="slide-fade-up">
             <div v-if="!isCollapsed" class="childs">
                 <MonitorListItem
-                    v-for="(item, index) in sortedChildMonitorList"
-                    :key="index"
+                    v-for="item in sortedChildMonitorList"
+                    :key="item.id"
                     :monitor="item"
                     :children-by-parent="childrenByParent"
                     :selectable="selectable"
@@ -113,6 +114,7 @@
                     :sort-func="sortFunc"
                     :custom-order="customOrder"
                     :reorder="reorder"
+                    :move-by="moveBy"
                 />
             </div>
         </transition>
@@ -195,6 +197,11 @@ export default {
         },
         /** Moves a monitor before or after another: reorder(draggedId, targetId, "before" or "after") */
         reorder: {
+            type: Function,
+            default: () => {},
+        },
+        /** Moves a monitor one place up or down in the custom order: moveBy(id, -1 or 1) */
+        moveBy: {
             type: Function,
             default: () => {},
         },
@@ -296,6 +303,23 @@ export default {
             }
         },
 
+        /**
+         * Alt with an arrow moves the focused monitor up or down, in the custom order
+         * @param {KeyboardEvent} event The key
+         * @returns {void}
+         */
+        onRowKey(event) {
+            if (!this.customOrder || !event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) {
+                return;
+            }
+            event.preventDefault();
+            this.moveBy(this.monitor.id, event.key === "ArrowUp" ? -1 : 1);
+        },
+
+        /**
+         * The drag ended, dropped or not
+         * @returns {void}
+         */
         onDragEnd() {
             currentDragId = null;
         },
@@ -313,6 +337,10 @@ export default {
             return !!dragged && (dragged.parent ?? null) === (this.monitor.parent ?? null);
         },
 
+        /**
+         * A drag came over this row: count it, when it could land here
+         * @returns {void}
+         */
         onDragEnter() {
             if (this.monitor.type !== "group" && !this.canReorderHere()) {
                 return;
@@ -320,6 +348,10 @@ export default {
             this.dragOverCount++;
         },
 
+        /**
+         * A drag left this row, or one of its parts
+         * @returns {void}
+         */
         onDragLeave() {
             if (this.dragOverCount > 0) {
                 this.dragOverCount--;
