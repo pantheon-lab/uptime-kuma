@@ -1056,7 +1056,9 @@ export default {
             if (!monitor) {
                 return;
             }
+            // Among the monitors shown: moving past one the filters hide would look like nothing happened
             const siblings = [...(this.childrenByParent.get(monitor.parent ?? null) ?? [])]
+                .filter(this.filterFunc)
                 .sort(this.sortFunc)
                 .map((m) => m.id);
             const target = siblings[siblings.indexOf(id) + delta];

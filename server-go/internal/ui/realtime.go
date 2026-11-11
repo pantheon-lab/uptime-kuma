@@ -395,7 +395,9 @@ func (s *Server) Reload(ctx context.Context) error {
 		if err := s.afterLogin(ctx, c); err != nil && listErr == nil {
 			listErr = fmt.Errorf("send a page its monitor list: %w", err)
 		}
-		s.sendDashboardLists(ctx, c)
+		if err := s.sendDashboardLists(ctx, c); err != nil && listErr == nil {
+			listErr = fmt.Errorf("send a page its beats and uptime: %w", err)
+		}
 	}
 	if listErr != nil {
 		return listErr

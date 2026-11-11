@@ -891,3 +891,106 @@ func TestUpsertAllStopsEveryPausedMonitorBeforeWaiting(t *testing.T) {
 		t.Fatal("UpsertAll didn't return once the slow check ended")
 	}
 }
+
+func TestSyncGivesPausedMonitorsTheirSavedState(t *testing.T) {
+	sink := &fakeSink{}
+	checker := checkFunc(func(context.Context, monitor.Monitor) monitor.Result { return monitor.Result{OK: true} })
+	s := New(checker, sink, 10, quiet)
+	defer s.Stop()
+
+	// Imported paused, with the source's state, then resumed here later.
+	paused := monitor.Monitor{ID: 1, Active: false, Interval: 3600}
+	s.Sync([]monitor.Monitor{paused}, s.Generation(), map[int32]monitor.Previous{1: {Status: monitor.StatusUp}})
+	paused.Active = true
+	s.Upsert(paused)
+	waitFor(t, "the first check after resuming", func() bool { return len(sink.snapshot()) >= 1 })
+	if sink.snapshot()[0].Important {
+		t.Error("up after up, as saved, was taken for a change: every monitor resumed after an import would alert")
+	}
+}
+
+func TestSyncRefreshesOnlyTheStatesThatCameFromTheDatabase(t *testing.T) {
+	ctx := context.Background()
+	up := checkFunc(func(context.Context, monitor.Monitor) monitor.Result { return monitor.Result{OK: true} })
+	firstBeatAfterResume := func(t *testing.T, s *Scheduler, sink *fakeSink, id int32) store.Beat {
+		t.Helper()
+		before := len(sink.snapshot())
+		s.Upsert(monitor.Monitor{ID: id, Active: true, Interval: 3600})
+		waitFor(t, "the first check after resuming", func() bool { return len(sink.snapshot()) > before })
+		return sink.snapshot()[before]
+	}
+
+	t.Run("a later import's state replaces an earlier one's", func(t *testing.T) {
+		sink := &fakeSink{}
+		s := New(up, sink, 10, quiet)
+		defer s.Stop()
+		paused := []monitor.Monitor{{ID: 1, Active: false, Interval: 3600}}
+		s.Sync(paused, s.Generation(), map[int32]monitor.Previous{1: {Status: monitor.StatusDown}})
+		s.Sync(paused, s.Generation(), map[int32]monitor.Previous{1: {Status: monitor.StatusUp}})
+		if b := firstBeatAfterResume(t, s, sink, 1); b.Important {
+			t.Error("the first import's DOWN stayed, so UP was taken for a change")
+		}
+	})
+
+	t.Run("the monitor's own state stays", func(t *testing.T) {
+		sink := &fakeSink{}
+		s := New(up, sink, 10, quiet)
+		defer s.Stop()
+		s.Upsert(monitor.Monitor{ID: 1, Active: true, Interval: 3600})
+		waitFor(t, "a check here", func() bool { return len(sink.snapshot()) == 1 })
+		s.Upsert(monitor.Monitor{ID: 1, Active: false, Interval: 3600})
+		// An older snapshot, from before that check, says DOWN.
+		s.Sync([]monitor.Monitor{{ID: 1, Active: false, Interval: 3600}}, s.Generation(), map[int32]monitor.Previous{1: {Status: monitor.StatusDown}})
+		if b := firstBeatAfterResume(t, s, sink, 1); b.Important {
+			t.Error("the snapshot replaced the monitor's own UP")
+		}
+	})
+
+	t.Run("a suspended monitor starts a new history", func(t *testing.T) {
+		sink := &fakeSink{}
+		s := New(up, sink, 10, quiet)
+		defer s.Stop()
+		s.Upsert(monitor.Monitor{ID: 1, Active: false, Interval: 3600})
+		if err := s.Suspend(ctx, 1); err != nil {
+			t.Fatal(err)
+		}
+		// A snapshot read while it's suspended, so newer than the suspension
+		s.Sync([]monitor.Monitor{{ID: 1, Active: false, Interval: 3600}}, s.Generation(), map[int32]monitor.Previous{1: {Status: monitor.StatusUp}})
+		if b := firstBeatAfterResume(t, s, sink, 1); !b.Important {
+			t.Error("a monitor whose data was being cleared continued from the saved state")
+		}
+	})
+}
+
+func TestARunnerStoppedBeforeItsFirstCheckLeavesTheSavedState(t *testing.T) {
+	var held atomic.Bool
+	held.Store(true)
+	checker := checkFunc(func(ctx context.Context, _ monitor.Monitor) monitor.Result {
+		if held.Load() {
+			// Stuck until cancelled: a cancelled check makes no beat
+			<-ctx.Done()
+			return monitor.Result{}
+		}
+		return monitor.Result{OK: true}
+	})
+	sink := &fakeSink{}
+	s := New(checker, sink, 10, quiet)
+	defer s.Stop()
+
+	// Resumed by an import with an UP state, then paused before its first check ended.
+	s.Sync([]monitor.Monitor{{ID: 1, Active: true, Interval: 3600}}, s.Generation(), map[int32]monitor.Previous{1: {Status: monitor.StatusUp}})
+	time.Sleep(50 * time.Millisecond)
+	s.Upsert(monitor.Monitor{ID: 1, Active: false, Interval: 3600})
+	if n := len(sink.snapshot()); n != 0 {
+		t.Fatalf("%d beats from a check that was cancelled", n)
+	}
+
+	// A later import says it went DOWN in the source: that's newer than the UP it started from.
+	s.Sync([]monitor.Monitor{{ID: 1, Active: false, Interval: 3600}}, s.Generation(), map[int32]monitor.Previous{1: {Status: monitor.StatusDown}})
+	held.Store(false)
+	s.Upsert(monitor.Monitor{ID: 1, Active: true, Interval: 3600})
+	waitFor(t, "the first check after resuming", func() bool { return len(sink.snapshot()) == 1 })
+	if !sink.snapshot()[0].Important {
+		t.Error("the runner's unchanged UP hid the newer DOWN, so the recovery wasn't an event")
+	}
+}
