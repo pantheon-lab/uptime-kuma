@@ -2,7 +2,15 @@ import { describe, test } from "node:test";
 import assert from "node:assert";
 import { rowClickAction } from "../../src/row-click";
 
-const click = (extra = {}) => ({ button: 0, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...extra });
+const click = (extra = {}) => ({
+    button: 0,
+    detail: 1,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    altKey: false,
+    ...extra,
+});
 
 describe("rowClickAction()", () => {
     test("opens the monitor when nothing is ticked", () => {
@@ -28,5 +36,10 @@ describe("rowClickAction()", () => {
             assert.strictEqual(rowClickAction(click(extra), true, true), "browser", JSON.stringify(extra));
             assert.strictEqual(rowClickAction(click(extra), false, true), "browser", JSON.stringify(extra));
         }
+    });
+
+    test("Enter on the focused row opens it, even while choosing", () => {
+        assert.strictEqual(rowClickAction(click({ detail: 0 }), true, true), "navigate");
+        assert.strictEqual(rowClickAction(click({ detail: 0 }), false, true), "navigate");
     });
 });
