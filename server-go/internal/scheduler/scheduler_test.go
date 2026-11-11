@@ -961,3 +961,36 @@ func TestSyncRefreshesOnlyTheStatesThatCameFromTheDatabase(t *testing.T) {
 		}
 	})
 }
+
+func TestARunnerStoppedBeforeItsFirstCheckLeavesTheSavedState(t *testing.T) {
+	var held atomic.Bool
+	held.Store(true)
+	checker := checkFunc(func(ctx context.Context, _ monitor.Monitor) monitor.Result {
+		if held.Load() {
+			// Stuck until cancelled: a cancelled check makes no beat
+			<-ctx.Done()
+			return monitor.Result{}
+		}
+		return monitor.Result{OK: true}
+	})
+	sink := &fakeSink{}
+	s := New(checker, sink, 10, quiet)
+	defer s.Stop()
+
+	// Resumed by an import with an UP state, then paused before its first check ended.
+	s.Sync([]monitor.Monitor{{ID: 1, Active: true, Interval: 3600}}, s.Generation(), map[int32]monitor.Previous{1: {Status: monitor.StatusUp}})
+	time.Sleep(50 * time.Millisecond)
+	s.Upsert(monitor.Monitor{ID: 1, Active: false, Interval: 3600})
+	if n := len(sink.snapshot()); n != 0 {
+		t.Fatalf("%d beats from a check that was cancelled", n)
+	}
+
+	// A later import says it went DOWN in the source: that's newer than the UP it started from.
+	s.Sync([]monitor.Monitor{{ID: 1, Active: false, Interval: 3600}}, s.Generation(), map[int32]monitor.Previous{1: {Status: monitor.StatusDown}})
+	held.Store(false)
+	s.Upsert(monitor.Monitor{ID: 1, Active: true, Interval: 3600})
+	waitFor(t, "the first check after resuming", func() bool { return len(sink.snapshot()) == 1 })
+	if !sink.snapshot()[0].Important {
+		t.Error("the runner's unchanged UP hid the newer DOWN, so the recovery wasn't an event")
+	}
+}

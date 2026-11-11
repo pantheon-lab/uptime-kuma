@@ -547,7 +547,9 @@ func (s *Scheduler) startLocked(m monitor.Monitor, delay time.Duration) {
 		// it, so the state goes through its own lock.
 		s.stateMu.Lock()
 		defer s.stateMu.Unlock()
-		if final != nil {
+		// The runner returns the state it was given when it made no beat, cancelled before its
+		// first check: that's still the database's, which a later snapshot may replace.
+		if final != nil && final != state {
 			s.last[m.ID] = final
 			delete(s.saved, m.ID)
 		}
