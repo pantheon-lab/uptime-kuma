@@ -790,6 +790,7 @@
     "acceptedStatusCodesDescription": "Select status codes which are considered as a successful response.",
     "deleteMonitorMsg": "Are you sure want to delete this monitor?",
     "deleteMonitorsMsg": "Are you sure you want to delete the selected monitors?",
+    "hiddenByFilters": "hidden by the filters",
     "pausedMonitorsMsg": "Paused {n} monitor | Paused {n} monitors",
     "resumedMonitorsMsg": "Resumed {n} monitor | Resumed {n} monitors",
     "deletedMonitorsMsg": "Deleted {n} monitor | Deleted {n} monitors",

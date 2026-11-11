@@ -167,6 +167,13 @@
 
     <Confirm ref="confirmDelete" btn-style="btn-danger" :yes-text="$t('Yes')" :no-text="$t('No')" @yes="deleteSelected">
         {{ $t("deleteMonitorsMsg") }}
+        <!-- By name, because ticked monitors stay ticked when the filters hide them -->
+        <ul class="delete-list mt-2 mb-0" data-testid="bulk-delete-list">
+            <li v-for="m in selectedForDelete" :key="m.id">
+                {{ m.pathName || m.name }}
+                <span v-if="!filterFunc(m)" class="text-muted">({{ $t("hiddenByFilters") }})</span>
+            </li>
+        </ul>
     </Confirm>
 </template>
 
@@ -308,6 +315,17 @@ export default {
 
         selectedMonitorCount() {
             return Object.keys(this.selectedMonitors).length;
+        },
+
+        /**
+         * The ticked monitors, by their path, for the delete confirmation
+         * @returns {object[]} Monitors
+         */
+        selectedForDelete() {
+            return Object.keys(this.selectedMonitors)
+                .map((id) => this.$root.monitorList[id])
+                .filter(Boolean)
+                .sort((a, b) => (a.pathName || a.name).localeCompare(b.pathName || b.name));
         },
 
         // Monitors are being chosen once one is ticked
@@ -1105,5 +1123,11 @@ export default {
             margin-top: 0.25rem;
         }
     }
+}
+
+.delete-list {
+    max-height: 240px;
+    overflow-y: auto;
+    padding-left: 1.25rem;
 }
 </style>

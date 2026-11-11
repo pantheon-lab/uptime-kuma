@@ -500,6 +500,7 @@ type countingChecker struct {
 	checks map[int32]int
 }
 
+// Run counts the check and passes it.
 func (c *countingChecker) Run(_ context.Context, m monitor.Monitor) monitor.Result {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -510,6 +511,7 @@ func (c *countingChecker) Run(_ context.Context, m monitor.Monitor) monitor.Resu
 	return monitor.Result{OK: true}
 }
 
+// count is how many checks a monitor has had.
 func (c *countingChecker) count(id int32) int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -593,11 +595,23 @@ func TestSuspendedMonitorStaysStoppedWhileItsGroupChanges(t *testing.T) {
 	if err := s.Suspend(context.Background(), 2); err != nil {
 		t.Fatal(err)
 	}
+	before := checker.count(2)
+	running := func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, ok := s.runners[2]
+		return ok
+	}
 	group.Active = false
 	s.Upsert(group)
+	if running() {
+		t.Fatal("a suspended monitor has a runner after its group was paused")
+	}
 	group.Active = true
 	s.Upsert(group)
-	before := checker.count(2)
+	if running() {
+		t.Fatal("a suspended monitor has a runner after its group was resumed")
+	}
 	time.Sleep(1300 * time.Millisecond)
 	if n := checker.count(2); n != before {
 		t.Fatalf("a suspended monitor started with its group: %d checks, then %d", before, n)
