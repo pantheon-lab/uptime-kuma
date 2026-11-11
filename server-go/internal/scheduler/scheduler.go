@@ -100,6 +100,9 @@ type Scheduler struct {
 	groupNames sync.Map
 
 	stateMu sync.Mutex
+	// saved marks the states in last that came from the database, through Start or Sync, rather
+	// than from the monitor's own runner: a later snapshot replaces them, but never a runner's.
+	saved map[int32]bool
 	// last is each monitor's newest state as of its previous runner's exit. The
 	// running runner keeps the live value, and Remove deletes the entry after the
 	// runner has exited.
@@ -120,6 +123,7 @@ func New(checker Checker, sink Sink, concurrency int, log *slog.Logger) *Schedul
 		touched:     make(map[int32]uint64),
 		pushRunners: make(map[string]*runner),
 		last:        make(map[int32]*monitor.Previous),
+		saved:       make(map[int32]bool),
 	}
 }
 
@@ -159,6 +163,7 @@ func (s *Scheduler) Start(monitors []monitor.Monitor, previous map[int32]monitor
 	s.stateMu.Lock()
 	for id, p := range previous {
 		s.last[id] = &p
+		s.saved[id] = true
 	}
 	s.stateMu.Unlock()
 	for _, m := range monitors {
@@ -210,15 +215,10 @@ func (s *Scheduler) Sync(monitors []monitor.Monitor, since uint64, previous map[
 		if newer(m.ID) {
 			continue
 		}
-		// Every monitor, paused ones too, gets its saved state when it has none here: one resumed
-		// later then continues from it, rather than alerting on its first check. A state of its
-		// own is newer and stays.
+		// Every monitor, paused ones too, gets its saved state: one resumed later then continues
+		// from it, rather than alerting on its first check.
 		if p, saved := previous[m.ID]; saved {
-			s.stateMu.Lock()
-			if s.last[m.ID] == nil {
-				s.last[m.ID] = &p
-			}
-			s.stateMu.Unlock()
+			s.restoreStateLocked(m.ID, p)
 		}
 		if known, ok := s.monitors[m.ID]; ok && sameChecks(known, m) {
 			s.monitors[m.ID] = m
@@ -288,20 +288,32 @@ func (s *Scheduler) reconcileLocked(changed, removed []int32, previous map[int32
 		delete(s.suspended, id)
 		s.stateMu.Lock()
 		delete(s.last, id)
+		delete(s.saved, id)
 		s.stateMu.Unlock()
 		s.groupNames.Delete(id)
 	}
 	for _, id := range append(changed, below...) {
 		if _, running := s.runners[id]; !running && s.shouldRunLocked(id) {
 			if p, saved := previous[id]; saved {
-				s.stateMu.Lock()
-				if s.last[id] == nil {
-					s.last[id] = &p
-				}
-				s.stateMu.Unlock()
+				s.restoreStateLocked(id, p)
 			}
 			s.startLocked(s.monitors[id], 0)
 		}
+	}
+}
+
+// restoreStateLocked gives a monitor the state saved in the database. It replaces one that came
+// from the database too, which a later snapshot is newer than, but never the monitor's own
+// runner's, nor touches a suspended monitor, whose data is being cleared for a new history.
+func (s *Scheduler) restoreStateLocked(id int32, p monitor.Previous) {
+	if s.suspended[id] {
+		return
+	}
+	s.stateMu.Lock()
+	defer s.stateMu.Unlock()
+	if s.last[id] == nil || s.saved[id] {
+		s.last[id] = &p
+		s.saved[id] = true
 	}
 }
 
@@ -456,6 +468,7 @@ func (s *Scheduler) Remove(ctx context.Context, id int32) error {
 	}
 	s.stateMu.Lock()
 	delete(s.last, id)
+	delete(s.saved, id)
 	s.stateMu.Unlock()
 	s.mu.Unlock()
 	s.groupNames.Delete(id)
@@ -475,6 +488,7 @@ func (s *Scheduler) Suspend(ctx context.Context, id int32) error {
 	s.suspended[id] = true
 	s.stateMu.Lock()
 	delete(s.last, id)
+	delete(s.saved, id)
 	s.stateMu.Unlock()
 	s.mu.Unlock()
 	if err := s.sink.Flush(ctx); err != nil {
@@ -535,6 +549,7 @@ func (s *Scheduler) startLocked(m monitor.Monitor, delay time.Duration) {
 		defer s.stateMu.Unlock()
 		if final != nil {
 			s.last[m.ID] = final
+			delete(s.saved, m.ID)
 		}
 	}()
 }

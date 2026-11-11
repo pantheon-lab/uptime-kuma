@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"strconv"
 	"strings"
@@ -502,6 +503,25 @@ func TestReloadSendsOpenPagesTheirLists(t *testing.T) {
 	if got := read(anonymous); got != "" {
 		t.Errorf("a page that isn't logged in was sent: %.300s", got)
 	}
+	// The latest beats or the uptime that can't be read fail it too, so that the listener tries again.
+	for name, set := range map[string]func(error){
+		"latest beats": func(err error) { fs.latestBeatsErr = err },
+		"uptime":       func(err error) { fs.statsErr = err },
+	} {
+		failure := errors.New("the database is gone")
+		set(failure)
+		if err := s.Reload(ctx); !errors.Is(err, failure) {
+			t.Errorf("%s failing: reload returned %v", name, err)
+		}
+		set(nil)
+		for len(admin.out) > 0 {
+			<-admin.out
+		}
+	}
+	if err := s.Reload(ctx); err != nil {
+		t.Errorf("a reload with nothing failing: %v", err)
+	}
+
 	// Out of time: it fails, so that the listener tries again.
 	cancelled, cancel := context.WithCancel(ctx)
 	cancel()

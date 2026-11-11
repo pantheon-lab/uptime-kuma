@@ -39,6 +39,9 @@ type fakeStore struct {
 	monitors     map[int32]monitor.Monitor
 	nextID       int32
 	settings     map[string]json.RawMessage
+	// latestBeatsErr and statsErr are returned by LatestBeatPerMonitor and Stats, to test that a
+	// reload fails when they do.
+	latestBeatsErr, statsErr error
 	// createErr is returned by CreateMonitor, to test how a failure is shown.
 	createErr error
 	// important is what ImportantBeats returns, newest first, and chartRanges the ranges asked for.
@@ -279,7 +282,9 @@ func (f *fakeStore) DeleteMonitor(_ context.Context, id int32) error {
 }
 
 func (f *fakeStore) LatestBeats(context.Context, int32, int) ([]store.Beat, error) { return nil, nil }
-func (f *fakeStore) LatestBeatPerMonitor(context.Context) ([]store.Beat, error)    { return nil, nil }
+func (f *fakeStore) LatestBeatPerMonitor(context.Context) ([]store.Beat, error) {
+	return nil, f.latestBeatsErr
+}
 func (f *fakeStore) BeatsSince(context.Context, int32, time.Time, int) ([]store.Beat, error) {
 	return nil, nil
 }
@@ -307,7 +312,7 @@ func (f *fakeStore) ChartRange(_ context.Context, _ int32, from, to time.Time) (
 	f.chartRanges = append(f.chartRanges, [2]time.Time{from, to})
 	return []store.ChartPoint{{Time: from, Up: 1}}, nil
 }
-func (f *fakeStore) Stats(context.Context) ([]store.MonitorStats, error) { return nil, nil }
+func (f *fakeStore) Stats(context.Context) ([]store.MonitorStats, error) { return nil, f.statsErr }
 func (f *fakeStore) ListNotifications(context.Context) ([]store.Notification, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
