@@ -20,10 +20,10 @@ export interface MonitorPreset {
 // Every interval is at least 20 seconds, so that a preset never asks to confirm a low interval,
 // and every timeout is within 80% of its interval, which the form enforces.
 export const MONITOR_PRESETS: readonly MonitorPreset[] = [
-    { key: "critical", interval: 30, maxretries: 2, retryInterval: 20, timeout: 15, resendInterval: 10 },
-    { key: "standard", interval: 60, maxretries: 1, retryInterval: 30, timeout: 30, resendInterval: 0 },
-    { key: "medium", interval: 120, maxretries: 2, retryInterval: 60, timeout: 48, resendInterval: 0 },
-    { key: "relaxed", interval: 300, maxretries: 3, retryInterval: 60, timeout: 48, resendInterval: 0 },
+    { key: "critical", interval: 30, maxretries: 2, retryInterval: 20, timeout: 15, resendInterval: 5 },
+    { key: "standard", interval: 60, maxretries: 1, retryInterval: 30, timeout: 30, resendInterval: 5 },
+    { key: "medium", interval: 120, maxretries: 2, retryInterval: 60, timeout: 48, resendInterval: 3 },
+    { key: "relaxed", interval: 300, maxretries: 3, retryInterval: 60, timeout: 48, resendInterval: 2 },
 ];
 
 // Types whose timeout is a request timeout that a preset sets. Ping's is a global timeout tied to

@@ -79,12 +79,16 @@ get a new one. The file doesn't include notifications or tags.
 
 The Edit Monitor form's **Test** runs one check of the monitor as the form has it, without saving it.
 
-Its four **Preset** buttons set the interval, retries, retry interval, request timeout and resending at once: **Critical**
-checks every 30 seconds, retries twice 20 seconds apart, times out after 15 seconds and resends every 10 failed checks;
-**Standard** checks every 60 seconds, retries once after 30 and times out after 30; **Medium** checks every 2 minutes,
-retries twice a minute apart and times out after 48; **Relaxed** checks every 5 minutes,
-retries three times a minute apart and times out after 48. The timeout is set only for HTTP, keyword, JSON query and
-WebSocket monitors. A new monitor has the certificate and domain name expiry notifications on.
+Its four **Preset** buttons set the interval, retries, retry interval, request timeout and resending at once:
+
+| Preset   | Checks every | Retries | Retry every | Timeout | Resends every   |
+| -------- | ------------ | ------- | ----------- | ------- | --------------- |
+| Critical | 30 s         | 2       | 20 s        | 15 s    | 5 failed checks |
+| Standard | 60 s         | 1       | 30 s        | 30 s    | 5 failed checks |
+| Medium   | 2 min        | 2       | 1 min       | 48 s    | 3 failed checks |
+| Relaxed  | 5 min        | 3       | 1 min       | 48 s    | 2 failed checks |
+
+The timeout is set only for HTTP, keyword, JSON query and WebSocket monitors. A new monitor has the certificate and domain name expiry notifications on.
 
 ### A prompt for an AI agent
 
