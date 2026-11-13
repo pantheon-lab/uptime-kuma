@@ -211,9 +211,10 @@ holidays, tags, certificate details and expiry alerts, status pages with inciden
 
 Everything else answers "This isn't supported by this server yet". In particular:
 
-- Saving a monitor with another type, a proxy, or an authentication method other than basic or bearer is refused, so that a check never runs differently from what the form shows. Basic and bearer
-  authentication are saved as an `Authorization` header, and show up under Headers when you edit again.
-- Form settings this service doesn't have, such as certificate expiry notifications, aren't saved.
+- Saving a monitor of a type this service doesn't check is refused, so that a check never runs differently from what
+  the form shows.
+- The few form settings this service has no field for aren't saved, and the form shows their defaults when you edit
+  again.
 - Of **Settings > General**, the server timezone comes from `KUMA_TIMEZONE` and can't be changed there. The DNS cache,
   Prometheus and "API and MCP" switches are gone: the image has no nscd, OpenTelemetry replaces `/metrics`, and the
   REST API and MCP server are always on, guarded by their keys.
