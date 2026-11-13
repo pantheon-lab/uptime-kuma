@@ -1,0 +1,75 @@
+name: release
+
+# Makes a semver release from the Conventional Commits merged to main since the latest v* tag: a "feat!:" or
+# "BREAKING CHANGE:" footer bumps the major version, "feat:" the minor one, and "fix:", "perf:", "revert:" and
+# dependency updates the patch one. Commits of other types, such as docs, test, ci and chore, make no release.
+# extra/release-version.mjs works it out; without a v* tag yet, the first release is package.json's version.
+#
+# A release creates the v1.2.3 tag and the GitHub release with notes from the commits, then calls docker-release.yml
+# to publish the image as :1.2.3, :1.2 and :latest with the version built in. A tag created with GITHUB_TOKEN doesn't
+# start other workflows, so the image is built from here, not by the tag's push.
+#
+# Run it by hand to force a patch, minor or major release.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to bump; auto follows the commits
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+permissions: {}
+
+# One release at a time, in order, so that two quick merges don't both take the same version
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release: ${{ steps.next.outputs.release }}
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Next version
+        id: next
+        env:
+          BUMP: ${{ inputs.bump || 'auto' }}
+        run: |
+          node extra/release-version.mjs "$BUMP" "$RUNNER_TEMP/notes.md" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Notes
+        if: steps.next.outputs.release == 'true'
+        run: cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create the tag and the GitHub release
+        if: steps.next.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+
+  image:
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-release.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+    secrets: inherit

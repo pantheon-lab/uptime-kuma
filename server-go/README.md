@@ -210,6 +210,11 @@ Everything else answers "This isn't supported by this server yet". In particular
   [pantheon-lab/uptime-kuma](https://github.com/pantheon-lab/uptime-kuma/tags), read from GitHub's API every 48
   hours. Pre-releases such as `v1.3.0-beta.1` count when "Also check beta release" is ticked, and nothing is asked
   when "Show update if available" isn't. `KUMA_UPDATE_CHECK_URL=off` stops it altogether.
+- Releases are made by `.github/workflows/release.yml` on each push to `main`, from the Conventional Commits since
+  the latest `v*` tag: `feat!:` or a `BREAKING CHANGE:` footer bumps the major version, `feat:` the minor one, and
+  `fix:`, `perf:`, `revert:` and dependency updates the patch one; other types make no release. It creates the tag
+  and the GitHub release, and publishes the image as `:1.2.3`, `:1.2` and `:latest` with that version built in.
+  Running the workflow by hand can force a patch, minor or major release.
 - Changes made through the REST API reach open browsers only when they reload.
 
 Sessions are a random token in an `HttpOnly`, `SameSite=Lax` cookie, `Secure` behind HTTPS (the proxy must
