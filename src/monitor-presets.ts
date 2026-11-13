@@ -4,7 +4,7 @@
 
 export interface MonitorPreset {
     /** Key, also the suffix of its translation keys */
-    key: "critical" | "standard" | "relaxed";
+    key: "critical" | "standard" | "medium" | "relaxed";
     /** Seconds between checks */
     interval: number;
     /** Retries before the monitor is down */
@@ -22,6 +22,7 @@ export interface MonitorPreset {
 export const MONITOR_PRESETS: readonly MonitorPreset[] = [
     { key: "critical", interval: 30, maxretries: 2, retryInterval: 20, timeout: 15, resendInterval: 10 },
     { key: "standard", interval: 60, maxretries: 1, retryInterval: 30, timeout: 30, resendInterval: 0 },
+    { key: "medium", interval: 120, maxretries: 2, retryInterval: 60, timeout: 48, resendInterval: 0 },
     { key: "relaxed", interval: 300, maxretries: 3, retryInterval: 60, timeout: 48, resendInterval: 0 },
 ];
 
