@@ -737,6 +737,35 @@
                                 class="my-3"
                             />
 
+                            <!-- Presets for the interval, retries, timeout and resending -->
+                            <div class="my-3" data-testid="monitor-presets">
+                                <span id="monitor-presets-label" class="form-label d-block">
+                                    {{ $t("monitorPresets") }}
+                                </span>
+                                <div class="btn-group flex-wrap" role="group" aria-labelledby="monitor-presets-label">
+                                    <button
+                                        v-for="preset in monitorPresets"
+                                        :key="preset.key"
+                                        type="button"
+                                        class="btn btn-sm"
+                                        :class="activePreset === preset.key ? 'btn-primary' : 'btn-outline-primary'"
+                                        :data-testid="`monitor-preset-${preset.key}`"
+                                        :aria-pressed="activePreset === preset.key"
+                                        :title="presetSummary(preset)"
+                                        @click="applyPreset(preset)"
+                                    >
+                                        {{ $t(`monitorPreset_${preset.key}`) }}
+                                    </button>
+                                </div>
+                                <div class="form-text">
+                                    {{
+                                        activePreset
+                                            ? presetSummary(monitorPresets.find((p) => p.key === activePreset))
+                                            : $t("monitorPresetsHelp")
+                                    }}
+                                </div>
+                            </div>
+
                             <!-- Interval -->
                             <div class="my-3">
                                 <label for="interval" class="form-label">
@@ -2176,6 +2205,7 @@ import WebSocketAuthFields from "../components/monitor-types/WebSocketAuthFields
 import KafkaSaslFields from "../components/monitor-types/KafkaSaslFields.vue";
 import GrpcOptionsFields from "../components/monitor-types/GrpcOptionsFields.vue";
 import { monitorSummary } from "../monitor-summary";
+import { MONITOR_PRESETS, matchingPreset, presetSetsTimeout } from "../monitor-presets";
 
 const ADVANCED_KEY = "editMonitorAdvanced";
 
@@ -2225,7 +2255,7 @@ const monitorDefaults = {
     notificationIDList: {},
     ignoreTls: false,
     upsideDown: false,
-    expiryNotification: false,
+    expiryNotification: true,
     domainExpiryNotification: true,
     maxredirects: 10,
     accepted_statuscodes: defaultValueList.http.accepted_statuscodes,
@@ -2341,6 +2371,7 @@ export default {
             },
             draftGroupName: null,
             remoteBrowsersEnabled: false,
+            monitorPresets: MONITOR_PRESETS,
             lowIntervalConfirmation: {
                 confirmed: false,
                 editedValue: false,
@@ -2352,6 +2383,10 @@ export default {
     },
 
     computed: {
+        activePreset() {
+            return this.monitor.type ? matchingPreset(this.monitor) : null;
+        },
+
         /**
          * What the monitor will do, as the form has it
          * @returns {object} Summary
@@ -2974,6 +3009,46 @@ message HealthCheckResponse {
         this.kafkaSaslMechanismOptions = kafkaSaslMechanismOptions;
     },
     methods: {
+        /**
+         * Set the interval, retries, timeout and resending from a preset
+         * @param {object} preset One of MONITOR_PRESETS
+         * @returns {Promise<void>}
+         */
+        async applyPreset(preset) {
+            this.monitor.interval = preset.interval;
+            // The interval's watcher moves a retry interval that equals the old interval, so the
+            // rest is set after it has run
+            await this.$nextTick();
+            this.monitor.maxretries = preset.maxretries;
+            this.monitor.retryInterval = preset.retryInterval;
+            this.monitor.resendInterval = preset.resendInterval;
+            if (presetSetsTimeout(this.monitor.type)) {
+                this.monitor.timeout = preset.timeout;
+            }
+            this.finishUpdateInterval();
+        },
+
+        /**
+         * What a preset sets, in words
+         * @param {object} preset One of MONITOR_PRESETS
+         * @returns {string} Summary
+         */
+        presetSummary(preset) {
+            const parts = [
+                this.$t("checkEverySecond", [preset.interval]),
+                this.$t("monitorPresetRetries", [preset.maxretries, preset.retryInterval]),
+            ];
+            if (presetSetsTimeout(this.monitor.type)) {
+                parts.push(this.$t("timeoutAfter", [preset.timeout]));
+            }
+            parts.push(
+                preset.resendInterval > 0
+                    ? this.$t("resendEveryXTimes", [preset.resendInterval])
+                    : this.$t("resendDisabled")
+            );
+            return parts.join(" · ");
+        },
+
         /**
          * Open or fold the Advanced section, and remember it
          * @param {boolean} show Open it

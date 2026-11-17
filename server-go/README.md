@@ -79,6 +79,17 @@ get a new one. The file doesn't include notifications or tags.
 
 The Edit Monitor form's **Test** runs one check of the monitor as the form has it, without saving it.
 
+Its four **Preset** buttons set the interval, retries, retry interval, request timeout and resending at once:
+
+| Preset   | Checks every | Retries | Retry every | Timeout | Resends every   |
+| -------- | ------------ | ------- | ----------- | ------- | --------------- |
+| Critical | 30 s         | 2       | 20 s        | 15 s    | 5 failed checks |
+| Standard | 60 s         | 1       | 30 s        | 30 s    | 5 failed checks |
+| Medium   | 2 min        | 2       | 1 min       | 48 s    | 3 failed checks |
+| Relaxed  | 5 min        | 3       | 1 min       | 48 s    | 2 failed checks |
+
+The timeout is set only for HTTP, keyword, JSON query and WebSocket monitors. A new monitor has the certificate and domain name expiry notifications on.
+
 ### A prompt for an AI agent
 
 When a monitor is down or pending, its page has **Prompt for an AI agent**, and when any are down the dashboard has
@@ -200,9 +211,10 @@ holidays, tags, certificate details and expiry alerts, status pages with inciden
 
 Everything else answers "This isn't supported by this server yet". In particular:
 
-- Saving a monitor with another type, a proxy, or an authentication method other than basic or bearer is refused, so that a check never runs differently from what the form shows. Basic and bearer
-  authentication are saved as an `Authorization` header, and show up under Headers when you edit again.
-- Form settings this service doesn't have, such as certificate expiry notifications, aren't saved.
+- Saving a monitor of a type this service doesn't check is refused, so that a check never runs differently from what
+  the form shows.
+- The few form settings this service has no field for aren't saved, and the form shows their defaults when you edit
+  again.
 - Of **Settings > General**, the server timezone comes from `KUMA_TIMEZONE` and can't be changed there. The DNS cache,
   Prometheus and "API and MCP" switches are gone: the image has no nscd, OpenTelemetry replaces `/metrics`, and the
   REST API and MCP server are always on, guarded by their keys.
