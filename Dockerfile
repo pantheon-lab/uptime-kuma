@@ -9,7 +9,10 @@ RUN npm ci --no-audit --no-fund
 COPY index.html vite.config.mjs tsconfig.json ./
 COPY public ./public
 COPY src ./src
-RUN npm run build && node -p "require('./package.json').version" > /app/VERSION
+# A release passes its version, which the UI and the server then both report; otherwise it's package.json's
+ARG VERSION=""
+RUN if [ -n "$VERSION" ]; then npm pkg set version="$VERSION"; fi \
+    && npm run build && node -p "require('./package.json').version" > /app/VERSION
 
 # Builds on the build platform and cross-compiles, so multi-arch images don't need emulation.
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS backend

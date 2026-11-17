@@ -2,8 +2,9 @@ name: docker-release
 
 # Builds the root Dockerfile, the Go backend with the web UI embedded, and publishes it to GHCR,
 # and to Docker Hub when configured. Pushes to main publish :main and :sha-<short>; a v1.2.3 tag publishes :1.2.3, :1.2
-# and :latest. Pull requests only build. Each is also published with an -apprise suffix (:1.2.3-apprise,
-# :latest-apprise, ...), the Dockerfile's apprise target, which adds the apprise command.
+# and :latest. release.yml calls it with the version of each release it makes, which publishes the same tags as a
+# v1.2.3 tag. Both build the version in. Pull requests only build. Each is also published with an -apprise suffix
+# (:1.2.3-apprise, :latest-apprise, ...), the Dockerfile's apprise target, which adds the apprise command.
 #
 # Docker Hub is optional. To enable it, set the repository variable DOCKERHUB_IMAGE (such as
 # pantheonlab/uptime-kuma) and the secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN.
@@ -29,10 +30,17 @@ on:
       - main
     paths: *image-paths
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        description: The release's version, such as 1.2.3
+        type: string
+        required: true
 permissions: {}
 
 concurrency:
-  group: docker-release-${{ github.ref }}
+  # A release's build mustn't queue behind, or be replaced by, the build of the push that made it
+  group: docker-release-${{ inputs.version || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -52,6 +60,7 @@ jobs:
     env:
       PUSH: ${{ github.event_name != 'pull_request' }}
       DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
+      RELEASE_VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
@@ -86,8 +95,10 @@ jobs:
             type=sha,prefix=sha-
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},value=v${{ inputs.version }},enable=${{ inputs.version != '' }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ inputs.version }},enable=${{ inputs.version != '' }}
           flavor: |
-            latest=auto
+            latest=${{ inputs.version != '' && 'true' || 'auto' }}
             suffix=${{ matrix.suffix }},onlatest=true
           labels: |
             org.opencontainers.image.title=uptime-kuma
@@ -98,6 +109,9 @@ jobs:
         with:
           context: .
           target: ${{ matrix.target }}
+          # A v1.2.3 tag or a release builds its version in; other builds report package.json's
+          build-args: |
+            VERSION=${{ env.RELEASE_VERSION || (github.ref_type == 'tag' && steps.meta.outputs.version) || '' }}
           platforms: linux/amd64,linux/arm64
           push: ${{ env.PUSH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
